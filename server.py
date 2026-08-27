@@ -1609,11 +1609,29 @@ class Handler(BaseHTTPRequestHandler):
         offsets = {}   # sessionId -> byte offset lido
         leftover = {}  # sessionId -> pedaco incompleto de linha
 
+        # find_subagent_transcripts() chama _scan_agent_roles() pra cada
+        # subagente, que reprocessa o transcript inteiro do PAI (pode ter
+        # varios MB) sempre que o mtime dele muda - e o mtime do pai muda o
+        # tempo todo justamente enquanto ele supervisiona o subagente (o
+        # cenario em que a atualizacao em tempo real mais importa). Chamar
+        # isso a cada tick de 1s deste loop (bem mais frequente que os 2s de
+        # /api/state, cadencia pra qual esse custo foi pensado - ver docstring
+        # de _scan_agent_roles) fazia cada iteracao estourar bem alem de 1s
+        # com subagentes ativos, atrasando o envio de TODOS os steps (nao so
+        # os do subagente) pelo unico SSE compartilhado: na pratica, o painel
+        # do subagente parecia travado/sem atualizar. A lista de subagentes
+        # (que muda pouco de um tick pro outro) agora e recalculada no mesmo
+        # ritmo de /api/state; a leitura incremental dos bytes novos de cada
+        # transcript ja conhecido continua a cada 1s, sem essa lentidao.
+        SUBAGENT_LIST_REFRESH_SECS = 2
+        subagent_list = find_subagent_transcripts()
+        next_subagent_refresh = time.time() + SUBAGENT_LIST_REFRESH_SECS
+
         try:
             # backlog inicial: ultimas linhas de cada sessao viva
             sessions = {
                 s["sessionId"]: s
-                for s in read_sessions() + find_subagent_transcripts()
+                for s in read_sessions() + subagent_list
                 if s.get("alive")
             }
             for sid, s in sessions.items():
@@ -1638,9 +1656,13 @@ class Handler(BaseHTTPRequestHandler):
                     self._sse_send({**step, "sessionName": s.get("name"), "backlog": True})
 
             while True:
+                now = time.time()
+                if now >= next_subagent_refresh:
+                    subagent_list = find_subagent_transcripts()
+                    next_subagent_refresh = now + SUBAGENT_LIST_REFRESH_SECS
                 sessions = {
                     s["sessionId"]: s
-                    for s in read_sessions() + find_subagent_transcripts()
+                    for s in read_sessions() + subagent_list
                     if s.get("alive")
                 }
                 for sid, s in sessions.items():
@@ -1648,6 +1670,33 @@ class Handler(BaseHTTPRequestHandler):
                     if not fpath:
                         continue
                     size = fpath.stat().st_size
+                    if sid not in offsets:
+                        # sessao nascida DEPOIS da conexao deste stream (agente
+                        # criado durante o uso do app) - sem isso, `pos` nasceria
+                        # = size (fim do arquivo) na 1a vez que este loop
+                        # descobre a sessao, e tudo que ja tinha sido escrito no
+                        # transcript ATE esse instante (ex: a resposta inicial de
+                        # um agente recem-criado, que muitas vezes ja chega
+                        # pronta no mesmo tick de 1s) seria silenciosamente
+                        # perdido pra sempre - o painel abriria com o transcript
+                        # incompleto e nunca se corrigiria sozinho. Manda esse
+                        # conteudo ja existente como backlog agora, igual o bloco
+                        # de conexao faz pras sessoes que ja estavam vivas na
+                        # hora do connect.
+                        with fpath.open("r", errors="ignore") as f:
+                            chunk = f.read()
+                        offsets[sid] = size
+                        lines = chunk.split("\n")
+                        collected = []
+                        for line in lines:
+                            if line.strip():
+                                collected.extend(parse_step(line))
+                        for step in collected[-HISTORY_BACKLOG_STEPS:]:
+                            step["sessionId"] = sid
+                            step["pid"] = s["pid"]
+                            step["name"] = step.get("name") or s.get("name")
+                            self._sse_send({**step, "sessionName": s.get("name"), "backlog": True})
+                        continue
                     pos = offsets.get(sid, size)
                     if size < pos:
                         pos = 0  # arquivo rotacionado/truncado
@@ -1667,7 +1716,6 @@ class Handler(BaseHTTPRequestHandler):
                                 step["pid"] = s["pid"]
                                 step["sessionName"] = s.get("name")
                                 self._sse_send(step)
-                    offsets.setdefault(sid, size)
                 self._sse_send({"kind": "ping"})
                 time.sleep(1)
         except (BrokenPipeError, ConnectionResetError):
