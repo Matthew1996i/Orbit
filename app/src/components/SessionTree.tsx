@@ -405,7 +405,7 @@ interface TreeProps {
 }
 
 const MIN_SCALE = 0.4;
-const MAX_SCALE = 1.6;
+const MAX_SCALE = 4;
 const ZOOM_SPEED = 0.0012;
 // colchao (em coordenadas de conteudo) alem da borda visivel do viewport —
 // mantem cards logo fora da tela ja montados, pra nao "piscar" (montar/
@@ -429,6 +429,14 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
   const transform = useRef({ x: 0, y: 0, scale: 1 });
   const hasPannedRef = useRef(false);
   const [isPanning, setIsPanning] = useState(false);
+  // true durante um gesto de zoom (scroll) e por um curto periodo depois —
+  // usado so pra PAUSAR a animacao de dash da aresta "flowing" durante o
+  // zoom. Chromium tem um bug conhecido de repaint com stroke-dasharray
+  // animado dentro de um ancestral em transform:scale() ativo (o traco pode
+  // sumir ou ficar borrado ate o scale parar) — pausar a animacao durante o
+  // gesto evita cair nesse caso.
+  const [isZooming, setIsZooming] = useState(false);
+  const zoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // retangulo visivel (em coordenadas de conteudo, ja com a folga do
   // CULL_MARGIN) — e o unico estado React que reflete o transform (que em si
   // e mutado direto no DOM via ref, sem re-render, por performance). So isso
@@ -466,6 +474,14 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
     const { x, y, scale } = transform.current;
     pan.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     scheduleVisibleRectUpdate();
+  };
+
+  // liga will-change SO durante o gesto (pan ou zoom) — no repouso, o
+  // Chromium re-rasteriza o conteudo nitido quase na hora em vez de esperar
+  // o idle longo (~10s) que acontece quando will-change fica sempre ligado.
+  const setGpuLayerActive = (active: boolean) => {
+    const pan = panRef.current;
+    if (pan) pan.style.willChange = active ? 'transform' : 'auto';
   };
 
   // viewport pode mudar de tamanho (resize da janela) sem nenhum pan/zoom
@@ -563,6 +579,10 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
       const wy = (cy - y) / scale;
       transform.current = { scale: nextScale, x: cx - wx * nextScale, y: cy - wy * nextScale };
       applyTransform();
+
+      setIsZooming(true);
+      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+      zoomTimeoutRef.current = setTimeout(() => setIsZooming(false), 250);
     };
 
     viewport.addEventListener('pointerdown', onPointerDown);
@@ -576,6 +596,7 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
       viewport.removeEventListener('pointerup', onPointerUp);
       viewport.removeEventListener('pointercancel', onPointerUp);
       viewport.removeEventListener('wheel', onWheel);
+      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
     };
   }, []);
 
@@ -583,6 +604,7 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
     viewportRef,
     panRef,
     isPanning,
+    isZooming,
     visibleRect,
     centerView,
     zoomIn: () => zoomBy(1.25),
@@ -645,7 +667,7 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
       }
     : null;
 
-  const { viewportRef, panRef, isPanning, visibleRect, centerView, zoomIn, zoomOut, getScale } =
+  const { viewportRef, panRef, isPanning, isZooming, visibleRect, centerView, zoomIn, zoomOut, getScale } =
     usePanAndZoom(width, height);
 
   // culling: so monta no DOM os cards/arestas que caem dentro do retangulo
@@ -696,7 +718,7 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
         <div className="session-tree" style={{ width, height }}>
           <svg className="session-tree-svg" width={width} height={height}>
             {visibleEdges.map(({ parent, child }) => {
-              const flowing = child.session.alive && child.session.status === 'busy';
+              const flowing = child.session.alive && child.session.status === 'busy' && !isZooming;
               return (
                 <path
                   key={child.session.sessionId}

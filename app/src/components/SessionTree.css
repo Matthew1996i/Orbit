@@ -18,7 +18,11 @@
   top: 40px;
   left: 24px;
   transform-origin: 0 0;
-  will-change: transform;
+  /* will-change e ligado/desligado dinamicamente via JS (usePanAndZoom) so
+     durante o gesto de pan/zoom — deixado fixo aqui, o Chromium mantem o
+     elemento numa camada de GPU com resolucao "congelada" pra sempre (ate
+     um idle bem longo, ~10s), entao o texto nunca re-rasteriza nitido
+     enquanto parado com zoom aplicado. */
 }
 
 .session-tree {
