@@ -225,6 +225,10 @@ export default function TerminalPanel({
 
     const onPointerDown = (e: PointerEvent) => {
       if ((e.target as HTMLElement).closest('.term-dot')) return;
+      // sem isso o Chromium inicia selecao de texto/drag nativo (o "fantasma"
+      // de captura da tela acompanhando o cursor) ao arrastar pelo cabecalho —
+      // mesmo motivo do onPointerDown do TreeCard em SessionTree.tsx.
+      e.preventDefault();
       onFocusRef.current();
       dragging = true;
       startX = e.clientX;

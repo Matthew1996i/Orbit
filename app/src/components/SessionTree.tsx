@@ -299,7 +299,12 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, ge
     const drag = dragRef.current;
     dragRef.current = null;
     e.currentTarget.releasePointerCapture(e.pointerId);
-    if (!drag?.moved && canOpen) onOpen(session);
+    // "drag" so existe se o pointerdown foi botao esquerdo (onPointerDown
+    // ignora outros botoes) — sem essa checagem, um right-click (que nunca
+    // populou dragRef) caia no mesmo "!drag?.moved" de um clique de verdade
+    // (undefined tambem passa em "nao moveu"), abrindo o painel junto do
+    // menu de contexto.
+    if (drag && !drag.moved && canOpen) onOpen(session);
   };
 
   return (
