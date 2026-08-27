@@ -65,7 +65,7 @@ export default function TitleBar({ stats }: Props) {
         >
           <PanelLeft size={15} color="#ffffff" />
         </button>
-        <span className="title-bar-name">Claude Sessions</span>
+        <span className="title-bar-name">Orbit</span>
       </div>
 
       {stats && <div className="title-bar-stats">{stats}</div>}
@@ -96,7 +96,7 @@ export default function TitleBar({ stats }: Props) {
 
       <ConfirmDialog
         open={showAbout}
-        title="Claude Sessions"
+        title="Orbit"
         message={`Dashboard de sessões do Claude Code.\n\nVersão: ${version || '—'}`}
         singleButton
         confirmText="OK"

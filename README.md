@@ -1,4 +1,4 @@
-# Claude Sessions Dashboard
+# Orbit (Claude Sessions Dashboard)
 
 Dashboard local para acompanhar e interagir com as sessões do Claude Code
 rodando na sua máquina. É composto por duas partes:
