@@ -100,6 +100,7 @@ export interface UsageWindow {
 export interface ClaudeUsage {
   fiveHour: UsageWindow;
   sevenDay: UsageWindow;
+  opus: UsageWindow | null;
 }
 
 export async function fetchUsage(): Promise<{ claude: ClaudeUsage | null; claudeAuthenticated: boolean }> {

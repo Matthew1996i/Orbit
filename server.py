@@ -1381,14 +1381,31 @@ def read_claude_usage():
         cfg = json.loads((Path.home() / ".claude.json").read_text())
     except (OSError, json.JSONDecodeError):
         return None
-    util = (cfg.get("cachedUsageUtilization") or {}).get("utilization") or {}
+    cached = cfg.get("cachedUsageUtilization") or {}
+    fetched_at_ms = cached.get("fetchedAtMs")
+    util = cached.get("utilization") or {}
     five_hour = util.get("five_hour") or {}
     seven_day = util.get("seven_day") or {}
+    # quota semanal especifica do Opus — so populada em algumas contas/planos;
+    # None (nao {}) quando a propria CLI nao rastreia isso, pra o frontend
+    # distinguir "0% de uso" de "essa conta nem tem esse limite".
+    seven_day_opus = util.get("seven_day_opus")
     if not five_hour and not seven_day:
         return None
     return {
         "fiveHour": {"utilization": five_hour.get("utilization"), "resetsAt": five_hour.get("resets_at")},
         "sevenDay": {"utilization": seven_day.get("utilization"), "resetsAt": seven_day.get("resets_at")},
+        "opus": (
+            {"utilization": seven_day_opus.get("utilization"), "resetsAt": seven_day_opus.get("resets_at")}
+            if seven_day_opus
+            else None
+        ),
+        # quando a PROPRIA CLI atualizou esse cache pela ultima vez — nao
+        # existe consulta ao vivo aqui (nem em lugar nenhum deste backend);
+        # o numero so muda quando o `claude` decide reescrever esse arquivo
+        # por conta propria. Exibir essa idade evita prometer "tempo real"
+        # que este backend nao tem como entregar.
+        "fetchedAtMs": fetched_at_ms,
     }
 
 
