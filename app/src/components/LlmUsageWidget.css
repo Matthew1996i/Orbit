@@ -8,6 +8,11 @@
   overflow-y: hidden;
   padding-bottom: 2px;
   scrollbar-width: thin;
+  /* sem isso, tentar arrastar o canvas comecando em cima da caixinha
+     seleciona o texto dela (e pode disparar o "fantasma" de drag nativo do
+     Chromium) em vez de so ignorar o gesto — mesmo problema ja resolvido em
+     .tree-card e no cabecalho do TerminalPanel. */
+  user-select: none;
 }
 .llm-usage-widget::-webkit-scrollbar {
   height: 4px;
