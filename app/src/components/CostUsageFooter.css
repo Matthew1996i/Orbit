@@ -1,0 +1,13 @@
+.cost-usage-footer {
+  position: absolute;
+  bottom: 8px;
+  left: 16px;
+  z-index: 5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.01em;
+  color: #f5a623;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}

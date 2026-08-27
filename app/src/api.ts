@@ -108,6 +108,29 @@ export async function fetchUsage(): Promise<{ claude: ClaudeUsage | null; claude
   return res.json();
 }
 
+export interface SessionCostUsage {
+  tokensTotal: number;
+  costUsd: number;
+  costBrl: number;
+}
+
+export interface CostSummary {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  tokensTotal: number;
+  costUsd: number;
+  costBrl: number;
+  perSession: Record<string, SessionCostUsage>;
+}
+
+export async function fetchCostSummary(): Promise<CostSummary> {
+  const res = await fetch(`${BACKEND_HTTP}/api/cost-summary`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`cost-summary ${res.status}`);
+  return res.json();
+}
+
 export async function startInstall(
   cli: string,
   action: 'install' | 'login' | 'logout' = 'install',

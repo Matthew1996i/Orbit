@@ -18,11 +18,44 @@ import {
   Calendar,
   Search,
 } from 'lucide-react';
-import { SessionInfo } from '../api';
+import { SessionInfo, CostSummary, SessionCostUsage, fetchCostSummary } from '../api';
 import { shortCwd, formatModelEffort } from '../utils/format';
 import { llmLogoFor } from '../utils/llmLogos';
 import LlmUsageWidget from './LlmUsageWidget';
+import CostUsageFooter, { formatTokens, formatBrl } from './CostUsageFooter';
 import './SessionTree.css';
+
+// relatorio de custo muda bem mais devagar que status de sessao (que ja
+// atualiza a cada 2s) — um numero que so cresce aos poucos nao precisa do
+// mesmo ritmo, e um poll mais espacado evita trafego extra so pra reler
+// transcripts inteiros no backend. Um unico poll aqui alimenta o rodape geral
+// E o custo por card, em vez de cada um buscar por conta propria.
+const COST_REFRESH_MS = 8000;
+
+function useCostSummary(): CostSummary | null {
+  const [summary, setSummary] = useState<CostSummary | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetchCostSummary()
+        .then((response) => {
+          if (!cancelled) setSummary(response);
+        })
+        .catch(() => {
+          /* backend indisponivel nesse ciclo — mantem o ultimo valor conhecido */
+        });
+    };
+    load();
+    const id = setInterval(load, COST_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  return summary;
+}
 
 // mapeia o nome do servidor MCP (ex: "redmine", "google-drive") pra um icone
 // generico que representa o TIPO de servico — nao ha como buscar o logo real
@@ -158,6 +191,29 @@ function flattenNodes(node: TreeNode): TreeNode[] {
   return [node, ...node.children.flatMap(flattenNodes)];
 }
 
+// custo/consumo TOTAL da execucao de um agente pai — soma a sessao raiz +
+// TODOS os descendentes (subagentes), nao so o proprio transcript da raiz.
+// Ignora culling de proposito: o total da execucao nao depende do que esta
+// visivel na tela no momento.
+function rollupCostUsage(
+  node: TreeNode,
+  perSession: Record<string, SessionCostUsage>,
+): SessionCostUsage | undefined {
+  let tokensTotal = 0;
+  let costUsd = 0;
+  let costBrl = 0;
+  let any = false;
+  flattenNodes(node).forEach((n) => {
+    const own = perSession[n.session.sessionId];
+    if (!own) return;
+    any = true;
+    tokensTotal += own.tokensTotal;
+    costUsd += own.costUsd;
+    costBrl += own.costBrl;
+  });
+  return any ? { tokensTotal, costUsd, costBrl } : undefined;
+}
+
 function statusOf(session: SessionInfo): 'busy' | 'idle' | 'dead' {
   if (!session.alive) return 'dead';
   return session.status === 'busy' ? 'busy' : 'idle';
@@ -172,13 +228,14 @@ interface CardProps {
   onContextMenu: (session: SessionInfo, x: number, y: number) => void;
   onDragBy: (rootId: string, dx: number, dy: number) => void;
   getScale: () => number;
+  costUsage?: SessionCostUsage;
 }
 
 // limiar (em px de tela) pra distinguir "clicou" de "arrastou" — abaixo disso
 // ainda conta como clique (abre o painel), acima vira arraste do grupo.
 const DRAG_THRESHOLD = 4;
 
-function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, getScale }: CardProps) {
+function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, getScale, costUsage }: CardProps) {
   const { session } = node;
   const status = statusOf(session);
   const name = session.name || session.sessionId.slice(0, 8);
@@ -246,6 +303,7 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, ge
   };
 
   return (
+    <>
     <div
       className={`tree-card ${isRootLevel ? 'tree-card-root' : 'tree-card-child'} ${status}${session.remoteControl ? ' tree-card-remote' : ''}${isActivityNode ? ' tree-card-activity' : ''}`}
       style={{
@@ -301,6 +359,26 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, ge
         )}
       </div>
     </div>
+    {/* fora do card (que tem overflow:hidden) — nao clicavel, so informativo,
+        por isso pointer-events:none via CSS em vez de outro <button>. No card
+        RAIZ (agente pai) fica em cima-a-direita, pra frente do card, ja que
+        ali o valor e o TOTAL da execucao (ele + subagentes) — nos demais
+        continua embaixo, mostrando so o proprio custo daquele no. */}
+    {costUsage && costUsage.tokensTotal > 0 && (
+      <div
+        className={`tree-card-cost${isRootLevel ? ' tree-card-cost-top' : ''}`}
+        style={
+          isRootLevel
+            ? { left: x, top: y - CARD_HEIGHT / 2 - 30, width: CARD_WIDTH / 2 }
+            : { left: x - CARD_WIDTH / 2, top: y + CARD_HEIGHT / 2 + 4, width: CARD_WIDTH }
+        }
+        title={isRootLevel ? 'custo total desta execução (agente + subagentes)' : 'custo estimado desta sessão'}
+      >
+        <div>{formatTokens(costUsage.tokensTotal)} tokens</div>
+        <div>~{formatBrl(costUsage.costBrl)}</div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -514,8 +592,14 @@ function intersects(rect: Rect, x: number, y: number, w: number, h: number): boo
 
 const GROUP_BOX_PAD = 22;
 const GROUP_BOX_LABEL_H = 26;
+// reserva de espaco embaixo do card pro rotulo de custo/token (2 linhas) —
+// sem isso a caixa tracejada "fora do app" terminava na borda do CARD, e o
+// rotulo (que fica fora do card, embaixo dele) vazava pra fora da caixa.
+const COST_LABEL_H = 26;
 
 export default function SessionTree({ sessions, onOpen, onContextMenu }: TreeProps) {
+  const costSummary = useCostSummary();
+
   const { roots, width, height } = useMemo(() => {
     const forest = buildForest(sessions);
     const { width: layoutWidth, height: layoutHeight } = layout(forest);
@@ -552,7 +636,7 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
         left: Math.min(...externalPositioned.map((p) => p.x - CARD_WIDTH / 2)) - GROUP_BOX_PAD,
         right: Math.max(...externalPositioned.map((p) => p.x + CARD_WIDTH / 2)) + GROUP_BOX_PAD,
         top: Math.min(...externalPositioned.map((p) => p.y - CARD_HEIGHT / 2)) - GROUP_BOX_PAD - GROUP_BOX_LABEL_H,
-        bottom: Math.max(...externalPositioned.map((p) => p.y + CARD_HEIGHT / 2)) + GROUP_BOX_PAD,
+        bottom: Math.max(...externalPositioned.map((p) => p.y + CARD_HEIGHT / 2)) + GROUP_BOX_PAD + COST_LABEL_H,
       }
     : null;
 
@@ -634,22 +718,35 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
 
           {visibleNodes.map((node) => {
             const pos = posOf(node);
+            const isRootLevel = node.depth === 0;
+            // no card do agente PAI mostra o custo TOTAL da execucao (ele +
+            // todos os subagentes) — nao so o proprio transcript da raiz,
+            // que sozinho subestimaria o custo real de rodar a arvore
+            // inteira. Cards filhos continuam mostrando so o proprio custo.
+            const costUsage = costSummary
+              ? isRootLevel
+                ? rollupCostUsage(node, costSummary.perSession)
+                : costSummary.perSession[node.session.sessionId]
+              : undefined;
             return (
               <TreeCard
                 key={node.session.sessionId}
                 node={node}
                 x={pos.x}
                 y={pos.y}
-                isRootLevel={node.depth === 0}
+                isRootLevel={isRootLevel}
                 onOpen={onOpen}
                 onContextMenu={onContextMenu}
                 onDragBy={handleDragBy}
                 getScale={getScale}
+                costUsage={costUsage}
               />
             );
           })}
         </div>
       </div>
+
+      <CostUsageFooter summary={costSummary} />
     </div>
   );
 }

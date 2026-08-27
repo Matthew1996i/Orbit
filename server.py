@@ -850,6 +850,153 @@ def find_subagent_transcripts():
     return sessions
 
 
+PRICING_PATH = Path.home() / ".claude" / "tools" / "precos-modelos.json"
+_PRICING_CACHE = None
+
+
+def _load_pricing():
+    """Tabela de preco por modelo (USD por 1M tokens) e cotacao USD->BRL de
+    fallback — mesma fonte que a skill cost-report do orquestrador usa. Se o
+    arquivo nao existir nesta maquina, cai num preco generico razoavel: o
+    relatorio de custo fica menos preciso, mas nao quebra."""
+    global _PRICING_CACHE
+    if _PRICING_CACHE is not None:
+        return _PRICING_CACHE
+    fallback = {
+        "usd_brl_fallback": 5.09,
+        "modelos": {},
+        "default": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75},
+    }
+    try:
+        _PRICING_CACHE = json.loads(PRICING_PATH.read_text())
+    except (OSError, json.JSONDecodeError):
+        _PRICING_CACHE = fallback
+    return _PRICING_CACHE
+
+
+def _price_for_model(model):
+    pricing = _load_pricing()
+    modelos = pricing.get("modelos") or {}
+    return modelos.get(model) or pricing.get("default") or {}
+
+
+_USAGE_CACHE = {}  # caminho do transcript (str) -> (mtime, {tokens/custo acumulados})
+
+
+def _scan_transcript_usage(fpath):
+    """Soma tokens e custo estimado (USD) de TODAS as mensagens do assistente
+    num transcript inteiro. Diferente dos outros scans deste arquivo (que so
+    leem o RABO pra achar o estado mais recente), o relatorio de custo
+    precisa do historico inteiro da sessao — por isso so reprocessa o
+    arquivo quando o mtime muda, reaproveitando o total cacheado entre polls."""
+    try:
+        mtime = fpath.stat().st_mtime
+    except OSError:
+        return None
+    cache_key = str(fpath)
+    cached = _USAGE_CACHE.get(cache_key)
+    if cached and cached[0] == mtime:
+        return cached[1]
+
+    input_tokens = output_tokens = cache_read_tokens = cache_write_tokens = 0
+    cost_usd = 0.0
+    try:
+        with fpath.open("r", errors="ignore") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if d.get("type") != "assistant":
+                    continue
+                message = d.get("message") or {}
+                usage = message.get("usage") or {}
+                if not usage:
+                    continue
+                price = _price_for_model(message.get("model") or "")
+                inp = usage.get("input_tokens") or 0
+                out = usage.get("output_tokens") or 0
+                cread = usage.get("cache_read_input_tokens") or 0
+                cwrite = usage.get("cache_creation_input_tokens") or 0
+                input_tokens += inp
+                output_tokens += out
+                cache_read_tokens += cread
+                cache_write_tokens += cwrite
+                cost_usd += (
+                    inp * (price.get("input") or 0)
+                    + out * (price.get("output") or 0)
+                    + cread * (price.get("cache_read") or price.get("input") or 0)
+                    + cwrite * (price.get("cache_write") or price.get("input") or 0)
+                ) / 1_000_000
+    except OSError:
+        return None
+
+    result = {
+        "inputTokens": input_tokens,
+        "outputTokens": output_tokens,
+        "cacheReadTokens": cache_read_tokens,
+        "cacheWriteTokens": cache_write_tokens,
+        "costUsd": cost_usd,
+    }
+    _USAGE_CACHE[cache_key] = (mtime, result)
+    return result
+
+
+def read_cost_summary():
+    """Agrega tokens/custo de TODAS as sessoes conhecidas no momento (reais +
+    subagentes ativos) — mesmo escopo de sessoes que /api/state expoe na
+    arvore, entao o numero bate com o que o usuario ve nos cards. Tambem monta
+    o detalhamento POR SESSAO (perSession), pra cada card poder mostrar so o
+    proprio custo/consumo, alem do agregado geral."""
+    # sessionId -> caminho do transcript — 1:1 (cada sessao/subagente tem seu
+    # proprio arquivo), diferente do dedup por fpath usado antes so pra
+    # proteger o total contra sessao fisicamente duplicada (ver read_sessions).
+    session_paths = {}
+    for s in read_sessions():
+        fpath = transcript_path(s.get("cwd", ""), s.get("sessionId", ""))
+        if fpath:
+            session_paths[s["sessionId"]] = fpath
+    for s in find_subagent_transcripts():
+        known_path = s.get("_transcriptPath")
+        if known_path:
+            session_paths[s["sessionId"]] = Path(known_path)
+
+    pricing = _load_pricing()
+    usd_brl = pricing.get("usd_brl_fallback") or 5.09
+
+    totals = {"inputTokens": 0, "outputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0, "costUsd": 0.0}
+    per_session = {}
+    seen_paths = set()
+    for session_id, fpath in session_paths.items():
+        usage = _scan_transcript_usage(fpath)
+        if not usage:
+            continue
+        session_tokens = (
+            usage["inputTokens"] + usage["outputTokens"] + usage["cacheReadTokens"] + usage["cacheWriteTokens"]
+        )
+        per_session[session_id] = {
+            "tokensTotal": session_tokens,
+            "costUsd": usage["costUsd"],
+            "costBrl": usage["costUsd"] * usd_brl,
+        }
+        # o agregado geral ainda deduplica por arquivo fisico — uma sessao
+        # duplicada (bug ja corrigido, mas defensivo) nao deve contar 2x no
+        # total, mesmo que apareca 2x no detalhamento por sessao.
+        if str(fpath) in seen_paths:
+            continue
+        seen_paths.add(str(fpath))
+        for key in ("inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens"):
+            totals[key] += usage[key]
+        totals["costUsd"] += usage["costUsd"]
+
+    totals["costBrl"] = totals["costUsd"] * usd_brl
+    totals["tokensTotal"] = (
+        totals["inputTokens"] + totals["outputTokens"] + totals["cacheReadTokens"] + totals["cacheWriteTokens"]
+    )
+    totals["perSession"] = per_session
+    return totals
+
+
 def resolve_transcript(session):
     """Caminho do transcript de uma sessao: usa o caminho ja conhecido (subagentes,
     que nao moram em PROJECTS_DIR/<cwd>/<sessionId>.jsonl) quando disponivel, senao
@@ -1381,6 +1528,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path.startswith("/api/usage"):
             self._send_json({"claude": read_claude_usage(), "claudeAuthenticated": _claude_authenticated()})
+            return
+
+        if self.path.startswith("/api/cost-summary"):
+            self._send_json(read_cost_summary())
             return
 
         if self.path.startswith("/api/agent-file"):

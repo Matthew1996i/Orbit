@@ -1,6 +1,6 @@
 .session-tree-scroll {
   width: 100%;
-  height: calc(100vh - 150px);
+  height: 100%;
   overflow: hidden;
   margin: 0;
   padding: 0;
@@ -317,4 +317,29 @@
   margin-top: 2px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+/* custo/consumo POR sessao, fora do card (que tem overflow:hidden) — so
+   informativo, nao clicavel. */
+.tree-card-cost {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 8px;
+  color: #f5a623;
+  text-align: left;
+  pointer-events: none;
+}
+.tree-card-cost > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* variante do card raiz: fica ACIMA do card, alinhada a direita (metade
+   direita da largura do card) — custo TOTAL da execucao, nao so da raiz. */
+.tree-card-cost-top {
+  text-align: right;
 }
