@@ -416,7 +416,37 @@ def read_sessions():
         # no arquivo de sessao local, nao precisa de nenhuma API de nuvem pra saber.
         data["remoteControl"] = bool(data.get("bridgeSessionId"))
         sessions.append(data)
-    return sessions
+    return _dedupe_sessions_by_id(sessions)
+
+
+def _dedupe_sessions_by_id(sessions):
+    """Um --resume/restart no MESMO terminal troca de PID mas herda o
+    `sessionId` da conversa retomada; o arquivo de sessao antigo (PID
+    anterior, que pode continuar de pe por um tempo) nao e removido, entao
+    ~/.claude/sessions/ passa a ter DOIS arquivos *.json com o mesmo
+    sessionId. Sem essa dedupe, essa MESMA conversa virava DOIS nos-raiz na
+    arvore (mesmo sessionId, `parentSessionId` None nos dois) e cada
+    subagente/MCP/skill dela era calculado (e duplicado) uma vez por raiz em
+    do_GET — ver MEMORY.md. Mantem so a entrada mais recente (updatedAt, com
+    startedAt de desempate) por sessionId; sessoes sem sessionId (nao deveria
+    acontecer, mas por seguranca) sao mantidas como estao."""
+    best_by_id = {}
+    result = []
+    for data in sessions:
+        sid = data.get("sessionId")
+        if not sid:
+            result.append(data)
+            continue
+        current = best_by_id.get(sid)
+        if current is None:
+            best_by_id[sid] = data
+            continue
+        current_key = (current.get("updatedAt") or 0, current.get("startedAt") or 0)
+        new_key = (data.get("updatedAt") or 0, data.get("startedAt") or 0)
+        if new_key > current_key:
+            best_by_id[sid] = data
+    result.extend(best_by_id.values())
+    return result
 
 
 def transcript_path(cwd, session_id):
@@ -760,6 +790,10 @@ def find_subagent_transcripts():
     if not PROJECTS_DIR.exists():
         return sessions
     now = time.time()
+    # agent_id -> (parent_mtime, fpath, mtime, parent_session_id) da copia
+    # escolhida como "dona" quando o mesmo agent_id aparece em mais de uma
+    # pasta <sessionId-pai>/subagents/ (ver comentario abaixo).
+    candidates = {}
     for fpath in PROJECTS_DIR.glob("*/*/subagents/agent-*.jsonl"):
         agent_id = fpath.stem[len("agent-"):]
         if not agent_id:
@@ -772,6 +806,24 @@ def find_subagent_transcripts():
             continue  # subagente ja terminou (heuristica por atividade recente) - nao reporta lixo historico
         # fpath = PROJECTS_DIR/<projeto>/<sessionId-pai>/subagents/agent-<agentId>.jsonl
         parent_session_id = fpath.parent.parent.name
+        parent_transcript = fpath.parent.parent.parent / f"{parent_session_id}.jsonl"
+        try:
+            parent_mtime = parent_transcript.stat().st_mtime
+        except OSError:
+            parent_mtime = 0
+        # Um /fork (ou resume) pode duplicar o historico inteiro de uma sessao
+        # pai, inclusive a pasta subagents/ inteira, criando uma copia FISICA
+        # do mesmo agent-<agentId>.jsonl sob um sessionId-pai diferente. Sem
+        # essa dedupe, o mesmo subagente virava filho de DOIS pais distintos
+        # na arvore (mesmo sessionId sintetico, dois parentSessionId) — ver
+        # MEMORY.md. Mantem so a copia cujo transcript-pai teve atividade mais
+        # recente: essa e a linhagem viva; a outra ficou parada no passado (o
+        # fork/resume que nao continuou).
+        existing = candidates.get(agent_id)
+        if existing is None or parent_mtime > existing[0]:
+            candidates[agent_id] = (parent_mtime, fpath, mtime, parent_session_id)
+
+    for agent_id, (_parent_mtime, fpath, mtime, parent_session_id) in candidates.items():
         parent_transcript = fpath.parent.parent.parent / f"{parent_session_id}.jsonl"
         role_info = _scan_agent_roles(parent_transcript).get(agent_id, {})
         role = role_info.get("role") or ""
