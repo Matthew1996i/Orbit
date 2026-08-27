@@ -324,6 +324,18 @@ interface TreeProps {
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 1.6;
 const ZOOM_SPEED = 0.0012;
+// colchao (em coordenadas de conteudo) alem da borda visivel do viewport —
+// mantem cards logo fora da tela ja montados, pra nao "piscar" (montar/
+// desmontar) durante um pan pequeno; e o mesmo tipo de folga que o n8n/React
+// Flow usa no culling do proprio canvas.
+const CULL_MARGIN = 400;
+
+interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
 
 /** Pan (e zoom opcional via scroll) do canvas da árvore: arrastar no fundo vazio
  * move a visão (translate), clicar num card continua abrindo o painel — igual ao
@@ -334,13 +346,56 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
   const transform = useRef({ x: 0, y: 0, scale: 1 });
   const hasPannedRef = useRef(false);
   const [isPanning, setIsPanning] = useState(false);
+  // retangulo visivel (em coordenadas de conteudo, ja com a folga do
+  // CULL_MARGIN) — e o unico estado React que reflete o transform (que em si
+  // e mutado direto no DOM via ref, sem re-render, por performance). So isso
+  // e o suficiente pra decidir quais cards/arestas valem a pena montar.
+  const [visibleRect, setVisibleRect] = useState<Rect | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const computeVisibleRect = (): Rect | null => {
+    const viewport = viewportRef.current;
+    if (!viewport) return null;
+    const { x, y, scale } = transform.current;
+    return {
+      left: (0 - x) / scale - CULL_MARGIN,
+      top: (0 - y) / scale - CULL_MARGIN,
+      right: (viewport.clientWidth - x) / scale + CULL_MARGIN,
+      bottom: (viewport.clientHeight - y) / scale + CULL_MARGIN,
+    };
+  };
+
+  // throttlado via rAF: durante um arraste continuo (pointermove dispara aos
+  // montes), so recalcula o retangulo uma vez por frame em vez de a cada
+  // evento — o transform em si (translate/scale) continua atualizando a cada
+  // evento, so o CULLING (que dispara re-render) e que fica no ritmo do frame.
+  const scheduleVisibleRectUpdate = () => {
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      setVisibleRect(computeVisibleRect());
+    });
+  };
 
   const applyTransform = () => {
     const pan = panRef.current;
     if (!pan) return;
     const { x, y, scale } = transform.current;
     pan.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    scheduleVisibleRectUpdate();
   };
+
+  // viewport pode mudar de tamanho (resize da janela) sem nenhum pan/zoom
+  // acontecer — sem isso o retangulo de culling ficaria desatualizado e
+  // cards nas bordas sumiriam/apareceriam so no proximo pan.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(() => scheduleVisibleRectUpdate());
+    observer.observe(viewport);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // centraliza a árvore no viewport, horizontal E vertical (enquanto o
   // usuário não arrastou manualmente) — sem isso a árvore sempre nasce
@@ -445,11 +500,16 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
     viewportRef,
     panRef,
     isPanning,
+    visibleRect,
     centerView,
     zoomIn: () => zoomBy(1.25),
     zoomOut: () => zoomBy(0.8),
     getScale: () => transform.current.scale,
   };
+}
+
+function intersects(rect: Rect, x: number, y: number, w: number, h: number): boolean {
+  return x + w / 2 >= rect.left && x - w / 2 <= rect.right && y + h / 2 >= rect.top && y - h / 2 <= rect.bottom;
 }
 
 const GROUP_BOX_PAD = 22;
@@ -496,7 +556,35 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
       }
     : null;
 
-  const { viewportRef, panRef, isPanning, centerView, zoomIn, zoomOut, getScale } = usePanAndZoom(width, height);
+  const { viewportRef, panRef, isPanning, visibleRect, centerView, zoomIn, zoomOut, getScale } =
+    usePanAndZoom(width, height);
+
+  // culling: so monta no DOM os cards/arestas que caem dentro do retangulo
+  // visivel (+ folga) — antes disso TUDO era montado de uma vez, mesmo fora
+  // de tela, o que com muitos nos (subagentes, MCPs, skills) gerava excesso
+  // de nos DOM e os bugs de renderizacao (itens sumindo/piscando) que motivaram
+  // essa mudanca. Sem retangulo ainda calculado (primeiro frame), renderiza
+  // tudo mesmo — e so um frame a mais, nao vale a pena esconder conteudo por
+  // falta de dado.
+  const visibleNodes = visibleRect
+    ? allNodes.filter((n) => {
+        const p = posOf(n);
+        return intersects(visibleRect, p.x, p.y, CARD_WIDTH, CARD_HEIGHT);
+      })
+    : allNodes;
+  const visibleEdges = visibleRect
+    ? allEdges.filter(({ parent, child }) => {
+        const pp = posOf(parent);
+        const cp = posOf(child);
+        // mantem a aresta se QUALQUER uma das pontas estiver visivel — assim
+        // uma linha que atravessa a tela nao desaparece so porque os dois
+        // cards nas pontas estao fora do retangulo.
+        return (
+          intersects(visibleRect, pp.x, pp.y, CARD_WIDTH, CARD_HEIGHT) ||
+          intersects(visibleRect, cp.x, cp.y, CARD_WIDTH, CARD_HEIGHT)
+        );
+      })
+    : allEdges;
 
   return (
     <div className={`session-tree-scroll${isPanning ? ' panning' : ''}`} ref={viewportRef}>
@@ -518,7 +606,7 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
       <div className="session-tree-pan" ref={panRef}>
         <div className="session-tree" style={{ width, height }}>
           <svg className="session-tree-svg" width={width} height={height}>
-            {allEdges.map(({ parent, child }) => {
+            {visibleEdges.map(({ parent, child }) => {
               const flowing = child.session.alive && child.session.status === 'busy';
               return (
                 <path
@@ -544,7 +632,7 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
             </div>
           )}
 
-          {allNodes.map((node) => {
+          {visibleNodes.map((node) => {
             const pos = posOf(node);
             return (
               <TreeCard
