@@ -1,0 +1,150 @@
+/* overlay/dialog/header/botões vêm de ConfirmDialog.css (reaproveitado, pra
+   os dois diálogos terem exatamente o mesmo estilo) — aqui só o que é
+   específico do formulário de novo agente. */
+
+.new-agent-label {
+  display: block;
+  font-size: 11.5px;
+  color: #8a8a92;
+  margin: 14px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.new-agent-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0d0d0f;
+  border: 1px solid #2a2a2f;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.new-agent-folder-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: #d8d8da;
+}
+
+.new-agent-folder-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(245, 166, 35, 0.12);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  color: #f5a623;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.new-agent-folder-btn:hover {
+  background: rgba(245, 166, 35, 0.2);
+}
+
+.new-agent-input {
+  width: 100%;
+  background: #0d0d0f;
+  border: 1px solid #2a2a2f;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #e8e8ea;
+  font-size: 12.5px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.new-agent-input:focus {
+  outline: none;
+  border-color: #f5a623;
+}
+
+.new-agent-llm-picker {
+  position: relative;
+}
+
+.new-agent-llm-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.new-agent-llm-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9a9aa2;
+  flex-shrink: 0;
+}
+
+.new-agent-llm-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-agent-llm-chevron {
+  flex-shrink: 0;
+  color: #7a7a82;
+  transition: transform 0.12s;
+}
+.new-agent-llm-chevron.open {
+  transform: rotate(180deg);
+}
+
+.new-agent-llm-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #0d0d0f;
+  border: 1px solid #2a2a2f;
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  z-index: 10;
+}
+
+.new-agent-llm-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #e8e8ea;
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.new-agent-llm-option:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+.new-agent-llm-option.selected {
+  background: rgba(245, 166, 35, 0.1);
+}
+.new-agent-llm-option.disabled {
+  color: #5c5c64;
+  cursor: not-allowed;
+}
+
+.new-agent-llm-hint {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #5c5c64;
+}

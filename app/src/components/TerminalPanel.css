@@ -1,0 +1,154 @@
+.term-panel {
+  position: fixed;
+  top: 90px;
+  left: calc(50vw - 460px);
+  width: min(920px, 92vw);
+  height: min(619px, 78vh);
+  min-width: 360px;
+  min-height: 220px;
+  background: #0d0d0f;
+  border: 1px solid #2a2a2f;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+}
+
+.term-header {
+  display: grid;
+  grid-template-columns: 74px 1fr 74px;
+  align-items: center;
+  padding: 0 14px;
+  height: 38px;
+  background: linear-gradient(#141416, #0e0e10);
+  border-bottom: 1px solid #232326;
+  border-radius: 10px 10px 0 0;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #9a9aa2;
+  letter-spacing: 0.02em;
+  cursor: default;
+  user-select: none;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.term-traffic-lights {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.term-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: #5c5c5e;
+  color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+.term-dot svg {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.term-traffic-lights:hover .term-dot svg {
+  opacity: 1;
+}
+
+.term-traffic-lights:hover .term-dot-close {
+  background: #ff5f57;
+  color: #4d0000;
+}
+.term-traffic-lights:hover .term-dot-min {
+  background: #febc2e;
+  color: #5a3d00;
+}
+.term-dot:active {
+  filter: brightness(0.85);
+}
+
+.term-title {
+  text-align: center;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.term-header-spacer {
+  width: 74px;
+}
+
+.term-title-remote-tag {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #1b2f22;
+  background: #2ecc71;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.term-panel-remote {
+  border-color: #2ecc71;
+  box-shadow: 0 0 18px rgba(46, 204, 113, 0.22);
+}
+
+.term-panel-minimized-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.term-body {
+  flex: 1;
+  padding: 8px;
+  overflow: hidden;
+  min-height: 0;
+  border-radius: 0 0 10px 10px;
+}
+
+.term-body-transcript {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0 0 10px 10px;
+}
+
+.xterm-viewport {
+  /* "overlay" (Electron/Chromium) em vez do "scroll" que o proprio xterm.js
+     aplica por padrao: "scroll" RESERVA espaco de layout pra barra (reduz o
+     clientWidth), mas o fit.fit() calcula cols com base na largura do
+     CONTAINER pai (sem descontar essa reserva) — o grid de caracteres
+     (.xterm-screen) fica alguns pixels mais largo que a area realmente
+     visivel antes da barra, cortando a ultima coluna de texto. "overlay"
+     flutua a barra por cima do conteudo sem reservar espaco, entao
+     clientWidth = largura real visivel = o que o fit.fit() assume.
+     Comportamento visual identico (barra fina, some quando nao tem hover). */
+  overflow-y: overlay !important;
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a42 transparent;
+}
+.xterm-viewport::-webkit-scrollbar {
+  width: 9px;
+}
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: #33333a;
+  border-radius: 5px;
+}
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: #4c4c56;
+}

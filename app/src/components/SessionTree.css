@@ -1,0 +1,320 @@
+.session-tree-scroll {
+  width: 100%;
+  height: calc(100vh - 150px);
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  cursor: grab;
+  touch-action: none;
+  position: relative;
+}
+
+.session-tree-scroll.panning {
+  cursor: grabbing;
+}
+
+.session-tree-pan {
+  position: absolute;
+  top: 40px;
+  left: 24px;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.session-tree {
+  position: relative;
+  margin: 0 auto;
+}
+
+.session-tree-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* separa visualmente as sessoes externas (fora do app, somente leitura) das
+   que o app gerencia — uma caixa tracejada envolvendo os cards do grupo, com
+   um rotulo pequeno estilo "legend" cortando a borda de cima. */
+.session-tree-group-box {
+  position: absolute;
+  border: 1px dashed #33333a;
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.session-tree-group-box-label {
+  position: absolute;
+  top: -8px;
+  left: 16px;
+  padding: 0 8px;
+  background: #0a0a0c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #55555c;
+  white-space: nowrap;
+}
+
+.session-tree-topbar {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-tree-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #131316;
+  border: 1px solid #2a2a2f;
+  border-radius: 8px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.session-tree-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #9a9aa2;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.session-tree-control-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8e8ea;
+}
+
+.tree-edge {
+  fill: none;
+  stroke: #f5a623;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+  opacity: 0.55;
+}
+
+.tree-edge.flowing {
+  opacity: 0.9;
+  animation: tree-edge-flow 0.9s linear infinite;
+}
+
+@keyframes tree-edge-flow {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+
+.tree-card {
+  position: absolute;
+  background: #131316;
+  border: 1px solid #2a2a2f;
+  border-radius: 10px;
+  padding: 10px 14px 10px 44px;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: grab;
+  transition: border-color 0.15s, transform 0.1s;
+  touch-action: none;
+  user-select: none;
+}
+
+.tree-card:hover {
+  transform: translateY(-1px);
+}
+
+.tree-card:active {
+  cursor: grabbing;
+}
+
+.tree-card.dead {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tree-card-root {
+  border-color: #f5a623;
+  box-shadow: 0 0 14px rgba(245, 166, 35, 0.18);
+}
+
+.tree-card-root:hover {
+  box-shadow: 0 0 18px rgba(245, 166, 35, 0.3);
+}
+
+.tree-card-child:hover {
+  border-color: #f5a623;
+}
+
+/* sessao com "Remote Control" ativo (controlada por um app remoto/mobile,
+   ver bridgeSessionId no arquivo de sessao local) — sobrepoe a cor padrao
+   (laranja) do card com verde, pra ficar visualmente distinta de longe. */
+.tree-card-remote,
+.tree-card-remote.tree-card-root,
+.tree-card-remote.tree-card-child {
+  border-color: #2ecc71;
+  box-shadow: 0 0 14px rgba(46, 204, 113, 0.22);
+}
+.tree-card-remote:hover {
+  border-color: #2ecc71;
+  box-shadow: 0 0 18px rgba(46, 204, 113, 0.36);
+}
+
+.tree-card-remote-tag {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #1b2f22;
+  background: #2ecc71;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.tree-card-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f5a623;
+  background: rgba(245, 166, 35, 0.15);
+}
+
+.tree-card-child .tree-card-badge {
+  width: 22px;
+  height: 22px;
+  color: #c9c9cf;
+  background: rgba(122, 122, 130, 0.15);
+}
+
+.tree-card-status-dot {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #555;
+}
+
+.tree-card-status-dot.busy {
+  background: #34c759;
+  box-shadow: 0 0 6px #34c759;
+  animation: tree-status-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tree-status-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.tree-card-pill {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tree-card-pill.busy {
+  --background: rgba(52, 199, 89, 0.15);
+  --color: #34c759;
+}
+
+.tree-card-pill.idle {
+  --background: rgba(255, 255, 255, 0.06);
+  --color: #7a7a82;
+}
+
+.tree-card-pill.dead {
+  --background: rgba(255, 255, 255, 0.03);
+  --color: #555;
+}
+
+.tree-card-pill.mcp-get {
+  --background: rgba(87, 199, 255, 0.15);
+  --color: #57c7ff;
+}
+
+.tree-card-pill.mcp-post {
+  --background: rgba(255, 121, 198, 0.15);
+  --color: #ff79c6;
+}
+
+.tree-card-pill.mcp-call {
+  --background: rgba(122, 122, 130, 0.15);
+  --color: #9a9aa2;
+}
+
+.tree-card-pill.mcp-search {
+  --background: rgba(245, 166, 35, 0.15);
+  --color: #f5a623;
+}
+
+.tree-card-pill.skill {
+  --background: rgba(245, 166, 35, 0.15);
+  --color: #f5a623;
+}
+
+/* nós sintéticos (MCP/skill em uso) — só informativos, não abrem nada */
+.tree-card-activity {
+  cursor: default;
+}
+.tree-card-activity:hover {
+  transform: none;
+}
+
+.tree-card-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: #e8e8ea;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-card-cwd {
+  font-size: 10.5px;
+  color: #7a7a82;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 3px;
+}
+
+.tree-card-effort {
+  font-size: 9.5px;
+  color: #55555c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}

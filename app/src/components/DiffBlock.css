@@ -1,0 +1,103 @@
+.transcript-marker-diff {
+  color: #3fb950;
+}
+
+.diff-header {
+  font-weight: 600;
+  color: #f6eef2;
+}
+.diff-header-file {
+  color: #8a6a75;
+  font-weight: 400;
+}
+
+.diff-subitem {
+  display: flex;
+  gap: 6px;
+  color: #8a8a92;
+  font-size: 12px;
+  margin: 2px 0 6px;
+}
+.diff-summary-added {
+  color: #5ec26a;
+}
+.diff-summary-removed {
+  color: #e2716b;
+}
+
+.diff-block {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  overflow-x: auto;
+  background: #282a36; /* fundo oficial do tema Dracula */
+  font-size: 12px;
+  line-height: 1.55;
+  scrollbar-width: none; /* rolagem continua funcionando, só a barra visual some */
+}
+.diff-block::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.diff-line {
+  display: flex;
+  white-space: pre;
+}
+
+.diff-line-no {
+  flex-shrink: 0;
+  width: 42px;
+  text-align: right;
+  padding: 0 8px;
+  color: #6f5c66;
+  user-select: none;
+}
+
+.diff-line-sign {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  user-select: none;
+}
+
+.diff-line-text {
+  flex: 1;
+  padding-right: 12px;
+}
+
+.diff-line-context .diff-line-text {
+  color: #f8f8f2; /* foreground oficial do tema Dracula */
+}
+
+/* highlight de sintaxe no estilo Dracula (tema do VSCode) — cores oficiais da
+   paleta: pink #ff79c6, yellow #f1fa8c, purple #bd93f9, comment #6272a4 */
+.code-keyword {
+  color: #ff79c6;
+  font-weight: 500;
+}
+.code-string {
+  color: #f1fa8c;
+}
+.code-number {
+  color: #bd93f9;
+}
+.code-comment {
+  color: #6272a4;
+  font-style: italic;
+}
+
+.diff-line-add {
+  background: rgba(46, 160, 67, 0.15);
+}
+.diff-line-add .diff-line-sign,
+.diff-line-add .diff-line-text {
+  color: #7ee787;
+}
+
+.diff-line-remove {
+  background: rgba(248, 81, 73, 0.15);
+}
+.diff-line-remove .diff-line-sign,
+.diff-line-remove .diff-line-text {
+  color: #ff9691;
+}

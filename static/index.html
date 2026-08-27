@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Claude Sessions</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --grid-dot: #1c1c20;
+    --card-bg: #131316;
+    --card-border: #2a2a2f;
+    --text-main: #e8e8ea;
+    --text-dim: #7a7a82;
+    --accent: #f5a623;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
+    background-size: 22px 22px;
+    color: var(--text-main);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    min-height: 100vh;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 18px 20px 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+  header .stat { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.busy { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .dot.idle { background: #555; }
+  .dot.dead { background: #3a3a40; }
+
+  #new-agent-btn {
+    background: transparent;
+    border: 1px solid var(--card-border);
+    color: var(--text-main);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #new-agent-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  #canvas {
+    padding: 40px 40px 100px;
+    display: flex;
+    justify-content: center;
+  }
+  .row {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 1100px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    width: 210px;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .card.dead { opacity: 0.4; cursor: default; }
+  .card.dead:hover { border-color: var(--card-border); transform: none; }
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .card-name {
+    font-weight: 600;
+    font-size: 13.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+  .badge.busy { background: rgba(245,166,35,0.15); color: var(--accent); border: 1px solid rgba(245,166,35,0.4); }
+  .badge.idle { background: rgba(255,255,255,0.06); color: var(--text-dim); border: 1px solid var(--card-border); }
+  .badge.dead { background: rgba(255,255,255,0.03); color: #555; border: 1px solid #2a2a2f; }
+  .card-cwd {
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-meta {
+    font-size: 10.5px;
+    color: #55555c;
+    margin-top: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .app-tag {
+    font-size: 9px;
+    color: var(--accent);
+    margin-top: 6px;
+  }
+  .empty {
+    text-align: center;
+    color: var(--text-dim);
+    margin-top: 120px;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  .empty code { background: #1a1a1e; padding: 2px 6px; border-radius: 4px; }
+
+  /* --- painel de terminal: janela flutuante, fundo continua visivel/clicavel --- */
+  #term-panel {
+    position: fixed;
+    top: 90px;
+    left: calc(50vw - 460px);
+    width: min(920px, 92vw);
+    height: min(600px, 78vh);
+    min-width: 360px;
+    min-height: 220px;
+    background: #0d0d0f;
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    resize: both;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+    z-index: 50;
+  }
+  #term-panel.open { display: flex; }
+  #term-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--card-border);
+    font-size: 12.5px;
+    cursor: move;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  #term-header strong { font-weight: 600; }
+  #term-close {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 5px;
+  }
+  #term-close:hover { color: #f55; background: rgba(255,80,80,0.1); }
+  #term-body { flex: 1; padding: 8px; overflow: hidden; min-height: 0; }
+
+  /* scrollbar do terminal (xterm renderiza scroll nativo em .xterm-viewport) */
+  .xterm-viewport { scrollbar-width: thin; scrollbar-color: #3a3a42 transparent; }
+  .xterm-viewport::-webkit-scrollbar { width: 9px; }
+  .xterm-viewport::-webkit-scrollbar-track { background: transparent; }
+  .xterm-viewport::-webkit-scrollbar-thumb { background: #33333a; border-radius: 5px; }
+  .xterm-viewport::-webkit-scrollbar-thumb:hover { background: #4c4c56; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="stat"><span class="dot busy"></span><span id="count-busy">0 busy</span></div>
+    <div class="stat"><span class="dot idle"></span><span id="count-idle">0 idle</span></div>
+    <div class="stat"><span class="dot dead"></span><span id="count-dead">0 dead</span></div>
+    <span>— sessões do Claude Code nesta máquina</span>
+    <button id="new-agent-btn">+ novo agente</button>
+  </header>
+  <div id="canvas"></div>
+
+  <div id="term-panel">
+    <div id="term-header">
+      <strong id="term-title">—</strong>
+      <button id="term-close">✕</button>
+    </div>
+    <div id="term-body"></div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<script>
+const canvas = document.getElementById('canvas');
+const overlay = document.getElementById('overlay');
+const termBody = document.getElementById('term-body');
+const termTitle = document.getElementById('term-title');
+const termMode = document.getElementById('term-mode');
+const termStopBtn = document.getElementById('term-stop');
+
+let sessionsById = new Map();          // sessionId -> ultimo objeto de sessao
+const stepBuffers = new Map();         // sessionId -> array de linhas formatadas (para replay)
+let currentPanel = null;               // { sessionId, agentId, ws, term, fit, isApp }
+
+function fmtUptime(startedAt, now) {
+  const s = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h${m}m`;
+  return `${m}m`;
+}
+
+function shortCwd(cwd) {
+  const home = cwd.startsWith('/home/') ? cwd.split('/').slice(0,3).join('/') : null;
+  if (home) return '~' + cwd.slice(home.length);
+  return cwd;
+}
+
+function statusOf(s) {
+  if (!s.alive) return 'dead';
+  return s.status === 'busy' ? 'busy' : 'idle';
+}
+
+// --- grid de cards (somente status) ---
+
+function ensureCard(s, now) {
+  let el = document.getElementById('card-' + s.sessionId);
+  const st = statusOf(s);
+  const name = s.name || s.sessionId.slice(0, 8);
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'card-' + s.sessionId;
+    el.innerHTML = `
+      <div class="card-top">
+        <span class="card-name"></span>
+        <span class="badge"></span>
+      </div>
+      <div class="card-cwd"></div>
+      <div class="card-meta"><span class="pid"></span><span class="up"></span></div>
+      <div class="app-tag" style="display:none;">gerenciado por este app</div>`;
+    el.addEventListener('click', () => {
+      const cur = sessionsById.get(s.sessionId);
+      if (cur && cur.alive) openPanel(cur);
+    });
+    canvas.querySelector('.row').appendChild(el);
+  }
+  el.className = 'card' + (st === 'dead' ? ' dead' : '');
+  el.querySelector('.card-name').textContent = name;
+  el.querySelector('.card-name').title = name;
+  const badge = el.querySelector('.badge');
+  badge.textContent = st;
+  badge.className = 'badge ' + st;
+  const cwdEl = el.querySelector('.card-cwd');
+  cwdEl.textContent = shortCwd(s.cwd || '');
+  cwdEl.title = s.cwd || '';
+  el.querySelector('.pid').textContent = 'pid ' + s.pid;
+  el.querySelector('.up').textContent = fmtUptime(s.startedAt, now);
+  el.querySelector('.app-tag').style.display = s.appManaged ? 'block' : 'none';
+}
+
+async function tickState() {
+  let data;
+  try {
+    const res = await fetch('/api/state', { cache: 'no-store' });
+    data = await res.json();
+  } catch (e) {
+    canvas.innerHTML = `<div class="empty">Não foi possível falar com o servidor local.<br>Confirme que <code>server.py</code> está rodando.</div>`;
+    return;
+  }
+
+  const { sessions, now } = data;
+  sessionsById = new Map(sessions.map(s => [s.sessionId, s]));
+
+  const busy = sessions.filter(s => s.alive && s.status === 'busy').length;
+  const idle = sessions.filter(s => s.alive && s.status !== 'busy').length;
+  const dead = sessions.filter(s => !s.alive).length;
+  document.getElementById('count-busy').textContent = `${busy} busy`;
+  document.getElementById('count-idle').textContent = `${idle} idle`;
+  document.getElementById('count-dead').textContent = `${dead} dead`;
+
+  if (!sessions.length) {
+    canvas.innerHTML = `<div class="empty">Nenhuma sessão encontrada em <code>~/.claude/sessions</code>.<br>Clique em "+ novo agente" para iniciar uma.</div>`;
+    return;
+  }
+  if (!canvas.querySelector('.row')) canvas.innerHTML = '<div class="row"></div>';
+
+  sessions.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  sessions.forEach(s => ensureCard(s, now));
+
+  // fecha o painel sozinho se a sessao aberta morreu
+  if (currentPanel && !currentPanel.isApp) {
+    const s = sessionsById.get(currentPanel.sessionId);
+    if (!s || !s.alive) closePanel();
+  }
+}
+
+// --- feed SSE global: alimenta os buffers de replay das sessoes externas ---
+
+function fmtLine(step) {
+  const label = step.kind === 'tool' ? (step.name || 'tool') : (step.kind === 'prompt' ? 'voce' : 'claude');
+  const color = step.kind === 'tool' ? '\x1b[32m' : step.kind === 'prompt' ? '\x1b[33m' : '\x1b[36m';
+  return `${color}[${label}]\x1b[0m ${step.text || ''}`;
+}
+
+function connectStream() {
+  const es = new EventSource('/api/stream');
+  es.onmessage = (ev) => {
+    let step;
+    try { step = JSON.parse(ev.data); } catch (e) { return; }
+    if (step.kind === 'ping' || !step.sessionId) return;
+    const line = fmtLine(step);
+    let buf = stepBuffers.get(step.sessionId);
+    if (!buf) { buf = []; stepBuffers.set(step.sessionId, buf); }
+    buf.push(line);
+    while (buf.length > 300) buf.shift();
+    if (currentPanel && !currentPanel.isApp && currentPanel.sessionId === step.sessionId && !step.backlog) {
+      currentPanel.term.writeln(line);
+    }
+  };
+  es.onerror = () => { es.close(); setTimeout(connectStream, 2000); };
+}
+
+// --- painel de terminal ---
+
+function makeTerm() {
+  const term = new Terminal({
+    convertEol: true,
+    fontSize: 13,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    theme: { background: '#0d0d0f', foreground: '#e8e8ea', cursor: '#f5a623' },
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  termBody.innerHTML = '';
+  term.open(termBody);
+  fit.fit();
+  return { term, fit };
+}
+
+function openPanel(session) {
+  closePanel();
+  overlay.classList.add('open');
+  termTitle.textContent = session.name || session.sessionId.slice(0, 8);
+
+  const { term, fit } = makeTerm();
+
+  if (session.appManaged) {
+    termMode.textContent = 'interativo';
+    termStopBtn.style.display = 'inline-block';
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}/ws/agent/${session.appAgentId}`);
+    ws.binaryType = 'arraybuffer';
+    ws.onmessage = (ev) => term.write(new Uint8Array(ev.data));
+    ws.onclose = () => term.writeln('\r\n\x1b[31m[conexão encerrada]\x1b[0m');
+    const sendResize = () => {
+      fit.fit();
+      ws.send(JSON.stringify({ type: 'resize', rows: term.rows, cols: term.cols }));
+    };
+    ws.onopen = sendResize;
+    term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(new TextEncoder().encode(data));
+    });
+    currentPanel = { sessionId: session.sessionId, agentId: session.appAgentId, ws, term, fit, isApp: true };
+    window.addEventListener('resize', sendResize);
+    currentPanel._onResize = sendResize;
+  } else {
+    termMode.textContent = 'somente leitura (réplica ao vivo)';
+    termStopBtn.style.display = 'none';
+    const buf = stepBuffers.get(session.sessionId) || [];
+    buf.forEach(line => term.writeln(line));
+    term.writeln('\x1b[90m--- acompanhando ao vivo ---\x1b[0m');
+    currentPanel = { sessionId: session.sessionId, agentId: null, term, fit, isApp: false };
+    const onResize = () => fit.fit();
+    window.addEventListener('resize', onResize);
+    currentPanel._onResize = onResize;
+  }
+}
+
+function closePanel() {
+  if (!currentPanel) { overlay.classList.remove('open'); return; }
+  if (currentPanel.ws) { try { currentPanel.ws.close(); } catch (e) {} }
+  if (currentPanel._onResize) window.removeEventListener('resize', currentPanel._onResize);
+  if (currentPanel.term) currentPanel.term.dispose();
+  currentPanel = null;
+  overlay.classList.remove('open');
+}
+
+document.getElementById('term-close').addEventListener('click', closePanel);
+overlay.addEventListener('click', (e) => { if (e.target === overlay) closePanel(); });
+
+termStopBtn.addEventListener('click', async () => {
+  if (!currentPanel || !currentPanel.agentId) return;
+  if (!confirm('Encerrar este agente? O processo será finalizado.')) return;
+  await fetch(`/api/agents/${currentPanel.agentId}/stop`, { method: 'POST' });
+  closePanel();
+  tickState();
+});
+
+document.getElementById('new-agent-btn').addEventListener('click', async () => {
+  const cwd = prompt('Diretório de trabalho do novo agente:', '~');
+  if (cwd === null) return;
+  const name = prompt('Nome (opcional):', '') || undefined;
+  const res = await fetch('/api/agents/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cwd, name }),
+  });
+  const data = await res.json();
+  if (data.error) { alert('Erro ao iniciar agente: ' + data.error); return; }
+  await new Promise(r => setTimeout(r, 700));
+  await tickState();
+  const s = [...sessionsById.values()].find(s => s.appAgentId === data.id);
+  if (s) openPanel(s);
+});
+
+tickState();
+setInterval(tickState, 2000);
+connectStream();
+</script>
+</body>
+</html>

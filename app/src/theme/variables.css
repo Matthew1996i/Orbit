@@ -1,0 +1,27 @@
+/* For information on how to create your own theme, please refer to:
+http://ionicframework.com/docs/theming/ */
+
+/* reserva espaço pra TitleBar (barra de título customizada, fixed via portal
+   pro <body> — ver src/components/TitleBar.tsx) não ficar por cima do resto
+   do app. Aplicado no ion-content (não mais no IonHeader, que foi removido —
+   a barra de stats agora é renderizada dentro da própria TitleBar). */
+ion-content.home-content {
+  --padding-top: 38px;
+}
+
+/* icones (lucide/@lobehub) sao SVGs inline, que por padrao tem
+   vertical-align: baseline — isso deixa uns pixels de "espaco de descida de
+   texto" embaixo do SVG, entao mesmo dentro de um container flex
+   centralizado (align-items/justify-content: center) o icone fica com uma
+   folga visualmente maior embaixo do que em cima. display:block tira esse
+   espaco fantasma e centraliza de verdade em qualquer badge circular do
+   app (arvore de sessoes, sidebar, modal de conectar LLM, etc). */
+.tree-card-badge svg,
+.sidebar-item-logo svg,
+.sidebar-item-disconnect-btn svg,
+.connect-llm-logo svg,
+.llm-usage-box-logo svg,
+.new-agent-llm-logo svg,
+.term-dock-chip svg {
+  display: block;
+}

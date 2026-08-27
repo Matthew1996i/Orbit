@@ -1,0 +1,81 @@
+.title-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  background: linear-gradient(#141416, #0e0e10);
+  border-bottom: 1px solid #232326;
+  flex-shrink: 0;
+  /* posição fixa (via portal pro <body>) porque o IonHeader do Ionic usa
+     sticky/z-index próprio e ignorava a ordem no DOM, ficando por cima desta
+     barra mesmo ela vindo primeiro — assim ela SEMPRE fica no topo de verdade. */
+  z-index: 200000;
+  /* toda a barra é área de arrastar a janela por padrão; botões dentro dela
+     marcam explicitamente "no-drag" pra continuar clicáveis */
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.title-bar-drag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  height: 100%;
+}
+
+.title-bar-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: #7a7a82;
+  letter-spacing: 0.02em;
+}
+
+.title-bar-stats {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  height: 100%;
+}
+
+.title-bar-window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 6px;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.title-bar-menu-btn {
+  -webkit-app-region: no-drag;
+}
+
+.title-bar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #9a9aa2;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.title-bar-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8e8ea;
+}
+.title-bar-btn-close:hover {
+  background: #e5484d;
+  color: #fff;
+}

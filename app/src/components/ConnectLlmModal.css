@@ -1,0 +1,135 @@
+.connect-llm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+}
+
+.connect-llm-dialog {
+  width: min(460px, 92vw);
+  background: #16161a;
+  border: 1px solid #2a2a2f;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #e8e8ea;
+}
+
+.connect-llm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.connect-llm-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.connect-llm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.connect-llm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+.connect-llm-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: #2a2a2f;
+}
+
+.connect-llm-logo {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c9c9cf;
+}
+
+.connect-llm-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.connect-llm-name {
+  font-size: 13px;
+  color: #e8e8ea;
+}
+
+.connect-llm-vendor {
+  font-size: 10.5px;
+  color: #7a7a82;
+}
+
+.connect-llm-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid #2a2a2f;
+  background: transparent;
+  color: #f5a623;
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.connect-llm-btn:hover {
+  border-color: #f5a623;
+  background: rgba(245, 166, 35, 0.08);
+}
+
+.connect-llm-btn-danger {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid #2a2a2f;
+  background: transparent;
+  color: #ff5c57;
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.connect-llm-btn-danger:hover {
+  border-color: #ff5c57;
+  background: rgba(255, 92, 87, 0.08);
+}
+
+.connect-llm-connected {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #34c759;
+}
+
+.connect-llm-installing-label {
+  font-size: 12px;
+  color: #b8b8bc;
+  margin-bottom: 8px;
+}
+
+.install-log-body {
+  height: 300px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0d0d0f;
+  padding: 6px;
+}

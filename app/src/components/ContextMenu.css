@@ -1,0 +1,36 @@
+.context-menu {
+  position: fixed;
+  z-index: 100000;
+  min-width: 200px;
+  background: #1a1a1e;
+  border: 1px solid #2a2a2f;
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #e8e8ea;
+  font-size: 12.5px;
+  font-family: inherit;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.context-menu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.context-menu-item.danger {
+  color: #ff8a85;
+}
+.context-menu-item.danger:hover {
+  background: rgba(255, 92, 87, 0.12);
+}

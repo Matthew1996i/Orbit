@@ -1,0 +1,135 @@
+.llm-usage-widget {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  max-width: 60vw;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.llm-usage-widget::-webkit-scrollbar {
+  height: 4px;
+  width: 0;
+}
+.llm-usage-widget::-webkit-scrollbar-thumb {
+  background: #33333a;
+  border-radius: 3px;
+}
+
+.llm-usage-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #131316;
+  border: 1px solid #2a2a2f;
+  border-radius: 8px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.llm-usage-box:hover {
+  border-color: #3a3a42;
+}
+
+.llm-usage-popover {
+  min-width: 220px;
+  background: #16161a;
+  border: 1px solid #2a2a2f;
+  border-radius: 10px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+  padding: 10px 12px;
+  z-index: 100000;
+  white-space: normal;
+  cursor: default;
+  text-align: left;
+}
+
+.llm-usage-popover-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e8e8ea;
+  margin-bottom: 6px;
+}
+
+.llm-usage-popover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #b8b8bc;
+  margin-top: 4px;
+}
+.llm-usage-popover-row b {
+  color: #f5a623;
+  font-weight: 600;
+}
+
+.llm-usage-popover-dim {
+  font-size: 9.5px;
+  color: #5c5c64;
+  margin-top: 1px;
+}
+
+.llm-usage-popover-sessions {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #232326;
+  font-size: 10.5px;
+  color: #7a7a82;
+}
+
+.llm-usage-box-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9a9aa2;
+  flex-shrink: 0;
+}
+
+.llm-usage-box.busy .llm-usage-box-logo {
+  color: #34c759;
+  animation: llm-usage-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes llm-usage-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.llm-usage-box-name {
+  font-size: 10.5px;
+  color: #9a9aa2;
+  letter-spacing: 0.02em;
+}
+
+.llm-usage-box.busy .llm-usage-box-name {
+  color: #e8e8ea;
+}
+
+.llm-usage-box-pct {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #7a7a82;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.llm-usage-box.busy .llm-usage-box-pct {
+  color: #34c759;
+  background: rgba(52, 199, 89, 0.15);
+}
+
+.llm-usage-box.idle .llm-usage-box-pct {
+  color: #f5a623;
+  background: rgba(245, 166, 35, 0.12);
+}
