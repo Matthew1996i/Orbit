@@ -440,6 +440,22 @@ def _proc_cwd(pid):
         return None
 
 
+def _proc_has_live_tty(pid):
+    """False quando o terminal de verdade por tras desse processo ja foi
+    fechado mas o processo (uma CLI externa tipo Copilot/Codex/Antigravity)
+    continuou vivo em segundo plano, orfao — confirmado na pratica: nesse
+    caso o stdin do processo aponta pra um pty que o kernel ja marca como
+    "(deleted)" (o dispositivo /dev/pts/N sumiu, mas o processo ainda
+    segura um file descriptor aberto pra ele). Sem esse filtro, uma sessao
+    "fantasma" (janela fechada ha muito tempo, processo nunca terminou de
+    verdade) continuava aparecendo como se estivesse ativa."""
+    try:
+        target = os.readlink(f"/proc/{pid}/fd/0")
+    except OSError:
+        return False
+    return target.startswith("/dev/pts/") and "(deleted)" not in target
+
+
 def _running_pids_by_comm(comm_name):
     """pids (Linux, via /proc) cujo binario tem exatamente esse nome — usado
     pra achar processos de CLIs externas (ex: codex) rodando fora do app,
@@ -525,7 +541,7 @@ def read_codex_sessions():
         pid for pid in _running_pids_by_comm("codex")
         # "app-server" e a integracao com editor (ex: extensao do VS Code),
         # nao uma sessao de terminal interativa — nao deve virar card aqui.
-        if "app-server" not in _proc_cmdline(pid)
+        if "app-server" not in _proc_cmdline(pid) and _proc_has_live_tty(pid)
     ]
     if not pids:
         return []
@@ -620,7 +636,7 @@ def read_antigravity_sessions():
     meta_path = ANTIGRAVITY_DIR / "cache" / "conversation_metadata.json"
     if not meta_path.is_file():
         return []
-    pids = _running_pids_by_comm("agy")
+    pids = [pid for pid in _running_pids_by_comm("agy") if _proc_has_live_tty(pid)]
     if not pids:
         return []
     pid_cwds = {pid: cwd for pid in pids if (cwd := _proc_cwd(pid))}
@@ -711,7 +727,7 @@ def read_copilot_sessions():
             pid = int(lock_path.name.split(".")[1])
         except (ValueError, IndexError):
             continue
-        if not pid_alive(pid):
+        if not pid_alive(pid) or not _proc_has_live_tty(pid):
             continue
         try:
             meta = _parse_simple_yaml((lock_path.parent / "workspace.yaml").read_text())
@@ -760,7 +776,7 @@ def read_generic_external_sessions(comm, llm_id, exclude_cmdline_substrings=()):
     arvore em vez de ficar invisivel."""
     pids = [
         pid for pid in _running_pids_by_comm(comm)
-        if not any(s in _proc_cmdline(pid) for s in exclude_cmdline_substrings)
+        if not any(s in _proc_cmdline(pid) for s in exclude_cmdline_substrings) and _proc_has_live_tty(pid)
     ]
     if not pids:
         return []
