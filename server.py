@@ -225,22 +225,59 @@ def _start_agent_process(agent_id):
     # do app tem que nascer como sessao TOPO independente, entao essas
     # variaveis sao removidas antes de iniciar o processo real.
     clean_env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE_", "CLAUDECODE", "CLAUDE_PID", "CLAUDE_EFFORT"))}
+    # o app empacotado (Electron) e lancado pelo icone/launcher do SO, nao por
+    # um shell de login — o processo do backend Python herda um PATH minimo
+    # (ex: so /usr/bin:/bin) que nao inclui onde CLIs de usuario costumam
+    # morar (~/.local/bin, onde o `claude` normalmente fica instalado). Sem
+    # isso, o subprocess.Popen abaixo falha com FileNotFoundError e o agente
+    # fica preso pra sempre (pid nunca sai de None) sem nenhum aviso visivel.
+    home = str(Path.home())
+    extra_path_dirs = [
+        f"{home}/.local/bin",
+        f"{home}/bin",
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+    ]
+    path_parts = clean_env.get("PATH", "").split(os.pathsep)
+    for d in extra_path_dirs:
+        if d not in path_parts:
+            path_parts.insert(0, d)
+    clean_env["PATH"] = os.pathsep.join(p for p in path_parts if p)
     env = dict(
         clean_env,
         TERM="xterm-256color",
         COLORTERM="truecolor",  # sem isso, algumas CLIs (inclusive o claude) caem pra uma paleta
         FORCE_COLOR="3",         # de cores mais pobre/diferente do terminal real, "parece outro tema"
     )
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        stdin=slave_fd,
-        stdout=slave_fd,
-        stderr=slave_fd,
-        env=env,
-        preexec_fn=os.setsid,
-        close_fds=True,
-    )
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            env=env,
+            preexec_fn=os.setsid,
+            close_fds=True,
+        )
+    except OSError as exc:
+        # binario nao encontrado/sem permissao de execucao etc — sem isso o
+        # agente ficava com pid=None pra sempre, "busy" no dashboard, mostrando
+        # so "[desconectado]" no painel, sem nenhuma pista do motivo real.
+        os.close(slave_fd)
+        msg = f"\r\n\x1b[31mfalha ao iniciar '{' '.join(cmd)}': {exc}\x1b[0m\r\n".encode()
+        with info["buf_lock"]:
+            info["buffer"] += msg
+            info["closed"] = True
+        with info["writers_lock"]:
+            writers = list(info["writers"])
+        for w in writers:
+            try:
+                w(msg, closed=False)
+                w(b"", closed=True)
+            except Exception:
+                pass
+        return
     os.close(slave_fd)
 
     with AGENTS_LOCK:
