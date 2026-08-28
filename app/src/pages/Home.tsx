@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IonContent, IonFab, IonFabButton, IonPage } from '@ionic/react';
-import { Plus, Skull, ExternalLink } from 'lucide-react';
+import { Plus, Skull, ExternalLink, MessageCircleQuestion } from 'lucide-react';
 import SessionTree from '../components/SessionTree';
 import { llmLogoFor } from '../utils/llmLogos';
 import TerminalPanel from '../components/TerminalPanel';
@@ -240,10 +240,14 @@ export default function Home() {
     await refresh();
   };
 
+  // quem precisa de resposta vem SEMPRE primeiro na dock — com muitos chips
+  // minimizados ao mesmo tempo, o que precisa de acao nao pode ficar
+  // enterrado no meio/fim da fileira so por ordem de abertura.
   const minimizedPanels = [...openIds]
     .filter((id) => minimizedIds.has(id))
     .map((id) => sessionCacheRef.current.get(id))
-    .filter((s): s is SessionInfo => !!s);
+    .filter((s): s is SessionInfo => !!s)
+    .sort((a, b) => Number(needsActionIds.has(b.sessionId)) - Number(needsActionIds.has(a.sessionId)));
 
   return (
     <IonPage>
@@ -391,7 +395,15 @@ export default function Home() {
                     onClick={() => restorePanel(s.sessionId)}
                     title={needsAction ? 'Esperando uma resposta sua' : undefined}
                   >
-                    <Logo size={13} />
+                    {needsAction ? (
+                      // substitui o logo da LLM por um icone de pergunta bem
+                      // aparente enquanto precisa de resposta — o pontinho
+                      // sozinho (ainda visivel, so que maior/mais rapido, no
+                      // fim do chip) passava batido no meio de varios chips.
+                      <MessageCircleQuestion size={14} className="term-dock-needs-action-icon" />
+                    ) : (
+                      <Logo size={13} />
+                    )}
                     <span>{s.name || s.sessionId.slice(0, 8)}</span>
                     <span
                       className={`term-dock-status-dot${busy ? ' busy' : ''}${needsAction ? ' needs-action' : ''}`}
