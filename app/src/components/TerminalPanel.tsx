@@ -84,7 +84,7 @@ export default function TerminalPanel({
   // DIRECAO (out ao minimizar, in ao restaurar) — useLayoutEffect (nao
   // useEffect) pra decidir isso ANTES do browser pintar o frame, senao o
   // painel "some" um frame antes da animacao de saida comecar a tocar.
-  const GENIE_MS = 460; // precisa bater com a duration do @keyframes em TerminalPanel.css
+  const GENIE_MS = 320; // precisa bater com a duration do @keyframes em TerminalPanel.css
   const [geniePhase, setGeniePhase] = useState<'' | 'out' | 'in'>('');
   const prevMinimizedRef = useRef(minimized);
   useLayoutEffect(() => {

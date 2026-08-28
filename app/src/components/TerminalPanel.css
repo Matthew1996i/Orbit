@@ -183,102 +183,74 @@
    so trava o resultado final (mesmos valores do ultimo frame do genie-out)
    e tira do fluxo de clique/hit-test. */
 .term-panel-minimized-hidden {
-  clip-path: polygon(50% 0%, 50% 0%, 50% 100%, 50% 100%);
   transform: scale(0.02, 0.02) translate(-48%, 64%);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
 
-/* efeito "genie" de verdade (Dock do macOS): um scale simples so encolhe o
-   retangulo inteiro por igual, o que nunca parece "sugado pra um funil" —
-   o efeito real vem de estreitar a BASE (perto do dock, embaixo-esquerda)
-   MAIS RAPIDO que o topo via clip-path (um polygon tipo ampulheta que vira
-   um funil), enquanto o transform arrasta/encolhe o conteudo inteiro pro
-   mesmo canto. skew() nos estagios intermediarios da a sensacao de "puxao"
-   inclinado, nao um encolhimento reto. transform-origin (bottom left, em
-   .term-panel) e o que ancora tudo isso no canto certo. */
+/* efeito "genie" (Dock do macOS), so com transform/opacity — a 1a versao
+   tambem animava `clip-path` (um polygon em funil) pra imitar o afunilar de
+   verdade do Dock, mas clip-path forca o navegador a REPINTAR a regiao
+   recortada a cada frame (nao roda so na GPU/compositor como transform e
+   opacity) — combinado com o canvas do xterm.js por baixo (conteudo pesado
+   de redesenhar), isso travava visivelmente. scale(x,y) assimetrico +
+   translate + skew ja dao a leitura de "sugado pro canto" sem custo de
+   repaint; transform-origin (bottom left, em .term-panel) ancora no canto
+   certo. */
 @keyframes term-panel-genie-out {
   0% {
     opacity: 1;
-    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
     transform: scale(1, 1) translate(0, 0) skew(0deg, 0deg);
-    border-radius: 10px;
   }
-  20% {
+  35% {
     opacity: 1;
-    clip-path: polygon(1% 0%, 99% 0%, 90% 100%, 10% 100%);
-    transform: scale(0.96, 0.92) translate(-1%, 5%) skew(-2deg, 1deg);
-    border-radius: 10px 10px 24% 24%;
+    transform: scale(0.5, 0.55) translate(-10%, 20%) skew(-6deg, 3deg);
   }
-  45% {
-    opacity: 1;
-    clip-path: polygon(6% 0%, 94% 0%, 60% 100%, 40% 100%);
-    transform: scale(0.6, 0.62) translate(-12%, 24%) skew(-7deg, 3deg);
-    border-radius: 18% 18% 55% 55%;
-  }
-  72% {
-    opacity: 0.85;
-    clip-path: polygon(22% 0%, 78% 0%, 51% 100%, 49% 100%);
-    transform: scale(0.22, 0.26) translate(-32%, 45%) skew(-11deg, 5deg);
-    border-radius: 50%;
+  70% {
+    opacity: 0.6;
+    transform: scale(0.15, 0.18) translate(-35%, 48%) skew(-9deg, 4deg);
   }
   100% {
     opacity: 0;
-    clip-path: polygon(50% 0%, 50% 0%, 50% 100%, 50% 100%);
     transform: scale(0.02, 0.02) translate(-48%, 64%) skew(0deg, 0deg);
-    border-radius: 50%;
   }
 }
 
 @keyframes term-panel-genie-in {
   0% {
     opacity: 0;
-    clip-path: polygon(50% 0%, 50% 0%, 50% 100%, 50% 100%);
     transform: scale(0.02, 0.02) translate(-48%, 64%) skew(0deg, 0deg);
-    border-radius: 50%;
   }
-  28% {
-    opacity: 0.85;
-    clip-path: polygon(22% 0%, 78% 0%, 51% 100%, 49% 100%);
-    transform: scale(0.22, 0.26) translate(-32%, 45%) skew(-11deg, 5deg);
-    border-radius: 50%;
+  30% {
+    opacity: 0.6;
+    transform: scale(0.15, 0.18) translate(-35%, 48%) skew(-9deg, 4deg);
   }
-  55% {
+  65% {
     opacity: 1;
-    clip-path: polygon(6% 0%, 94% 0%, 60% 100%, 40% 100%);
-    transform: scale(0.6, 0.62) translate(-12%, 24%) skew(-7deg, 3deg);
-    border-radius: 18% 18% 55% 55%;
-  }
-  80% {
-    opacity: 1;
-    clip-path: polygon(1% 0%, 99% 0%, 90% 100%, 10% 100%);
-    transform: scale(0.96, 0.92) translate(-1%, 5%) skew(-2deg, 1deg);
-    border-radius: 10px 10px 24% 24%;
+    transform: scale(0.5, 0.55) translate(-10%, 20%) skew(-6deg, 3deg);
   }
   /* leve overshoot no final (escala passa de 1 e volta) — da uma sensacao
      "viva"/elastica de chegada, igual ao pop de restaurar do Dock real. */
-  92% {
+  88% {
     opacity: 1;
-    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
     transform: scale(1.015, 1.01) translate(0, 0) skew(0deg, 0deg);
-    border-radius: 10px;
   }
   100% {
     opacity: 1;
-    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
     transform: scale(1, 1) translate(0, 0) skew(0deg, 0deg);
-    border-radius: 10px;
   }
 }
 
 .term-panel-genie-out {
-  animation: term-panel-genie-out 0.46s cubic-bezier(0.6, 0, 0.4, 1) forwards;
+  animation: term-panel-genie-out 0.32s cubic-bezier(0.6, 0, 0.4, 1) forwards;
   pointer-events: none;
+  will-change: transform, opacity;
 }
 
 .term-panel-genie-in {
-  animation: term-panel-genie-in 0.46s cubic-bezier(0.2, 0.7, 0.25, 1) forwards;
+  animation: term-panel-genie-in 0.32s cubic-bezier(0.2, 0.7, 0.25, 1) forwards;
+  will-change: transform, opacity;
 }
 
 .term-body {
