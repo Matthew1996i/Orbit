@@ -163,17 +163,22 @@ export default function TerminalPanel({
 
     // detecta um prompt interativo esperando o usuario (permissao, escolha
     // de modelo, qualquer menu tipo "❯ 1. Yes") — duas pistas, OU basta uma:
-    // o glifo "❯" (cursor padrao dos menus tipo Ink que Claude Code/Codex/
-    // Gemini CLI usam pra opcao selecionada, raramente aparece em saida de
-    // texto/codigo normal) OU uma das frases fixas que a propria CLI usa
-    // pra gate de aprovacao ("Do you want to proceed?", "requires
-    // approval") — usadas junto porque um prompt de aprovacao pode nao
-    // ficar com o "❯" bem na hora do scan (ex: cursor ainda na 1a opcao
-    // antes do usuario mexer) e essas frases sao um sinal tao forte quanto.
+    // o glifo "❯" seguido de um NUMERO DE OPCAO (ex.: "❯ 1.", "❯ 2)") — o
+    // cursor de selecao que Claude Code/Codex/Gemini CLI usam em menus tipo
+    // Ink — OU uma das frases fixas que a propria CLI usa pra gate de
+    // aprovacao ("Do you want to proceed?", "requires approval"), pra
+    // cobrir o instante em que o cursor do menu ainda esta na 1a opcao e o
+    // "❯ 1." nao apareceu na hora do scan. Importante: SO o "❯" sozinho (sem
+    // o numero depois) NAO conta — esse mesmo glifo e o marcador padrao do
+    // PROMPT DE ENTRADA normal da CLI (ex.: "❯ escreva sua mensagem"),
+    // visivel o tempo todo enquanto ela esta ociosa esperando o proximo
+    // comando — usar so isso como sinal piscava o indicador constantemente,
+    // mesmo sem nenhuma acao pendente de verdade.
     // So escaneia a tela VISIVEL (term.rows a partir de buf.baseY), nao o
     // scrollback inteiro — um prompt antigo que ja rolou pra fora da tela
     // nao conta mais como "precisa de acao" agora.
     const NEEDS_ACTION_PHRASES = ['do you want to proceed', 'requires approval', 'requer aprovação'];
+    const MENU_CURSOR_RE = /❯\s*\d+[.)]/;
     let needsAction = false;
     const checkNeedsAction = () => {
       const buf = term.buffer.active;
@@ -182,7 +187,7 @@ export default function TerminalPanel({
         const line = buf.getLine(buf.baseY + y);
         if (!line) continue;
         const text = line.translateToString(true);
-        if (text.includes('❯') || NEEDS_ACTION_PHRASES.some((p) => text.toLowerCase().includes(p))) {
+        if (MENU_CURSOR_RE.test(text) || NEEDS_ACTION_PHRASES.some((p) => text.toLowerCase().includes(p))) {
           found = true;
           break;
         }
@@ -199,12 +204,15 @@ export default function TerminalPanel({
     ws.onclose = () => term.writeln('\r\n\x1b[31m[desconectado]\x1b[0m');
     let lastCols = -1;
     let lastRows = -1;
-    // reflow visual local: recalcula a grade e redesenha, sem falar com o
-    // PTY. Chamada a cada frame pintado enquanto o tamanho muda (via rAF
-    // abaixo) — e o que faz o texto acompanhar a borda ao vivo, igual a um
-    // terminal nativo, em vez de ficar "parado" no tamanho anterior ate o
-    // arrasto terminar.
-    const applyFit = () => {
+    // force=true sempre manda pro PTY mesmo se cols/rows nao mudaram (usado
+    // nos reenvios de seguranca do 1o boot, onde o objetivo e garantir que a
+    // CLI redesenha, nao so avisar de uma mudanca de tamanho de verdade).
+    const sendResize = (force = false) => {
+      // limpa o esticamento visual temporario ANTES do fit.fit() (nao
+      // depois) — senao sobra um frame com o texto ja na grade nova mas
+      // ainda esticado pelo scale antigo, borrando a fonte por engano.
+      const screenEl = bodyRef.current?.querySelector<HTMLElement>('.xterm-screen');
+      if (screenEl) screenEl.style.transform = '';
       fit.fit();
       // forca o xterm a re-renderizar todas as linhas com a nova grade —
       // sem isso, glifos medidos/posicionados pra um cols antigo podem ficar
@@ -215,12 +223,6 @@ export default function TerminalPanel({
       } catch {
         /* nada a fazer se o buffer ainda nao tem linhas pra redesenhar */
       }
-    };
-    // force=true sempre manda pro PTY mesmo se cols/rows nao mudaram (usado
-    // nos reenvios de seguranca do 1o boot, onde o objetivo e garantir que a
-    // CLI redesenha, nao so avisar de uma mudanca de tamanho de verdade).
-    const sendResize = (force = false) => {
-      applyFit();
       const changed = term.cols !== lastCols || term.rows !== lastRows;
       lastCols = term.cols;
       lastRows = term.rows;
@@ -232,26 +234,48 @@ export default function TerminalPanel({
         ws.send(JSON.stringify({ type: 'resize', rows: term.rows, cols: term.cols }));
       }
     };
-    // dois ritmos diferentes, de proposito: o reflow VISUAL (applyFit, via
-    // rAF) roda a cada frame pintado no maximo (nunca mais de uma vez por
-    // ~16ms, mesmo que o ResizeObserver dispare varias vezes no mesmo
-    // frame) — rapido o bastante pra parecer ao vivo, devagar o bastante pra
-    // nao encadear reflows de sobra e perder linhas do scrollback (era isso
-    // que acontecia antes, chamando fit.fit() sem nenhum throttle). Ja o
-    // aviso pro PTY real (SIGWINCH, via sendResize) continua so quando o
-    // tamanho PARA de mudar por ~100ms — mandar isso a cada frame inundaria
-    // a TUI remota (feita em Ink) com redesenhos que ela nao acompanha.
-    let rafId: number | null = null;
-    let settleTimeout: ReturnType<typeof setTimeout> | null = null;
-    const onResize = () => {
-      if (rafId === null) {
-        rafId = requestAnimationFrame(() => {
-          rafId = null;
-          applyFit();
-        });
+    // manda o resize de verdade (PTY + SIGWINCH pro `claude` real, e o
+    // fit.fit()/term.resize() que faz reflow do scrollback de verdade) so
+    // quando o tamanho PARA de mudar por ~120ms. NAO da pra chamar fit.fit()
+    // a cada tick do ResizeObserver (ou mesmo a cada frame via rAF): term
+    // .resize() reflui o BUFFER inteiro toda vez que cols muda, e uma
+    // sequencia de reflows rapida demais (arrastar a borda gera dezenas de
+    // eventos por segundo) corrompe o que esta desenhado na tela — linhas
+    // somem/ficam em branco ate a proxima escrita real forcar um redesenho.
+    // Isso ja tinha sido resolvido aqui antes (ver historico) e uma tentativa
+    // de reflow "ao vivo" via requestAnimationFrame REINTRODUZIU o mesmo bug,
+    // so que numa frequencia menor — confirmado ao vivo, texto sumindo
+    // durante o arrasto. Por isso o reflow REAL so roda no settle.
+    // Enquanto isso, o `.xterm-screen` (elemento que o xterm.js dimensiona
+    // com width/height fixos em px a cada fit) e esticado via
+    // `transform: scale()` pra acompanhar o container ao vivo — e so
+    // CSS/composicao, nao mexe no reflow nem no conteudo real, so estica a
+    // pintura (pode distorcer a fonte levemente por poucos frames), e some
+    // assim que o fit.fit() de verdade roda e recalcula o tamanho real. A
+    // escala usa o espaco de CONTEUDO do container (clientWidth/Height MENOS
+    // o padding, lido via computed style, do mesmo jeito que o FitAddon
+    // calcula por baixo dos panos) — medir contra `container.clientWidth`
+    // direto (que INCLUI o padding) deixava a escala sempre um pouco maior
+    // que 1, borrando a fonte por engano.
+    let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
+    const debouncedSendResize = () => {
+      const container = bodyRef.current;
+      const screenEl = container?.querySelector<HTMLElement>('.xterm-screen');
+      if (container && screenEl) {
+        const cs = window.getComputedStyle(container);
+        const padH = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+        const padV = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+        const availW = container.clientWidth - padH;
+        const availH = container.clientHeight - padV;
+        const screenW = screenEl.offsetWidth;
+        const screenH = screenEl.offsetHeight;
+        if (screenW > 0 && screenH > 0 && availW > 0 && availH > 0) {
+          screenEl.style.transformOrigin = 'top left';
+          screenEl.style.transform = `scale(${availW / screenW}, ${availH / screenH})`;
+        }
       }
-      if (settleTimeout) clearTimeout(settleTimeout);
-      settleTimeout = setTimeout(() => sendResize(), 100);
+      if (resizeDebounce) clearTimeout(resizeDebounce);
+      resizeDebounce = setTimeout(sendResize, 120);
     };
     ws.onopen = () => {
       sendResize(true);
@@ -271,13 +295,18 @@ export default function TerminalPanel({
     });
 
     const ro = new ResizeObserver(() => {
-      onResize();
+      debouncedSendResize();
     });
     if (panelRef.current) ro.observe(panelRef.current);
+    // segunda fonte de verdade, independente do ResizeObserver: o evento
+    // nativo de resize da janela do SO. Sem isso a janela destacada (popout)
+    // dependia SO do ResizeObserver no painel — redundante aqui, mas barato
+    // e evita ficar refem de um unico mecanismo pra algo tao importante.
+    window.addEventListener('resize', debouncedSendResize);
 
     return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      if (settleTimeout) clearTimeout(settleTimeout);
+      if (resizeDebounce) clearTimeout(resizeDebounce);
+      window.removeEventListener('resize', debouncedSendResize);
       ro.disconnect();
       ws.close();
       term.dispose();
