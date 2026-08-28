@@ -18,7 +18,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Instalar deps e buildar o frontend
         working-directory: app
