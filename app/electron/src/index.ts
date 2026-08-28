@@ -6,6 +6,7 @@ import electronIsDev from 'electron-is-dev';
 import unhandled from 'electron-unhandled';
 import { autoUpdater } from 'electron-updater';
 
+import { startBackend, stopBackend } from './backend';
 import { ElectronCapacitorApp, setupContentSecurityPolicy, setupReloadWatcher } from './setup';
 
 // Graceful handling of unhandled errors.
@@ -43,6 +44,10 @@ if (electronIsDev) {
   await app.whenReady();
   // Security - Set Content-Security-Policy based on whether or not we are in dev mode.
   setupContentSecurityPolicy(myCapacitorApp.getCustomURLScheme());
+  // Sobe o backend Python (se ainda nao estiver rodando) antes de carregar a
+  // UI, pra funcionar com um unico app instalado, sem exigir uma segunda
+  // instancia manual do server.py.
+  await startBackend();
   // Initialize our app, build windows, and load content.
   await myCapacitorApp.init();
   // Remove a barra de menu nativa do SO (File/View) — o app tem seu próprio
@@ -80,6 +85,12 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// Encerra o backend (se foi essa instancia que o subiu) quando o app
+// realmente vai fechar de vez.
+app.on('will-quit', () => {
+  stopBackend();
 });
 
 // When the dock icon is clicked.

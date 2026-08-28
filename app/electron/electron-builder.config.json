@@ -10,9 +10,10 @@
     "capacitor.config.*",
     "app/**/*"
   ],
-  "publish": {
-    "provider": "github"
-  },
+  "extraResources": [
+    { "from": "../../server.py", "to": "server.py" }
+  ],
+  "publish": null,
   "nsis": {
     "allowElevation": true,
     "oneClick": false,
@@ -29,6 +30,7 @@
   "linux": {
     "target": ["AppImage", "deb"],
     "icon": "assets/appIcon.png",
-    "category": "Utility"
+    "category": "Utility",
+    "maintainer": "Axyo <ti@axyo.com.br>"
   }
 }
