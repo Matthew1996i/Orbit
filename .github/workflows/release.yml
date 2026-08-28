@@ -34,6 +34,10 @@ jobs:
         working-directory: app/electron
         run: npm install
 
+      - name: Buildar o processo principal do Electron
+        working-directory: app/electron
+        run: npm run build
+
       - name: Empacotar app
         working-directory: app/electron
         run: npx electron-builder build -c ./electron-builder.config.json
