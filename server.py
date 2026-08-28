@@ -236,21 +236,14 @@ def _start_agent_process(agent_id):
     # o app empacotado (Electron) e lancado pelo icone/launcher do SO, nao por
     # um shell de login — o processo do backend Python herda um PATH minimo
     # (ex: so /usr/bin:/bin) que nao inclui onde CLIs de usuario costumam
-    # morar (~/.local/bin, onde o `claude` normalmente fica instalado). Sem
-    # isso, o subprocess.Popen abaixo falha com FileNotFoundError e o agente
-    # fica preso pra sempre (pid nunca sai de None) sem nenhum aviso visivel.
-    home = str(Path.home())
-    extra_path_dirs = [
-        f"{home}/.local/bin",
-        f"{home}/bin",
-        "/usr/local/bin",
-        "/opt/homebrew/bin",
-    ]
-    path_parts = clean_env.get("PATH", "").split(os.pathsep)
-    for d in extra_path_dirs:
-        if d not in path_parts:
-            path_parts.insert(0, d)
-    clean_env["PATH"] = os.pathsep.join(p for p in path_parts if p)
+    # morar (~/.local/bin, onde o `claude` normalmente fica instalado, ou
+    # ~/.nvm/versions/node/*/bin, onde qualquer CLI instalada via `npm
+    # install -g` mora). Sem isso, o subprocess.Popen abaixo falha com
+    # FileNotFoundError e o agente fica preso pra sempre (pid nunca sai de
+    # None) sem nenhum aviso visivel. Mesma lista usada pra achar as CLIs na
+    # tela de "conectar LLM" (ver _path_dirs_with_user_bins()), pra nao
+    # divergir dessa outra deteccao de novo.
+    clean_env["PATH"] = os.pathsep.join(_path_dirs_with_user_bins())
     env = dict(
         clean_env,
         TERM="xterm-256color",
@@ -840,10 +833,19 @@ def read_sessions():
         pid = data.get("pid")
         alive = pid_alive(pid) if pid else False
         data["alive"] = alive
-        # bridgeSessionId so aparece quando a sessao tem "Remote Control" ativado
-        # (controlada por um app remoto/mobile) -- e a propria CLI quem grava isso
-        # no arquivo de sessao local, nao precisa de nenhuma API de nuvem pra saber.
-        data["remoteControl"] = bool(data.get("bridgeSessionId"))
+        # DESLIGADO: `bridgeSessionId` deixou de significar "controlada
+        # remotamente AGORA" a partir do Claude Code 2.1.251 — confirmado
+        # comparando sessoes reais nesta maquina: uma sessao v2.1.250 nao
+        # tem essa chave no arquivo; uma sessao v2.1.251 (mesmo aberta so
+        # localmente pelo app, sem NENHUM app remoto/mobile conectado) ja
+        # nasce com bridgeSessionId preenchido. Ou seja, essa versao passou
+        # a registrar o pareamento do DISPOSITIVO em toda sessao nova por
+        # padrao — nao indica mais uma conexao ativa de verdade. Sem um sinal
+        # melhor disponivel no arquivo de sessao pra distinguir "pareado" de
+        # "conectado agora", mostrar a tag "remoto" baseado so nisso virou
+        # sempre-verdadeiro (falso positivo universal) — desligado ate achar
+        # um sinal confiavel de conexao ativa.
+        data["remoteControl"] = False
         sessions.append(data)
     return _dedupe_sessions_by_id(sessions)
 
@@ -1847,11 +1849,13 @@ def _antigravity_authenticated():
     if now - _ANTIGRAVITY_AUTH_CACHE["checkedAt"] < ANTIGRAVITY_AUTH_CACHE_TTL:
         return _ANTIGRAVITY_AUTH_CACHE["value"]
     ok = False
-    try:
-        result = subprocess.run(["agy", "models"], capture_output=True, timeout=6)
-        ok = result.returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
-        ok = False
+    exe = _resolve_bin("agy")
+    if exe:
+        try:
+            result = subprocess.run([exe, "models"], capture_output=True, timeout=6)
+            ok = result.returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            ok = False
     _ANTIGRAVITY_AUTH_CACHE.update({"checkedAt": now, "value": ok})
     return ok
 
@@ -1892,6 +1896,21 @@ def _amp_authenticated():
     return False
 
 
+def _nvm_bin_dirs():
+    """Todo `bin/` de versao de node instalada via nvm — usado pra achar
+    CLIs instaladas com `npm install -g` (Codex, Gemini, Copilot, OpenCode,
+    Amp: todas KNOWN_LLM_CLIS documentam instalacao via npm) quando o app
+    empacotado e aberto pelo icone/launcher do SO (PATH minimo, sem nvm
+    sourceado — nunca herda o PATH de um shell interativo). Devolve TODAS
+    as versoes instaladas (nao so a "default"), pra nao depender de como
+    ~/.nvm/alias/default esta escrito (pode ser um alias tipo "lts/*", nao
+    necessariamente um numero de versao direto)."""
+    nvm_versions_dir = Path.home() / ".nvm" / "versions" / "node"
+    if not nvm_versions_dir.is_dir():
+        return []
+    return [str(p / "bin") for p in nvm_versions_dir.iterdir() if (p / "bin").is_dir()]
+
+
 def _path_dirs_with_user_bins():
     # complementa o PATH herdado com os diretorios de binario de usuario mais
     # comuns — o app empacotado (ver commit "Fix agents never starting when
@@ -1904,10 +1923,25 @@ def _path_dirs_with_user_bins():
         f"{home}/bin",
         "/usr/local/bin",
         "/opt/homebrew/bin",
+        *_nvm_bin_dirs(),
     ):
         if d not in path_dirs:
             path_dirs.insert(0, d)
     return [p for p in path_dirs if p]
+
+
+def _resolve_bin(name):
+    """Caminho completo de um binario, procurando nos mesmos diretorios de
+    _path_dirs_with_user_bins() — necessario pra qualquer subprocess.run()
+    que precise achar uma CLI de usuario (`agy`, `codex`, etc) por NOME,
+    ja que subprocess.run(["nome", ...]) sem `env=` faz a busca usando o
+    PATH herdado de verdade do processo (que pode ser o minimo do SO
+    empacotado), nao a lista corrigida acima."""
+    for d in _path_dirs_with_user_bins():
+        candidate = Path(d) / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
 
 
 # checagem de autenticacao real por CLI — so pras que temos um local de
@@ -2098,11 +2132,7 @@ CODEX_USAGE_CACHE_TTL = 60.0
 
 
 def _resolve_codex_bin():
-    for d in _path_dirs_with_user_bins():
-        candidate = Path(d) / "codex"
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return str(candidate)
-    return None
+    return _resolve_bin("codex")
 
 
 def _parse_codex_usage_window(obj):
