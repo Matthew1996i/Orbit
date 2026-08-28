@@ -14,4 +14,5 @@ contextBridge.exposeInMainWorld('dashboardAPI', {
   windowToggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  openSessionWindow: (sessionId) => ipcRenderer.invoke('open-session-window', sessionId),
 });

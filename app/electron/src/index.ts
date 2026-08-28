@@ -1,10 +1,11 @@
 import type { CapacitorElectronConfig } from '@capacitor-community/electron';
 import { getCapacitorElectronConfig, setupElectronDeepLinking } from '@capacitor-community/electron';
 import type { MenuItemConstructorOptions } from 'electron';
-import { app, dialog, ipcMain, Menu, MenuItem } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem } from 'electron';
 import electronIsDev from 'electron-is-dev';
 import unhandled from 'electron-unhandled';
 import { autoUpdater } from 'electron-updater';
+import { join } from 'path';
 
 import { startBackend, stopBackend } from './backend';
 import { ElectronCapacitorApp, setupContentSecurityPolicy, setupReloadWatcher } from './setup';
@@ -26,6 +27,27 @@ const capacitorFileConfig: CapacitorElectronConfig = getCapacitorElectronConfig(
 // const myCapacitorApp = new ElectronCapacitorApp(capacitorFileConfig);
 const myCapacitorApp = new ElectronCapacitorApp(capacitorFileConfig, trayMenuTemplate, appMenuBarMenuTemplate);
 
+// so uma instancia por vez — sem isso, rodar `npx electron .` de novo sem
+// ter certeza que a instancia anterior morreu de verdade (ex: um kill que
+// nao pegou o backend Python a tempo) sobe uma SEGUNDA arvore inteira de
+// janelas em paralelo, cada uma com seu proprio Map de janelas "destacadas"
+// (ver open-session-window abaixo) — e uma janela orfa de uma instancia
+// anterior pode aparecer na frente sem nenhuma relacao com o que o usuario
+// acabou de clicar na instancia atual. app.quit() aqui encerra a instancia
+// NOVA na hora (antes dela sequer chegar no app.whenReady() abaixo); a
+// instancia ANTIGA (que ja tinha o lock) so foca a propria janela principal.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const win = myCapacitorApp.getMainWindow();
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  });
+}
+
 // If deeplinking is enabled then we will set it up here.
 if (capacitorFileConfig.electron?.deepLinkingEnabled) {
   setupElectronDeepLinking(myCapacitorApp, {
@@ -38,8 +60,10 @@ if (electronIsDev) {
   setupReloadWatcher(myCapacitorApp);
 }
 
-// Run Application
-(async () => {
+// Run Application — so segue se essa instancia realmente pegou o lock
+// (app.quit() acima ja foi chamado pra outra, mas nao interrompe a execucao
+// sincrona do resto do modulo por conta propria).
+if (gotSingleInstanceLock) (async () => {
   // Wait for electron app to be ready.
   await app.whenReady();
   // Security - Set Content-Security-Policy based on whether or not we are in dev mode.
@@ -124,10 +148,16 @@ ipcMain.handle('reload-app', () => myCapacitorApp.getMainWindow().reload());
 ipcMain.handle('get-app-version', () => app.getVersion());
 
 // controles de janela pra barra de titulo customizada (frame: false = sem
-// chrome nativo do SO, entao min/max/close precisam ser reimplementados aqui)
-ipcMain.handle('window-minimize', () => myCapacitorApp.getMainWindow().minimize());
-ipcMain.handle('window-toggle-maximize', () => {
-  const win = myCapacitorApp.getMainWindow();
+// chrome nativo do SO, entao min/max/close precisam ser reimplementados
+// aqui) — resolve a janela pelo REMETENTE do IPC (event.sender), nao mais
+// hardcoded pra janela principal, pra esses mesmos 4 canais funcionarem
+// tanto na janela principal quanto numa janela "destacada" (ver
+// open-session-window abaixo, tambem frame:false agora, cada uma com sua
+// propria barra de titulo customizada em React).
+ipcMain.handle('window-minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
+ipcMain.handle('window-toggle-maximize', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return false;
   if (win.isMaximized()) {
     win.unmaximize();
   } else {
@@ -135,5 +165,40 @@ ipcMain.handle('window-toggle-maximize', () => {
   }
   return win.isMaximized();
 });
-ipcMain.handle('window-close', () => myCapacitorApp.getMainWindow().close());
-ipcMain.handle('window-is-maximized', () => myCapacitorApp.getMainWindow().isMaximized());
+ipcMain.handle('window-close', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
+ipcMain.handle('window-is-maximized', (event) => BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false);
+
+// "destacar terminal pra fora do app" — abre uma janela OS de verdade pra
+// renderizar so o terminal de UMA sessao (rota /session/:id no mesmo build
+// React, ver SessionWindow.tsx). frame:false igual a janela principal — a
+// UI (nao o SO) desenha a barra de titulo customizada, com "externo - " no
+// titulo (ver PopoutTitleBar em SessionWindow.tsx) pra deixar claro de
+// longe que essa janela e uma sessao destacada, nao a janela principal do
+// app. Um Map por sessionId evita abrir duas janelas pra mesma sessao se o
+// usuario clicar de novo — so foca a que ja existe.
+const sessionWindows = new Map<string, BrowserWindow>();
+
+ipcMain.handle('open-session-window', (_event, sessionId: string) => {
+  const existing = sessionWindows.get(sessionId);
+  if (existing && !existing.isDestroyed()) {
+    existing.focus();
+    return;
+  }
+  const preloadPath = join(app.getAppPath(), 'build', 'src', 'preload.js');
+  const win = new BrowserWindow({
+    width: 920,
+    height: 640,
+    minWidth: 360,
+    minHeight: 220,
+    title: 'Orbit',
+    frame: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: true,
+      preload: preloadPath,
+    },
+  });
+  sessionWindows.set(sessionId, win);
+  win.on('closed', () => sessionWindows.delete(sessionId));
+  win.loadURL(`${myCapacitorApp.getCustomURLScheme()}://-/session/${encodeURIComponent(sessionId)}`);
+});

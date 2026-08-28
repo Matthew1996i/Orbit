@@ -11,6 +11,7 @@ declare global {
       windowToggleMaximize: () => Promise<boolean>;
       windowClose: () => Promise<void>;
       windowIsMaximized: () => Promise<boolean>;
+      openSessionWindow: (sessionId: string) => Promise<void>;
     };
   }
 }
