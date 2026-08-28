@@ -40,10 +40,12 @@ ion-toolbar {
   box-shadow: 0 0 6px #34c759;
 }
 .dot.idle {
-  background: #555;
+  background: #f5a623;
+  box-shadow: 0 0 5px rgba(245, 166, 35, 0.5);
 }
 .dot.dead {
-  background: #3a3a40;
+  background: #ff5c57;
+  box-shadow: 0 0 5px rgba(255, 92, 87, 0.4);
 }
 .stats-title {
   font-size: 12px;
@@ -86,10 +88,51 @@ ion-toolbar {
   border-color: #f5a623;
   color: #fff;
 }
+
+/* precisa de uma resposta do usuario (permissao, escolha de modelo, etc —
+   ver onNeedsAction em TerminalPanel.tsx) — o chip inteiro fica com a borda
+   ambar pra chamar atencao de longe, nao so o pontinho pequeno. */
+.term-dock-chip.needs-action {
+  border-color: #f5a623;
+  box-shadow: 0 0 0 1px rgba(245, 166, 35, 0.5), 0 6px 18px rgba(0, 0, 0, 0.4);
+}
 .term-dock-chip span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.term-dock-status-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #555;
+  margin-left: 2px;
+}
+
+.term-dock-status-dot.busy {
+  background: #34c759;
+  box-shadow: 0 0 6px #34c759;
+  animation: term-dock-status-pulse 1.4s ease-in-out infinite;
+}
+
+/* pulso mais rapido e ambar (nao verde) — precisa parecer mais "urgente"
+   que o busy normal, e uma cor diferente pra nao confundir "trabalhando"
+   com "esperando voce". */
+.term-dock-status-dot.needs-action {
+  background: #f5a623;
+  box-shadow: 0 0 6px #f5a623;
+  animation: term-dock-status-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes term-dock-status-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .empty-state {

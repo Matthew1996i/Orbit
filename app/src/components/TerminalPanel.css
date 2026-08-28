@@ -14,6 +14,57 @@
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
   z-index: 1000;
+  transform-origin: bottom left;
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease;
+  animation: term-panel-in 0.16s ease-out;
+}
+
+@keyframes term-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* janela destacada (SessionWindow.tsx): o CSS aqui SUBSTITUI o box flutuante
+   posicionado em pixel — vira o proprio conteudo da janela do SO, sem
+   posicao/tamanho fixo, sem sombra/cantos arredondados (nao faz sentido numa
+   janela de verdade) e sem a animacao de entrada em scale (a janela ja
+   aparece do jeito que o SO decide, animar o CONTEUDO por cima ficaria
+   estranho). */
+.term-panel-popout {
+  position: static;
+  inset: auto;
+  top: auto;
+  left: auto;
+  width: 100%;
+  /* preenche o restante do .session-window-body (que ja reserva os 38px da
+     PopoutTitleBar no topo via padding) — nao 100vh, que estouraria por
+     baixo dessa barra. */
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+  transform: none;
+  transition: none;
+}
+
+/* o header/body normal tem cantos arredondados pra combinar com o painel
+   flutuante (que tambem e arredondado) — numa janela OS de verdade
+   (popout, sem cantos) isso sobrava como um arredondado "flutuando" sem
+   nada em volta pra combinar. */
+.term-panel-popout .term-header {
+  border-radius: 0;
+}
+.term-panel-popout .term-body {
+  border-radius: 0;
 }
 
 .term-header {
@@ -85,6 +136,27 @@
 
 .term-header-spacer {
   width: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.term-popout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: #7a7a82;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.term-popout-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8e8ea;
 }
 
 .term-title-remote-tag {
@@ -106,9 +178,107 @@
   box-shadow: 0 0 18px rgba(46, 204, 113, 0.22);
 }
 
+/* estado final, DEPOIS que a animacao "genie" (abaixo) termina de tocar —
+   sem transition proprio: o movimento ja aconteceu via @keyframes, isso aqui
+   so trava o resultado final (mesmos valores do ultimo frame do genie-out)
+   e tira do fluxo de clique/hit-test. */
 .term-panel-minimized-hidden {
+  clip-path: polygon(50% 0%, 50% 0%, 50% 100%, 50% 100%);
+  transform: scale(0.02, 0.02) translate(-48%, 64%);
+  opacity: 0;
   visibility: hidden;
   pointer-events: none;
+}
+
+/* efeito "genie" de verdade (Dock do macOS): um scale simples so encolhe o
+   retangulo inteiro por igual, o que nunca parece "sugado pra um funil" —
+   o efeito real vem de estreitar a BASE (perto do dock, embaixo-esquerda)
+   MAIS RAPIDO que o topo via clip-path (um polygon tipo ampulheta que vira
+   um funil), enquanto o transform arrasta/encolhe o conteudo inteiro pro
+   mesmo canto. skew() nos estagios intermediarios da a sensacao de "puxao"
+   inclinado, nao um encolhimento reto. transform-origin (bottom left, em
+   .term-panel) e o que ancora tudo isso no canto certo. */
+@keyframes term-panel-genie-out {
+  0% {
+    opacity: 1;
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+    transform: scale(1, 1) translate(0, 0) skew(0deg, 0deg);
+    border-radius: 10px;
+  }
+  20% {
+    opacity: 1;
+    clip-path: polygon(1% 0%, 99% 0%, 90% 100%, 10% 100%);
+    transform: scale(0.96, 0.92) translate(-1%, 5%) skew(-2deg, 1deg);
+    border-radius: 10px 10px 24% 24%;
+  }
+  45% {
+    opacity: 1;
+    clip-path: polygon(6% 0%, 94% 0%, 60% 100%, 40% 100%);
+    transform: scale(0.6, 0.62) translate(-12%, 24%) skew(-7deg, 3deg);
+    border-radius: 18% 18% 55% 55%;
+  }
+  72% {
+    opacity: 0.85;
+    clip-path: polygon(22% 0%, 78% 0%, 51% 100%, 49% 100%);
+    transform: scale(0.22, 0.26) translate(-32%, 45%) skew(-11deg, 5deg);
+    border-radius: 50%;
+  }
+  100% {
+    opacity: 0;
+    clip-path: polygon(50% 0%, 50% 0%, 50% 100%, 50% 100%);
+    transform: scale(0.02, 0.02) translate(-48%, 64%) skew(0deg, 0deg);
+    border-radius: 50%;
+  }
+}
+
+@keyframes term-panel-genie-in {
+  0% {
+    opacity: 0;
+    clip-path: polygon(50% 0%, 50% 0%, 50% 100%, 50% 100%);
+    transform: scale(0.02, 0.02) translate(-48%, 64%) skew(0deg, 0deg);
+    border-radius: 50%;
+  }
+  28% {
+    opacity: 0.85;
+    clip-path: polygon(22% 0%, 78% 0%, 51% 100%, 49% 100%);
+    transform: scale(0.22, 0.26) translate(-32%, 45%) skew(-11deg, 5deg);
+    border-radius: 50%;
+  }
+  55% {
+    opacity: 1;
+    clip-path: polygon(6% 0%, 94% 0%, 60% 100%, 40% 100%);
+    transform: scale(0.6, 0.62) translate(-12%, 24%) skew(-7deg, 3deg);
+    border-radius: 18% 18% 55% 55%;
+  }
+  80% {
+    opacity: 1;
+    clip-path: polygon(1% 0%, 99% 0%, 90% 100%, 10% 100%);
+    transform: scale(0.96, 0.92) translate(-1%, 5%) skew(-2deg, 1deg);
+    border-radius: 10px 10px 24% 24%;
+  }
+  /* leve overshoot no final (escala passa de 1 e volta) — da uma sensacao
+     "viva"/elastica de chegada, igual ao pop de restaurar do Dock real. */
+  92% {
+    opacity: 1;
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+    transform: scale(1.015, 1.01) translate(0, 0) skew(0deg, 0deg);
+    border-radius: 10px;
+  }
+  100% {
+    opacity: 1;
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+    transform: scale(1, 1) translate(0, 0) skew(0deg, 0deg);
+    border-radius: 10px;
+  }
+}
+
+.term-panel-genie-out {
+  animation: term-panel-genie-out 0.46s cubic-bezier(0.6, 0, 0.4, 1) forwards;
+  pointer-events: none;
+}
+
+.term-panel-genie-in {
+  animation: term-panel-genie-in 0.46s cubic-bezier(0.2, 0.7, 0.25, 1) forwards;
 }
 
 .term-body {

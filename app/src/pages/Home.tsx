@@ -20,6 +20,11 @@ export default function Home() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [openIds, setOpenIds] = useState<string[]>([]);
   const [minimizedIds, setMinimizedIds] = useState<Set<string>>(new Set());
+  // sessoes cujo terminal esta mostrando AGORA um prompt interativo esperando
+  // o usuario (permissao, escolha de modelo, etc — ver onNeedsAction em
+  // TerminalPanel.tsx) — usado so pra acender o indicador no chip da dock
+  // quando o painel correspondente esta minimizado.
+  const [needsActionIds, setNeedsActionIds] = useState<Set<string>>(new Set());
   const [zIndexById, setZIndexById] = useState<Record<string, number>>({});
   const [replayVersion, setReplayVersion] = useState(0);
   const [showNewAgent, setShowNewAgent] = useState(false);
@@ -150,6 +155,12 @@ export default function Home() {
   const closePanel = (id: string) => {
     setOpenIds((cur) => cur.filter((x) => x !== id));
     setMinimizedIds((cur) => {
+      if (!cur.has(id)) return cur;
+      const next = new Set(cur);
+      next.delete(id);
+      return next;
+    });
+    setNeedsActionIds((cur) => {
       if (!cur.has(id)) return cur;
       const next = new Set(cur);
       next.delete(id);
@@ -336,6 +347,25 @@ export default function Home() {
                 }}
                 onMinimize={() => minimizePanel(id)}
                 onFocus={() => bringToFront(id)}
+                onPopout={() => {
+                  window.dashboardAPI?.openSessionWindow?.(session.sessionId);
+                  // mesma logica do onClose: sem isso, um agente do PROPRIO
+                  // app (appManaged) vivo reabriria sozinho aqui de volta no
+                  // proximo refresh() (2s), porque o efeito que reabre
+                  // paineis "orfaos" nao sabe que essa sessao passou a viver
+                  // numa janela separada.
+                  dismissedAppAgentIdsRef.current.add(id);
+                  closePanel(id);
+                }}
+                onNeedsAction={(needs) =>
+                  setNeedsActionIds((cur) => {
+                    if (needs === cur.has(id)) return cur;
+                    const next = new Set(cur);
+                    if (needs) next.add(id);
+                    else next.delete(id);
+                    return next;
+                  })
+                }
               />
             );
           })}
@@ -344,10 +374,21 @@ export default function Home() {
             <div className="term-dock">
               {minimizedPanels.map((s) => {
                 const Logo = llmLogoFor(s.llm || 'claude');
+                const needsAction = needsActionIds.has(s.sessionId);
+                const busy = !needsAction && s.alive && s.status === 'busy';
                 return (
-                  <button key={s.sessionId} className="term-dock-chip" onClick={() => restorePanel(s.sessionId)}>
+                  <button
+                    key={s.sessionId}
+                    className={`term-dock-chip${needsAction ? ' needs-action' : ''}`}
+                    onClick={() => restorePanel(s.sessionId)}
+                    title={needsAction ? 'Esperando uma resposta sua' : undefined}
+                  >
                     <Logo size={13} />
                     <span>{s.name || s.sessionId.slice(0, 8)}</span>
+                    <span
+                      className={`term-dock-status-dot${busy ? ' busy' : ''}${needsAction ? ' needs-action' : ''}`}
+                      aria-hidden="true"
+                    />
                   </button>
                 );
               })}

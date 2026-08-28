@@ -1,12 +1,21 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
-import { X, Minus } from 'lucide-react';
+import { X, Minus, ExternalLink } from 'lucide-react';
 import { BACKEND_WS, SessionInfo, StepEvent } from '../api';
 import TranscriptView from './TranscriptView';
 import './TerminalPanel.css';
+
+// tamanho/posicao default de um painel recem-aberto — exportado pra o
+// SessionTree saber, ao focar o card clicado, em que altura o painel vai
+// nascer (sem isso o card ficava alinhado no meio da tela, mas o painel abre
+// mais pro alto quando a janela e maior que 619px de altura).
+export function defaultPanelTop(): number {
+  const h = Math.max(220, Math.min(619, window.innerHeight - 38 - 16));
+  return Math.max(38, (window.innerHeight - h) / 2);
+}
 
 interface Props {
   session: SessionInfo;
@@ -17,6 +26,22 @@ interface Props {
   onClose: () => void;
   onMinimize: () => void;
   onFocus: () => void;
+  // "destacar pra fora do app" — abre esse mesmo terminal numa janela OS
+  // separada (ver SessionWindow.tsx) e fecha o painel aqui. Omitido quando o
+  // painel JA e o conteudo de uma janela destacada (nao faz sentido destacar
+  // de novo, e o botao nem aparece nesse caso — ver `popout` abaixo).
+  onPopout?: () => void;
+  // true quando esse TerminalPanel e o conteudo de uma janela OS dedicada
+  // (SessionWindow.tsx) em vez de um painel flutuante dentro do dashboard —
+  // preenche a janela inteira, sem posicionamento/arraste, e sem os
+  // "semaforos" de fechar/minimizar (o SO ja da esses controles na propria
+  // janela).
+  popout?: boolean;
+  // dispara toda vez que o terminal PASSA A MOSTRAR (ou deixa de mostrar) um
+  // prompt interativo esperando o usuario (permissao, escolha de modelo,
+  // qualquer menu tipo "❯ 1. ..."). So o Home.tsx usa isso, pra acender o
+  // indicador no chip da dock quando o painel esta minimizado.
+  onNeedsAction?: (needsAction: boolean) => void;
 }
 
 export default function TerminalPanel({
@@ -28,6 +53,9 @@ export default function TerminalPanel({
   onClose,
   onMinimize,
   onFocus,
+  onPopout,
+  popout,
+  onNeedsAction,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -37,6 +65,8 @@ export default function TerminalPanel({
 
   const onFocusRef = useRef(onFocus);
   onFocusRef.current = onFocus;
+  const onNeedsActionRef = useRef(onNeedsAction);
+  onNeedsActionRef.current = onNeedsAction;
   // o painel sempre acompanha o tamanho da JANELA do app (não só o próprio
   // conteúdo) — sem isso, redimensionar a janela do app deixa os painéis
   // "pequenos" plantados num canto, porque eles têm posição/tamanho fixos em
@@ -44,6 +74,30 @@ export default function TerminalPanel({
   // do SO).
 
   const isApp = !!session.appManaged && !!session.appAgentId;
+
+  // efeito "genie" (igual ao Dock do macOS) ao minimizar/restaurar: o painel
+  // continua MONTADO (so troca de classe) e a curva de "sugado pro canto" e
+  // uma animacao @keyframes de verdade (nao da pra fazer a curva ir-e-voltar
+  // com um simples `transition`, que so interpola LINEARMENTE entre dois
+  // estados). Como @keyframes so dispara quando a classe e ADICIONADA (nao
+  // quando e removida), precisamos de uma classe temporaria pra cada
+  // DIRECAO (out ao minimizar, in ao restaurar) — useLayoutEffect (nao
+  // useEffect) pra decidir isso ANTES do browser pintar o frame, senao o
+  // painel "some" um frame antes da animacao de saida comecar a tocar.
+  const GENIE_MS = 460; // precisa bater com a duration do @keyframes em TerminalPanel.css
+  const [geniePhase, setGeniePhase] = useState<'' | 'out' | 'in'>('');
+  const prevMinimizedRef = useRef(minimized);
+  useLayoutEffect(() => {
+    if (prevMinimizedRef.current === minimized) return;
+    prevMinimizedRef.current = minimized;
+    setGeniePhase(minimized ? 'out' : 'in');
+    const t = setTimeout(() => setGeniePhase(''), GENIE_MS);
+    return () => clearTimeout(t);
+  }, [minimized]);
+  // so aplica visibility:hidden/pointer-events:none DEPOIS que a animacao de
+  // saida terminou de tocar — enquanto ela esta tocando (geniePhase==='out')
+  // o painel continua totalmente visivel, so encolhendo.
+  const settledHidden = minimized && geniePhase === '';
 
   // --- inicializa o terminal xterm.js, só para o modo interativo (PTY real) ---
   useEffect(() => {
@@ -107,9 +161,33 @@ export default function TerminalPanel({
       if (sel) navigator.clipboard?.writeText(sel).catch(() => {});
     });
 
+    // detecta um prompt interativo esperando o usuario (permissao, escolha
+    // de modelo, qualquer menu tipo "❯ 1. Yes") — esse glifo "❯" e o cursor
+    // padrao dos menus tipo Ink que Claude Code/Codex/Gemini CLI usam pra
+    // opcao selecionada, raramente aparece em saida de texto/codigo normal.
+    // So escaneia a tela VISIVEL (term.rows a partir de buf.baseY), nao o
+    // scrollback inteiro — um prompt antigo que ja rolou pra fora da tela
+    // nao conta mais como "precisa de acao" agora.
+    let needsAction = false;
+    const checkNeedsAction = () => {
+      const buf = term.buffer.active;
+      let found = false;
+      for (let y = 0; y < term.rows; y++) {
+        const line = buf.getLine(buf.baseY + y);
+        if (line && line.translateToString(true).includes('❯')) {
+          found = true;
+          break;
+        }
+      }
+      if (found !== needsAction) {
+        needsAction = found;
+        onNeedsActionRef.current?.(found);
+      }
+    };
+
     const ws = new WebSocket(`${BACKEND_WS}/ws/agent/${session.appAgentId}`);
     ws.binaryType = 'arraybuffer';
-    ws.onmessage = (ev) => term.write(new Uint8Array(ev.data as ArrayBuffer));
+    ws.onmessage = (ev) => term.write(new Uint8Array(ev.data as ArrayBuffer), checkNeedsAction);
     ws.onclose = () => term.writeln('\r\n\x1b[31m[desconectado]\x1b[0m');
     let lastCols = -1;
     let lastRows = -1;
@@ -208,6 +286,7 @@ export default function TerminalPanel({
       ws.close();
       term.dispose();
       termRef.current = null;
+      if (needsAction) onNeedsActionRef.current?.(false);
     };
   }, [isApp, session.sessionId, session.appAgentId]);
 
@@ -224,7 +303,11 @@ export default function TerminalPanel({
     let startTop = 0;
 
     const onPointerDown = (e: PointerEvent) => {
-      if ((e.target as HTMLElement).closest('.term-dot')) return;
+      // o botao de destacar (.term-popout-btn) mora dentro do header
+      // arrastavel, igual aos semaforos (.term-dot) — sem excluir os dois, o
+      // preventDefault() do drag abaixo engolia o click antes dele chegar no
+      // botao, e "abrir em janela separada" nunca disparava.
+      if ((e.target as HTMLElement).closest('.term-dot, .term-popout-btn')) return;
       // sem isso o Chromium inicia selecao de texto/drag nativo (o "fantasma"
       // de captura da tela acompanhando o cursor) ao arrastar pelo cabecalho —
       // mesmo motivo do onPointerDown do TreeCard em SessionTree.tsx.
@@ -268,19 +351,25 @@ export default function TerminalPanel({
     h: Math.max(220, Math.min(619, window.innerHeight - 38 - 16)),
   });
 
-  // aplica o tamanho fixo assim que o painel nasce, e centraliza na tela (a
-  // posicao inicial e sempre no meio — so depois disso o usuario pode
-  // arrastar pra organizar). O CSS tinha um `left: calc(50vw - 460px)`
-  // fixo que so centralizava de verdade pra uma largura de 920px e nunca
-  // considerava a altura, entao em janelas menores/maiores o painel nascia
-  // fora do centro; calcular em JS com o tamanho real resolve pros dois eixos.
+  // aplica o tamanho fixo assim que o painel nasce, encostado na DIREITA da
+  // tela (so depois disso o usuario pode arrastar pra organizar) — assim o
+  // card do agente que o usuario acabou de clicar (na arvore, sempre mais pra
+  // esquerda) continua visivel ao lado do painel, em vez de ficar coberto por
+  // um painel centralizado.
   useLayoutEffect(() => {
+    // janela destacada: o CSS (.term-panel-popout) ja preenche a janela
+    // inteira sozinho — nao precisa (e nao deve) forcar um tamanho/posicao
+    // fixo em pixel por cima disso.
+    if (popout) return;
     const panel = panelRef.current;
     if (!panel) return;
     const { w, h } = computeQuarterSize();
     panel.style.width = `${w}px`;
     panel.style.height = `${h}px`;
-    panel.style.left = `${Math.max(0, (window.innerWidth - w) / 2)}px`;
+    // margem maior que os 16px "padrao" do resto do app (ver Home.css) —
+    // colado bem na borda direita ficava dificil de perceber que ainda havia
+    // espaco de sobra na tela, tipo uma janela "cortada".
+    panel.style.left = `${Math.max(0, window.innerWidth - w - 56)}px`;
     panel.style.top = `${Math.max(38, (window.innerHeight - h) / 2)}px`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -290,6 +379,7 @@ export default function TerminalPanel({
   // resize da janela do app — só a POSIÇÃO fica a cargo do usuário (arrastar
   // o cabeçalho), o tamanho nunca é escolha manual. ---
   useEffect(() => {
+    if (popout) return;
     const panel = panelRef.current;
     if (!panel) return;
     const onWindowResize = () => {
@@ -307,28 +397,50 @@ export default function TerminalPanel({
 
   return (
     <div
-      className={`term-panel${minimized ? ' term-panel-minimized-hidden' : ''}${session.remoteControl ? ' term-panel-remote' : ''}`}
+      className={`term-panel${popout ? ' term-panel-popout' : ''}${settledHidden ? ' term-panel-minimized-hidden' : ''}${geniePhase ? ` term-panel-genie-${geniePhase}` : ''}${session.remoteControl ? ' term-panel-remote' : ''}`}
       style={{ zIndex }}
       ref={panelRef}
       data-session-id={session.sessionId}
       onMouseDownCapture={onFocus}
     >
       <div className="term-header" ref={headerRef}>
-        <div className="term-traffic-lights">
-          <button className="term-dot term-dot-close" onClick={onClose} aria-label="Fechar">
-            <X size={9} strokeWidth={2.5} />
-          </button>
-          <button className="term-dot term-dot-min" onClick={onMinimize} aria-label="Minimizar">
-            <Minus size={9} strokeWidth={2.5} />
-          </button>
-        </div>
+        {popout ? (
+          // janela destacada: o proprio SO ja da fechar/minimizar/maximizar
+          // (frame nativo, ver openSessionWindow no processo principal) —
+          // repetir os semaforos aqui so duplicaria os controles.
+          <div className="term-header-spacer" />
+        ) : (
+          <div className="term-traffic-lights">
+            <button className="term-dot term-dot-close" onClick={onClose} aria-label="Fechar">
+              <X size={9} strokeWidth={2.5} />
+            </button>
+            <button className="term-dot term-dot-min" onClick={onMinimize} aria-label="Minimizar">
+              <Minus size={9} strokeWidth={2.5} />
+            </button>
+          </div>
+        )}
         <strong className="term-title">
           {title}
           {session.remoteControl && (
             <span className="term-title-remote-tag" title="Remote Control ativo nesta sessão">remoto</span>
           )}
         </strong>
-        <div className="term-header-spacer" />
+        {popout ? (
+          <div className="term-header-spacer" />
+        ) : (
+          <div className="term-header-spacer">
+            {onPopout && (
+              <button
+                className="term-popout-btn"
+                onClick={onPopout}
+                aria-label="Abrir em janela separada"
+                title="Abrir em janela separada"
+              >
+                <ExternalLink size={12} strokeWidth={2.25} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {isApp ? (
         <div className="term-body" ref={bodyRef} onMouseDown={focusTerminal} />
