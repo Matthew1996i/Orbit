@@ -169,6 +169,18 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
             "buf_lock": threading.Lock(),
             "writers": [],
             "writers_lock": threading.Lock(),
+            # tamanho (rows, cols) que CADA viewer conectado reportou por
+            # ultimo, chaveado por um id proprio da conexao — o PTY e
+            # compartilhado entre todos os viewers do mesmo agent_id (painel
+            # flutuante + janela destacada podem estar conectados ao mesmo
+            # tempo), entao aplicar cru o que o ULTIMO viewer mandou faz um
+            # reenvio de seguranca de um painel menor sobrescrever o tamanho
+            # que outro viewer maior tinha acabado de aplicar — o terminal
+            # trava permanentemente na largura do viewer errado. A politica
+            # (igual multiplexadores como tmux) e "o menor viewer manda": o
+            # PTY nunca fica maior do que a tela de QUALQUER viewer conectado,
+            # entao nenhum deles ve conteudo cortado.
+            "sizes": {},
             "closed": False,
             "kind": "agent",
             "llm": cmd[0],
@@ -203,6 +215,18 @@ def spawn_install(cli_id, command):
             "buf_lock": threading.Lock(),
             "writers": [],
             "writers_lock": threading.Lock(),
+            # tamanho (rows, cols) que CADA viewer conectado reportou por
+            # ultimo, chaveado por um id proprio da conexao — o PTY e
+            # compartilhado entre todos os viewers do mesmo agent_id (painel
+            # flutuante + janela destacada podem estar conectados ao mesmo
+            # tempo), entao aplicar cru o que o ULTIMO viewer mandou faz um
+            # reenvio de seguranca de um painel menor sobrescrever o tamanho
+            # que outro viewer maior tinha acabado de aplicar — o terminal
+            # trava permanentemente na largura do viewer errado. A politica
+            # (igual multiplexadores como tmux) e "o menor viewer manda": o
+            # PTY nunca fica maior do que a tela de QUALQUER viewer conectado,
+            # entao nenhum deles ve conteudo cortado.
+            "sizes": {},
             "closed": False,
             "kind": "install",
         }
@@ -2572,6 +2596,25 @@ class Handler(BaseHTTPRequestHandler):
         if already_closed:
             return
 
+        # identifica esta conexao entre os demais viewers do mesmo agent_id —
+        # so precisa ser unico enquanto a conexao existir.
+        viewer_id = id(on_chunk)
+
+        def _apply_effective_size():
+            # "o menor viewer manda" (igual tmux): garante que o PTY nunca
+            # fica maior do que a tela de nenhum viewer conectado no momento.
+            with info["writers_lock"]:
+                sizes = list(info["sizes"].values())
+            if not sizes:
+                return
+            eff_rows = min(r for r, _ in sizes)
+            eff_cols = min(c for _, c in sizes)
+            try:
+                fcntl.ioctl(master_fd, termios.TIOCSWINSZ,
+                            struct.pack("HHHH", eff_rows, eff_cols, 0, 0))
+            except OSError:
+                pass
+
         with info["writers_lock"]:
             info["writers"].append(on_chunk)
 
@@ -2600,11 +2643,9 @@ class Handler(BaseHTTPRequestHandler):
                     if msg.get("type") == "resize":
                         rows = int(msg.get("rows", 30))
                         cols = int(msg.get("cols", 100))
-                        try:
-                            fcntl.ioctl(master_fd, termios.TIOCSWINSZ,
-                                        struct.pack("HHHH", rows, cols, 0, 0))
-                        except OSError:
-                            pass
+                        with info["writers_lock"]:
+                            info["sizes"][viewer_id] = (rows, cols)
+                        _apply_effective_size()
                         # so inicia o processo de verdade depois do 1o resize
                         # real (ou do fallback acima) — assim ele ja nasce com
                         # o tamanho certo, sem desenhar nada com tamanho errado.
@@ -2619,6 +2660,10 @@ class Handler(BaseHTTPRequestHandler):
             with info["writers_lock"]:
                 if on_chunk in info["writers"]:
                     info["writers"].remove(on_chunk)
+                info["sizes"].pop(viewer_id, None)
+            # se esse viewer era o "menor" que estava segurando o PTY
+            # estreito, os que sobraram podem crescer de volta agora.
+            _apply_effective_size()
 
     def _ws_send(self, data, opcode=0x2):
         length = len(data)
