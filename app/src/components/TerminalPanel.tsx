@@ -288,7 +288,17 @@ export default function TerminalPanel({
       termRef.current = null;
       if (needsAction) onNeedsActionRef.current?.(false);
     };
-  }, [isApp, session.sessionId, session.appAgentId]);
+    // session.sessionId de PROPOSITO fora do array de deps: um agente do
+    // app nasce com um sessionId SINTETICO (Home.tsx/read_app_agent_sessions
+    // no backend) ate a sessao REAL do `claude` se registrar em disco
+    // (~/.claude/sessions/*.json), o que troca o sessionId visivel por um
+    // completamente diferente uns segundos depois, SEM o agente/processo
+    // real ter mudado nada — o appAgentId (usado na URL do WS abaixo) e
+    // quem continua igual o tempo todo. Reagir a sessionId aqui derrubava e
+    // reabria a conexao (e reiniciava o xterm do zero) nessa troca, dando a
+    // impressao de "abriu, fechou, abriu de novo" pro usuario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isApp, session.appAgentId]);
 
   // --- arrastar pelo cabecalho ---
   useEffect(() => {

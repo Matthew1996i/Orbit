@@ -335,7 +335,15 @@ export default function Home() {
             const steps = session.appManaged ? [] : [...(buffersRef.current.get(id) || [])];
             return (
               <TerminalPanel
-                key={id}
+                // um agente do app troca de sessionId (sintetico -> real) uns
+                // segundos depois de nascer, sem o agente/processo real ter
+                // mudado nada — se a key seguisse o sessionId, o React via
+                // isso como um componente NOVO nesse instante (desmontava o
+                // painel antigo e montava outro do zero, reconectando o
+                // terminal e tocando a animacao de entrada de novo).
+                // appAgentId fica igual a vida toda do agente, entao mantem a
+                // MESMA instancia do componente durante essa troca.
+                key={session.appAgentId || id}
                 session={session}
                 allSessions={sessions}
                 replaySteps={steps}
