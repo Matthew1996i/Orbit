@@ -15,10 +15,19 @@ interface Props {
 export default function ConnectLlmModal({ llms, onClose, onInstalled }: Props) {
   const [installing, setInstalling] = useState<{ cliId: string; agentId: string; label: string } | null>(null);
 
-  const connect = async (cliId: string) => {
-    const res = await startInstall(cliId, 'install');
+  // CLI ja instalada mas sem login (status "installed") reaproveita so o
+  // comando de login — nao roda a instalacao inteira de novo. So quem nunca
+  // teve o binario encontrado (status "none") passa pelo fluxo completo de
+  // instalar + autenticar encadeado.
+  const connect = async (cliId: string, status: LlmCli['status']) => {
+    const action = status === 'installed' ? 'login' : 'install';
+    const res = await startInstall(cliId, action);
     if ('error' in res) return;
-    setInstalling({ cliId, agentId: res.id, label: 'Instalando e autenticando' });
+    setInstalling({
+      cliId,
+      agentId: res.id,
+      label: action === 'login' ? 'Autenticando' : 'Instalando e autenticando',
+    });
   };
 
   const onLogDone = () => {
@@ -56,12 +65,19 @@ export default function ConnectLlmModal({ llms, onClose, onInstalled }: Props) {
                     <div className="connect-llm-name">{llm.name}</div>
                     <div className="connect-llm-vendor">{llm.vendor}</div>
                   </div>
-                  {llm.connected ? (
+                  {llm.status === 'connected' ? (
                     <span className="connect-llm-connected">
-                      <Check size={13} /> instalado
+                      <Check size={13} /> conectado
+                    </span>
+                  ) : llm.status === 'installed' ? (
+                    <span className="connect-llm-status-group">
+                      <span className="connect-llm-installed-tag">instalado</span>
+                      <button className="connect-llm-btn" onClick={() => connect(llm.id, llm.status)}>
+                        Fazer login
+                      </button>
                     </span>
                   ) : (
-                    <button className="connect-llm-btn" onClick={() => connect(llm.id)}>
+                    <button className="connect-llm-btn" onClick={() => connect(llm.id, llm.status)}>
                       Conectar
                     </button>
                   )}

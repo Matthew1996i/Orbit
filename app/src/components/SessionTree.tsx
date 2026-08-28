@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { IonBadge } from '@ionic/react';
 import {
   Puzzle,
@@ -20,10 +20,16 @@ import {
 } from 'lucide-react';
 import { SessionInfo, CostSummary, SessionCostUsage, fetchCostSummary } from '../api';
 import { shortCwd, formatModelEffort } from '../utils/format';
-import { llmLogoFor } from '../utils/llmLogos';
+import { llmLogoFor, llmLogoColorFor } from '../utils/llmLogos';
 import LlmUsageWidget from './LlmUsageWidget';
 import CostUsageFooter, { formatTokens, formatBrl } from './CostUsageFooter';
+import { defaultPanelTop } from './TerminalPanel';
 import './SessionTree.css';
+
+// topo do titlebar do app, fora do viewport do canvas da arvore (usado pra
+// converter a posicao ABSOLUTA em que o painel nasce, calculada em
+// defaultPanelTop(), pra coordenada RELATIVA ao viewport do canvas).
+const TOPBAR_H = 38;
 
 // relatorio de custo muda bem mais devagar que status de sessao (que ja
 // atualiza a cada 2s) — um numero que so cresce aos poucos nao precisa do
@@ -32,18 +38,25 @@ import './SessionTree.css';
 // E o custo por card, em vez de cada um buscar por conta propria.
 const COST_REFRESH_MS = 8000;
 
-function useCostSummary(): CostSummary | null {
+function useCostSummary(): { summary: CostSummary | null; connectionError: boolean } {
   const [summary, setSummary] = useState<CostSummary | null>(null);
+  // true quando o ciclo de poll MAIS RECENTE falhou — o rodape usa isso pra
+  // mostrar um icone de "sem conexao" em vez de continuar exibindo o ultimo
+  // numero conhecido como se nada tivesse acontecido (um numero desatualizado
+  // exibido com confianca e pior que nenhum numero).
+  const [connectionError, setConnectionError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const load = () => {
       fetchCostSummary()
         .then((response) => {
-          if (!cancelled) setSummary(response);
+          if (cancelled) return;
+          setSummary(response);
+          setConnectionError(false);
         })
         .catch(() => {
-          /* backend indisponivel nesse ciclo — mantem o ultimo valor conhecido */
+          if (!cancelled) setConnectionError(true);
         });
     };
     load();
@@ -54,7 +67,7 @@ function useCostSummary(): CostSummary | null {
     };
   }, []);
 
-  return summary;
+  return { summary, connectionError };
 }
 
 // mapeia o nome do servidor MCP (ex: "redmine", "google-drive") pra um icone
@@ -91,7 +104,6 @@ interface TreeNode {
   x: number;
   y: number;
   group: 'app' | 'external';
-  rootId: string;
 }
 
 // sessao "fora do app" (nao criada pelo botao "+ novo agente") entra num grupo
@@ -109,17 +121,13 @@ function buildForest(sessions: SessionInfo[]): TreeNode[] {
   // subagentes herdam o grupo da RAIZ (eles proprios sempre tem appManaged
   // false, mas se o pai foi criado pelo app, visualmente devem contar como
   // "do app" tambem — senao ficariam sozinhos, sem nenhum agrupamento).
-  // rootId identifica o grupo pra arrastar — todo card (raiz ou descendente)
-  // guarda o id da sessao raiz, assim arrastar QUALQUER card do grupo move a
-  // arvore inteira junto (o offset e sempre aplicado por rootId, nao por card).
-  const toNode = (session: SessionInfo, group: 'app' | 'external', rootId: string): TreeNode => ({
+  const toNode = (session: SessionInfo, group: 'app' | 'external'): TreeNode => ({
     session,
-    children: childrenOf(session.sessionId).map((child) => toNode(child, group, rootId)),
+    children: childrenOf(session.sessionId).map((child) => toNode(child, group)),
     depth: 0,
     x: 0,
     y: 0,
     group,
-    rootId,
   });
 
   const isRoot = (session: SessionInfo) =>
@@ -140,7 +148,7 @@ function buildForest(sessions: SessionInfo[]): TreeNode[] {
     if (ga === gb) return 0;
     return ga === 'external' ? -1 : 1;
   });
-  return roots.map((root) => toNode(root, groupOf(root), root.sessionId));
+  return roots.map((root) => toNode(root, groupOf(root)));
 }
 
 /** Layout recursivo: folhas ocupam 1 slot cada, nós internos centralizam sobre os
@@ -219,6 +227,20 @@ function statusOf(session: SessionInfo): 'busy' | 'idle' | 'dead' {
   return session.status === 'busy' ? 'busy' : 'idle';
 }
 
+// "1h23m45s" so cresce ate o minuto quando passa de 1h (nao mostra segundo
+// junto de hora — perde precisao que ninguem le num relance) e "12m34s"/"45s"
+// nos demais casos, sempre com segundos pra ficar visivelmente "vivo" tique a
+// tique.
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h${String(minutes).padStart(2, '0')}m`;
+  if (minutes > 0) return `${minutes}m${String(seconds).padStart(2, '0')}s`;
+  return `${seconds}s`;
+}
+
 interface CardProps {
   node: TreeNode;
   x: number;
@@ -226,28 +248,22 @@ interface CardProps {
   isRootLevel: boolean;
   onOpen: (session: SessionInfo) => void;
   onContextMenu: (session: SessionInfo, x: number, y: number) => void;
-  onDragBy: (rootId: string, dx: number, dy: number) => void;
-  getScale: () => number;
   costUsage?: SessionCostUsage;
+  now: number;
 }
 
-// limiar (em px de tela) pra distinguir "clicou" de "arrastou" — abaixo disso
-// ainda conta como clique (abre o painel), acima vira arraste do grupo.
-const DRAG_THRESHOLD = 4;
-
-function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, getScale, costUsage }: CardProps) {
+function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, now }: CardProps) {
   const { session } = node;
   const status = statusOf(session);
   const name = session.name || session.sessionId.slice(0, 8);
   // nós de MCP/skill são sintéticos (não têm PTY/transcript próprio pra
-  // abrir) — só mostram atividade recente, não são clicáveis (mas ainda
-  // podem ser arrastadas — arrastar QUALQUER card do grupo move o grupo
-  // inteiro, seja raiz, subagente ou nó de atividade).
+  // abrir) — só mostram atividade recente, não são clicáveis.
   const isActivityNode = !!session.isMcp || !!session.isSkill;
   const canOpen = status !== 'dead' && !isActivityNode;
 
   const McpIcon = session.isMcp ? mcpIconFor(session.mcpServer || '') : null;
   const LlmLogo = isRootLevel ? llmLogoFor(session.llm || 'claude') : null;
+  const llmLogoColor = isRootLevel ? llmLogoColorFor(session.llm || 'claude') : undefined;
   const badge = LlmLogo ? (
     <LlmLogo size={14} strokeWidth={2.25} />
   ) : McpIcon ? (
@@ -257,55 +273,6 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, ge
   ) : (
     <Puzzle size={13} strokeWidth={2.25} />
   );
-
-  // arraste do card: pointerdown captura o ponteiro no proprio card (nao
-  // conflita com o pan do canvas, que ja ignora pointerdown dentro de
-  // .tree-card). Um clique de verdade (sem mover alem do limiar) ainda abre
-  // o painel no pointerup — assim nao precisa de onClick separado.
-  const dragRef = useRef<{ initX: number; initY: number; lastX: number; lastY: number; moved: boolean } | null>(
-    null,
-  );
-
-  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    // sem isso o navegador inicia selecao de texto da pagina inteira ao
-    // arrastar (comportamento nativo de mousedown+move) — o card nao tem
-    // nada selecionavel, entao previne sempre.
-    e.preventDefault();
-    dragRef.current = { initX: e.clientX, initY: e.clientY, lastX: e.clientX, lastY: e.clientY, moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    if (
-      !drag.moved &&
-      Math.abs(e.clientX - drag.initX) < DRAG_THRESHOLD &&
-      Math.abs(e.clientY - drag.initY) < DRAG_THRESHOLD
-    ) {
-      return;
-    }
-    drag.moved = true;
-    const scale = getScale();
-    const dx = (e.clientX - drag.lastX) / scale;
-    const dy = (e.clientY - drag.lastY) / scale;
-    drag.lastX = e.clientX;
-    drag.lastY = e.clientY;
-    onDragBy(node.rootId, dx, dy);
-  };
-
-  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    dragRef.current = null;
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    // "drag" so existe se o pointerdown foi botao esquerdo (onPointerDown
-    // ignora outros botoes) — sem essa checagem, um right-click (que nunca
-    // populou dragRef) caia no mesmo "!drag?.moved" de um clique de verdade
-    // (undefined tambem passa em "nao moveu"), abrindo o painel junto do
-    // menu de contexto.
-    if (drag && !drag.moved && canOpen) onOpen(session);
-  };
 
   return (
     <>
@@ -317,9 +284,9 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, ge
         width: CARD_WIDTH,
         height: CARD_HEIGHT,
       }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
+      onClick={() => {
+        if (canOpen) onOpen(session);
+      }}
       onContextMenu={(e) => {
         if (isActivityNode) return;
         e.preventDefault();
@@ -327,7 +294,11 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, ge
       }}
       role="button"
     >
-      <div className="tree-card-badge" aria-hidden="true">
+      <div
+        className="tree-card-badge"
+        aria-hidden="true"
+        style={llmLogoColor ? { color: llmLogoColor } : undefined}
+      >
         {badge}
       </div>
 
@@ -363,6 +334,16 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, ge
           <div className="tree-card-effort">{formatModelEffort(session.model, session.effort)}</div>
         )}
       </div>
+      {/* tempo de execucao ao vivo, canto inferior direito do proprio card —
+          so faz sentido pra sessao com processo de verdade rodando (nao pra
+          no de atividade sintetico de MCP/skill, que nao tem "execucao"
+          propria) e so enquanto ela estiver viva (uma sessao morta ja mostra
+          "done" na pill, o tempo final nao muda mais e so poluiria). */}
+      {!isActivityNode && session.alive && (
+        <div className="tree-card-elapsed" title="tempo de execução">
+          {formatElapsed(now - session.startedAt)}
+        </div>
+      )}
     </div>
     {/* fora do card (que tem overflow:hidden) — nao clicavel, so informativo,
         por isso pointer-events:none via CSS em vez de outro <button>. No card
@@ -387,8 +368,6 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, onDragBy, ge
   );
 }
 
-// recebe as posicoes JA deslocadas pelo offset de arraste do grupo — a linha
-// sempre acompanha os cards, nunca fica "presa" na posicao original.
 function edgePath(parentPos: { x: number; y: number }, childPos: { x: number; y: number }): string {
   const startX = parentPos.x;
   const startY = parentPos.y + CARD_HEIGHT / 2;
@@ -519,6 +498,31 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
     applyTransform();
   };
 
+  // desloca o canvas pra deixar um ponto de CONTEUDO (o centro do card que
+  // acabou de ser aberto) perto da borda esquerda da tela E com o TOPO do
+  // card alinhado ao TOPO do painel de terminal que vai nascer (mesma altura
+  // do cabecalho "Codex CLI"/etc, nao o meio da tela) — usado ao clicar num
+  // agente, pra ele nao ficar escondido atras do painel que abre encostado
+  // na direita, alinhado com ele.
+  const focusContent = (contentX: number, contentY: number, targetXFrac = 0.2) => {
+    const viewport = viewportRef.current;
+    const pan = panRef.current;
+    if (!viewport || !pan) return;
+    const { scale } = transform.current;
+    const targetScreenX = viewport.clientWidth * targetXFrac;
+    const targetScreenY = defaultPanelTop() - TOPBAR_H + CARD_HEIGHT / 2;
+    transform.current = { scale, x: targetScreenX - contentX * scale, y: targetScreenY - contentY * scale };
+    hasPannedRef.current = true;
+    // anima só esse pulo especifico (o pan por arraste continua instantaneo,
+    // sem essa transicao, que se ficasse sempre ligada deixaria o drag "com
+    // atraso" atras do cursor).
+    pan.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+    applyTransform();
+    window.setTimeout(() => {
+      if (pan) pan.style.transition = '';
+    }, 320);
+  };
+
   // zoom mantendo o ponto do meio do viewport fixo (senao cada clique em +/-
   // "empurra" o conteudo pro canto, o que fica estranho num botao dedicado)
   const zoomBy = (factor: number) => {
@@ -609,7 +613,7 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
     centerView,
     zoomIn: () => zoomBy(1.25),
     zoomOut: () => zoomBy(0.8),
-    getScale: () => transform.current.scale,
+    focusContent,
   };
 }
 
@@ -625,7 +629,16 @@ const GROUP_BOX_LABEL_H = 26;
 const COST_LABEL_H = 26;
 
 export default function SessionTree({ sessions, onOpen, onContextMenu }: TreeProps) {
-  const costSummary = useCostSummary();
+  const { summary: costSummary, connectionError: costConnectionError } = useCostSummary();
+
+  // relogio compartilhado por TODOS os cards — um unico setInterval aqui em
+  // vez de um por card evita N timers redundantes; o tique de 1s e o
+  // suficiente pra segundo "ao vivo" sem gerar trabalho extra perceptivel.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const { roots, width, height } = useMemo(() => {
     const forest = buildForest(sessions);
@@ -636,22 +649,7 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
   const allNodes = roots.flatMap(flattenNodes);
   const allEdges = roots.flatMap(flattenEdges);
 
-  // offset de arraste por GRUPO (chave = id da sessao raiz) — nunca mexe no
-  // x/y base do layout, so desloca visualmente; assim arrastar qualquer card
-  // do grupo (raiz, subagente ou no de atividade) move a arvore inteira
-  // junto, e as linhas (edgePath) sempre acompanham porque usam essa mesma
-  // posicao deslocada.
-  const [groupOffsets, setGroupOffsets] = useState<Record<string, { dx: number; dy: number }>>({});
-  const posOf = (node: TreeNode) => {
-    const offset = groupOffsets[node.rootId];
-    return offset ? { x: node.x + offset.dx, y: node.y + offset.dy } : { x: node.x, y: node.y };
-  };
-  const handleDragBy = (rootId: string, dx: number, dy: number) => {
-    setGroupOffsets((cur) => {
-      const prev = cur[rootId] || { dx: 0, dy: 0 };
-      return { ...cur, [rootId]: { dx: prev.dx + dx, dy: prev.dy + dy } };
-    });
-  };
+  const posOf = (node: TreeNode) => ({ x: node.x, y: node.y });
 
   // a caixa "fora do app" aparece sempre que existe sessao externa, mesmo sem
   // nenhum agente do app na tela — o rotulo "somente leitura" e informação
@@ -667,7 +665,7 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
       }
     : null;
 
-  const { viewportRef, panRef, isPanning, isZooming, visibleRect, centerView, zoomIn, zoomOut, getScale } =
+  const { viewportRef, panRef, isPanning, isZooming, visibleRect, centerView, zoomIn, zoomOut, focusContent } =
     usePanAndZoom(width, height);
 
   // culling: so monta no DOM os cards/arestas que caem dentro do retangulo
@@ -762,18 +760,25 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
                 x={pos.x}
                 y={pos.y}
                 isRootLevel={isRootLevel}
-                onOpen={onOpen}
+                onOpen={(s) => {
+                  // desloca o card clicado pra perto da borda esquerda ANTES
+                  // de abrir o painel — o painel nasce encostado na direita
+                  // (TerminalPanel.tsx), entao sem isso um card que esteja
+                  // mais pro meio/direita da arvore ficaria escondido atras
+                  // dele assim que o painel abrisse.
+                  focusContent(node.x, node.y);
+                  onOpen(s);
+                }}
                 onContextMenu={onContextMenu}
-                onDragBy={handleDragBy}
-                getScale={getScale}
                 costUsage={costUsage}
+                now={now}
               />
             );
           })}
         </div>
       </div>
 
-      <CostUsageFooter summary={costSummary} />
+      <CostUsageFooter summary={costSummary} connectionError={costConnectionError} />
     </div>
   );
 }

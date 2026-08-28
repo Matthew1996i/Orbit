@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, Wrench, Server, Plus, X, PanelLeft } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, Wrench, Server, Plus, X, PanelLeft, RefreshCw } from 'lucide-react';
 import { fetchCatalog, fetchLlms, fetchUsage, CatalogResponse, LlmCli, AgentFileKind } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import ConnectLlmModal from './ConnectLlmModal';
@@ -13,6 +13,11 @@ interface Props {
 }
 
 type SectionKey = 'llms' | 'agents' | 'skills' | 'tools' | 'mcps';
+
+// sync automatico do status dos agentes/LLMs instalados na maquina — mesmo
+// ritmo do LlmUsageWidget (unico lugar que ja fazia polling de verdade antes
+// dessa correcao), pra nao ficar defasado em relacao ao resto da tela.
+const AGENT_SYNC_MS = 4000;
 
 const SECTION_LABELS: Record<SectionKey, string> = {
   llms: 'LLMs instaladas',
@@ -34,9 +39,30 @@ export default function Sidebar({ open, onClose }: Props) {
     mcps: false,
   });
   const [showConnect, setShowConnect] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [editTarget, setEditTarget] = useState<{ name: string; subtitle?: string; kind: AgentFileKind } | null>(
     null,
   );
+
+  // mantem o painel montado durante a animacao de saida — sem isso o `if
+  // (!open) return null` desmonta na hora e a transicao de fechar nunca chega
+  // a rodar. Espelha o padrao usado no ConfirmDialog/ContextMenu.
+  const [mounted, setMounted] = useState(open);
+  const [closing, setClosing] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      setClosing(false);
+      return;
+    }
+    if (!mounted) return;
+    setClosing(true);
+    const t = setTimeout(() => {
+      setMounted(false);
+      setClosing(false);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [open, mounted]);
 
   const reloadLlms = () =>
     fetchLlms()
@@ -45,7 +71,7 @@ export default function Sidebar({ open, onClose }: Props) {
         // status do Claude nao vem do /api/llms (essa CLI e o proprio app),
         // entao busca o status real de autenticacao a parte e sobrescreve
         // o placeholder hardcoded assim que resolver.
-        fetchUsage()
+        return fetchUsage()
           .then(({ claudeAuthenticated }) => {
             setLlms((cur) =>
               cur.map((llm) =>
@@ -59,13 +85,27 @@ export default function Sidebar({ open, onClose }: Props) {
       })
       .catch(() => setLlms([CLAUDE_LLM_OPTION]));
 
+  // sync manual (botao) e automatico (polling) fazem a MESMA coisa: releem
+  // tanto o catalogo (agentes/skills/tools/mcps) quanto o status das LLMs
+  // (instalado/logado) — sem isso um agente instalado ou logado depois que a
+  // sidebar ja estava aberta so aparecia ao reabrir o painel.
+  const syncAll = () => {
+    setSyncing(true);
+    return Promise.all([
+      fetchCatalog().then(setCatalog).catch(() => setCatalog(null)),
+      reloadLlms(),
+    ]).finally(() => setSyncing(false));
+  };
+
   useEffect(() => {
     if (!open) return;
-    fetchCatalog().then(setCatalog).catch(() => setCatalog(null));
-    reloadLlms();
+    syncAll();
+    const id = setInterval(syncAll, AGENT_SYNC_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   const toggle = (key: SectionKey) => setExpanded((cur) => ({ ...cur, [key]: !cur[key] }));
 
@@ -76,16 +116,27 @@ export default function Sidebar({ open, onClose }: Props) {
 
   return createPortal(
     <>
-      <div className="sidebar-overlay" onClick={onClose} />
-      <div className="sidebar-panel">
+      <div className={`sidebar-overlay${closing ? ' closing' : ''}`} onClick={onClose} />
+      <div className={`sidebar-panel${closing ? ' closing' : ''}`}>
         <div className="sidebar-header">
           <span className="sidebar-header-title">
             <PanelLeft size={14} color="#ffffff" />
             Recursos disponíveis
           </span>
-          <button className="sidebar-close-btn" onClick={onClose} aria-label="Fechar">
-            <X size={15} />
-          </button>
+          <span className="sidebar-header-actions">
+            <button
+              className="sidebar-close-btn"
+              onClick={() => syncAll()}
+              aria-label="Sincronizar"
+              title="Sincronizar agentes/LLMs instalados"
+              disabled={syncing}
+            >
+              <RefreshCw size={14} className={syncing ? 'spinning' : ''} />
+            </button>
+            <button className="sidebar-close-btn" onClick={onClose} aria-label="Fechar">
+              <X size={15} />
+            </button>
+          </span>
         </div>
 
         <div className="sidebar-content">

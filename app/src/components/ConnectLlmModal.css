@@ -120,6 +120,20 @@
   color: #34c759;
 }
 
+.connect-llm-status-group {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.connect-llm-installed-tag {
+  font-size: 10px;
+  color: #9a9aa2;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .connect-llm-installing-label {
   font-size: 12px;
   color: #b8b8bc;
