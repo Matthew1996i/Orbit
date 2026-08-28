@@ -188,16 +188,12 @@ ipcMain.handle('open-session-window', (_event, sessionId: string) => {
   const win = new BrowserWindow({
     width: 920,
     height: 619,
-    // mesmo intervalo de tamanho do painel interno (computeQuarterSize em
-    // TerminalPanel.tsx: 360-920 de largura, 220-619 de altura) — sem o
-    // teto, redimensionar essa janela livremente (ela e uma janela OS de
-    // verdade, arrastavel pelas bordas) deixava o terminal grande/estreito
-    // demais em proporcoes que o painel interno nunca alcança, quebrando o
-    // desenho da TUI da CLI (linhas/caixas cortadas de forma esquisita).
-    minWidth: 360,
-    minHeight: 220,
-    maxWidth: 920,
-    maxHeight: 619,
+    // tamanho fixo (920x619, igual o painel interno) — sem resize manual
+    // nenhum, nem por borda nem por maximizar (o reflow em si funciona pra
+    // qualquer tamanho, ver correcao do PTY compartilhado em server.py, mas
+    // manter as janelas num tamanho unico e conhecido evita layouts
+    // esquisitos da TUI da CLI em proporcoes fora do validado).
+    resizable: false,
     title: 'Orbit',
     frame: false,
     webPreferences: {

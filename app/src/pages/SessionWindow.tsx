@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { IonPage } from '@ionic/react';
-import { Minus, Square, Copy, X } from 'lucide-react';
+import { Minus, X } from 'lucide-react';
 import TerminalPanel from '../components/TerminalPanel';
 import { SessionInfo, StepEvent, connectStepStream, fetchState } from '../api';
 import '../components/TitleBar.css';
@@ -17,17 +17,9 @@ const MAX_BUFFER_STEPS = 300;
 // (mesmo visual dos botoes de janela) mas e um componente bem mais simples
 // (sem menu, sem sidebar) — nao faz sentido portar TitleBar.tsx inteiro.
 function PopoutTitleBar({ title }: { title: string }) {
-  const [maximized, setMaximized] = useState(false);
-
-  useEffect(() => {
-    window.dashboardAPI?.windowIsMaximized().then(setMaximized).catch(() => {});
-  }, []);
-
-  const toggleMaximize = async () => {
-    const isMax = await window.dashboardAPI?.windowToggleMaximize();
-    setMaximized(!!isMax);
-  };
-
+  // sem botao de maximizar: a janela destacada nasce com resizable:false
+  // (tamanho fixo 920x619, ver open-session-window no processo principal) —
+  // maximizar nao faz sentido pra uma janela que nao redimensiona.
   return (
     <div className="title-bar">
       <div className="title-bar-drag">
@@ -40,9 +32,6 @@ function PopoutTitleBar({ title }: { title: string }) {
           aria-label="Minimizar"
         >
           <Minus size={14} />
-        </button>
-        <button className="title-bar-btn" onClick={toggleMaximize} aria-label="Maximizar">
-          {maximized ? <Copy size={12} /> : <Square size={12} />}
         </button>
         <button
           className="title-bar-btn title-bar-btn-close"
