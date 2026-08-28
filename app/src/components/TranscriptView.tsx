@@ -130,9 +130,19 @@ interface Props {
   steps: StepEvent[];
 }
 
+// CLIs cujo formato de transcript ja tem parser no backend (ver
+// parse_step()/parse_codex_step() e _parser_for_session() em server.py) —
+// pras demais (Antigravity, Copilot, Gemini por enquanto), `steps` fica
+// SEMPRE vazio, nao porque a sessao esta parada, mas porque ninguem
+// implementou a leitura ainda. Sem essa distincao, o estado vazio genérico
+// ("aguardando atividade") parece um bug/travamento em vez do que
+// realmente e — uma limitacao conhecida.
+const TRANSCRIPT_SUPPORTED_LLMS = new Set(['claude', 'codex']);
+
 const TranscriptView = ({ session, allSessions, steps }: Props) => {
   const entries = useMemo(() => groupSteps(steps), [steps]);
   const isBusy = !!session.alive && session.status === 'busy';
+  const transcriptSupported = TRANSCRIPT_SUPPORTED_LLMS.has(session.llm || 'claude');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -222,7 +232,11 @@ const TranscriptView = ({ session, allSessions, steps }: Props) => {
       <div className="transcript-view" ref={scrollRef} onScroll={handleScroll}>
         <div ref={contentRef}>
         {entries.length === 0 ? (
-          <div className="transcript-empty">Aguardando atividade desta sessão…</div>
+          <div className="transcript-empty">
+            {transcriptSupported
+              ? 'Aguardando atividade desta sessão…'
+              : 'Leitura de conversa ainda não implementada para essa CLI — abra o terminal de verdade pra ver o conteúdo.'}
+          </div>
         ) : (
           entries.map((entry) => {
             if (entry.kind === 'prompt') {

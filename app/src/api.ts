@@ -101,10 +101,31 @@ export interface ClaudeUsage {
   fiveHour: UsageWindow;
   sevenDay: UsageWindow;
   opus: UsageWindow | null;
+  fetchedAtMs?: number | null;
+  source?: 'anthropic' | 'claude-cache';
 }
 
-export async function fetchUsage(): Promise<{ claude: ClaudeUsage | null; claudeAuthenticated: boolean }> {
-  const res = await fetch(`${BACKEND_HTTP}/api/usage`, { cache: 'no-store' });
+export interface CodexUsageWindow {
+  usedPercent: number;
+  windowMinutes: number;
+  resetsAtMs: number;
+}
+
+export interface CodexUsage {
+  primary: CodexUsageWindow;
+  secondary: CodexUsageWindow;
+  plan: string;
+  rateLimited: boolean;
+  resetCredits: number;
+  fetchedAtMs: number;
+  source: 'codex-app-server';
+}
+
+export async function fetchUsage(
+  force = false,
+): Promise<{ claude: ClaudeUsage | null; claudeAuthenticated: boolean; codex: CodexUsage | null }> {
+  const suffix = force ? '?force=1' : '';
+  const res = await fetch(`${BACKEND_HTTP}/api/usage${suffix}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`usage ${res.status}`);
   return res.json();
 }

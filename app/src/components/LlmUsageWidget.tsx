@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RefreshCw, Clock } from 'lucide-react';
-import { fetchLlms, fetchUsage, ClaudeUsage, UsageWindow, LlmCli, SessionInfo } from '../api';
+import { fetchLlms, fetchUsage, ClaudeUsage, CodexUsage, UsageWindow, LlmCli, SessionInfo } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import './LlmUsageWidget.css';
 
@@ -10,19 +10,11 @@ import './LlmUsageWidget.css';
 // resto da tela, que ja atualiza a cada 2s.
 const LLM_REFRESH_MS = 2000;
 
-// uso real (%) muda bem mais devagar (so quando a propria CLI decide
-// atualizar o cache, ex: rodando /usage) — nao precisa da mesma cadencia de
-// 2s, mas precisa ser buscado sozinho (nao so ao abrir o popover) pra
-// aparecer direto na caixinha.
+// uso real (%) vem do endpoint OAuth da Anthropic via backend local. Mantem a
+// cadencia de 60s para nao bater na API a cada poll visual de sessoes.
 const USAGE_REFRESH_MS = 60_000;
 
-// oculto por hora: o dado de uso (%) vem de um cache que so a propria CLI
-// Claude escreve em ~/.claude.json, sem consulta ao vivo — nao ha como
-// mostrar isso como "tempo real" sem reaproveitar o token OAuth da sessao
-// pra chamar a API nao documentada da Anthropic (recusado por risco de
-// seguranca). Ate decidir uma forma segura de comunicar essa defasagem,
-// esconde a % e as barras, mantendo so a contagem de sessoes por LLM.
-const SHOW_REAL_USAGE = false;
+const SHOW_REAL_USAGE = true;
 
 // sessao real de agente (nao node sintetico de MCP/skill, nao subagente) e o
 // que conta como "uso" de uma LLM aqui — subagentes e nodes de atividade nao
@@ -63,6 +55,23 @@ function formatResetShort(iso: string | null): string {
   return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
 }
 
+// mesma logica de formatResetShort, so que a partir de epoch ms (o Codex
+// devolve resetsAt em segundos desde a epoch via app-server, ja convertido
+// pra ms no backend — ver _parse_codex_usage_window em server.py) em vez de
+// ISO string (formato do Claude).
+function formatResetShortMs(ms: number): string {
+  if (!ms) return '—';
+  const diffMs = ms - Date.now();
+  if (diffMs <= 0) return 'agora';
+  const totalMin = Math.round(diffMs / 60_000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const totalHours = Math.floor(totalMin / 60);
+  if (totalHours < 24) return `${totalHours}h`;
+  const days = Math.floor(totalHours / 24);
+  const remHours = totalHours % 24;
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
 interface UsageBar {
   key: string;
   label: string;
@@ -71,11 +80,12 @@ interface UsageBar {
 
 function UsageBarRow({ bar }: { bar: UsageBar }) {
   const pct = bar.window?.utilization ?? null;
+  const pctLabel = pct == null ? '—' : Math.round(pct);
   return (
     <div className="llm-usage-bar-row">
       <div className="llm-usage-bar-row-top">
         <span className="llm-usage-bar-label">{bar.label}</span>
-        <span className="llm-usage-bar-pct">{pct ?? '—'}%</span>
+        <span className="llm-usage-bar-pct">{pctLabel}%</span>
       </div>
       <div className="llm-usage-bar-track">
         <div
@@ -94,6 +104,7 @@ interface Props {
 export default function LlmUsageWidget({ sessions }: Props) {
   const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
   const [usage, setUsage] = useState<ClaudeUsage | null>(null);
+  const [codexUsage, setCodexUsage] = useState<CodexUsage | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
@@ -148,11 +159,12 @@ export default function LlmUsageWidget({ sessions }: Props) {
     };
   }, []);
 
-  const loadUsage = (silent = false) => {
+  const loadUsage = (silent = false, force = false) => {
     if (!silent) setUsageLoading(true);
-    fetchUsage()
+    fetchUsage(force)
       .then((response) => {
         setUsage(response.claude);
+        setCodexUsage(response.codex);
         // status do Claude nao vem do /api/llms (essa CLI e o proprio app);
         // sobrescreve o placeholder hardcoded com o status real de
         // autenticacao ja obtido nesta mesma chamada.
@@ -182,10 +194,10 @@ export default function LlmUsageWidget({ sessions }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // só mostra LLM conectada (o Claude sempre conta como conectado — é a base
-  // do app) — as demais só aparecem aqui depois que o usuário instala/conecta
-  // pelo modal, senão a caixinha não diz nada útil.
-  const connected = llms.filter((cli) => cli.connected);
+  // O Claude e a base do app e deve continuar visivel mesmo enquanto o backend
+  // reinicia, a consulta de quota falha ou o token ainda nao foi encontrado.
+  // As demais LLMs continuam aparecendo so quando conectadas.
+  const connected = llms.filter((cli) => cli.id === 'claude' || cli.connected);
 
   return (
     <div className="llm-usage-widget" ref={rootRef}>
@@ -216,15 +228,21 @@ export default function LlmUsageWidget({ sessions }: Props) {
               setOpenId(cli.id);
               // reforca um refresh na hora de abrir os detalhes, pra nao
               // depender so do polling de fundo (ate 60s desatualizado).
-              if (SHOW_REAL_USAGE && cli.id === 'claude') loadUsage();
+              if (SHOW_REAL_USAGE && (cli.id === 'claude' || cli.id === 'codex')) loadUsage(false, true);
             }}
           >
             <span className="llm-usage-box-logo">
               <Logo size={14} />
             </span>
             <span className="llm-usage-box-name">{cli.name}</span>
-            {SHOW_REAL_USAGE && cli.id === 'claude' && usage?.fiveHour.utilization != null ? (
-              <span className="llm-usage-box-pct">{usage.fiveHour.utilization}%</span>
+            {SHOW_REAL_USAGE && cli.id === 'claude' ? (
+              <span className="llm-usage-box-pct">
+                {usage?.fiveHour.utilization != null ? `${Math.round(usage.fiveHour.utilization)}%` : '—'}
+              </span>
+            ) : SHOW_REAL_USAGE && cli.id === 'codex' ? (
+              <span className="llm-usage-box-pct">
+                {codexUsage ? `${Math.round(codexUsage.primary.usedPercent)}%` : '—'}
+              </span>
             ) : (
               total > 0 && <span className="llm-usage-box-pct">{total}</span>
             )}
@@ -242,7 +260,9 @@ export default function LlmUsageWidget({ sessions }: Props) {
               >
                 <div className="llm-usage-popover-header">
                   <span className="llm-usage-popover-name">{cli.name}</span>
-                  {busy > 0 && (
+                  {(busy > 0 ||
+                    (cli.id === 'claude' && usage?.source === 'anthropic') ||
+                    (cli.id === 'codex' && !!codexUsage)) && (
                     <span className="llm-usage-popover-live">
                       <span className="llm-usage-live-dot" /> ao vivo
                     </span>
@@ -259,7 +279,7 @@ export default function LlmUsageWidget({ sessions }: Props) {
                         // ate o onClick do botao pai (llm-usage-box), que fecha o
                         // popover por achar que era um clique "fora" pra alternar.
                         e.stopPropagation();
-                        if (cli.id === 'claude') loadUsage();
+                        if (cli.id === 'claude' || cli.id === 'codex') loadUsage(false, true);
                       }}
                     >
                       <RefreshCw size={11} className={usageLoading ? 'spinning' : ''} />
@@ -279,7 +299,9 @@ export default function LlmUsageWidget({ sessions }: Props) {
                   ];
                   const values = bars.map((b) => b.window?.utilization).filter((v): v is number => v != null);
                   const pico = values.length ? Math.max(...values) : null;
-                  const bigPct = usage.fiveHour.utilization ?? 0;
+                  const bigPct = Math.round(usage.fiveHour.utilization ?? 0);
+                  const weekPct = usage.sevenDay.utilization != null ? Math.round(usage.sevenDay.utilization) : null;
+                  const picoPct = pico != null ? Math.round(pico) : null;
                   return (
                     <>
                       <div className="llm-usage-hero">
@@ -289,7 +311,7 @@ export default function LlmUsageWidget({ sessions }: Props) {
                         </span>
                       </div>
                       <div className="llm-usage-hero-sub">
-                        uso 5h · semana {usage.sevenDay.utilization ?? '—'}%
+                        uso 5h · semana {weekPct ?? '—'}%
                       </div>
 
                       <div className="llm-usage-bars">
@@ -313,17 +335,99 @@ export default function LlmUsageWidget({ sessions }: Props) {
                         </div>
                         <div>
                           <span className="llm-usage-reset-label">pico</span>
-                          <span className="llm-usage-reset-value">{pico ?? '—'}%</span>
+                          <span className="llm-usage-reset-value">{picoPct ?? '—'}%</span>
                         </div>
                       </div>
 
                       <div className="llm-usage-popover-footer">
                         <span><span className="llm-usage-live-dot muted" /> 5h · semana · opus</span>
-                        <span>pico {pico ?? '—'}%</span>
+                        <span>{usage.source === 'claude-cache' ? 'cache local' : `pico ${picoPct ?? '—'}%`}</span>
                       </div>
                     </>
                   );
                 })() : null}
+
+                {SHOW_REAL_USAGE && cli.id === 'claude' && !usage && !usageLoading && (
+                  <div className="llm-usage-popover-dim">uso indisponivel ou backend antigo</div>
+                )}
+
+                {SHOW_REAL_USAGE && cli.id === 'codex' && usageLoading && !codexUsage && (
+                  <div className="llm-usage-popover-dim">buscando uso…</div>
+                )}
+
+                {SHOW_REAL_USAGE && cli.id === 'codex' && codexUsage ? (() => {
+                  const primaryPct = Math.round(codexUsage.primary.usedPercent);
+                  const hasSecondary = codexUsage.secondary.windowMinutes > 0;
+                  const secondaryPct = hasSecondary ? Math.round(codexUsage.secondary.usedPercent) : null;
+                  const windowLabel = (minutes: number) =>
+                    minutes >= 1440 ? `${Math.round(minutes / 1440)}d` : `${Math.round(minutes / 60)}h`;
+                  const primaryLabel = windowLabel(codexUsage.primary.windowMinutes);
+                  const secondaryLabel = hasSecondary ? windowLabel(codexUsage.secondary.windowMinutes) : '';
+                  return (
+                    <>
+                      <div className="llm-usage-hero">
+                        <span className="llm-usage-hero-pct">{primaryPct}%</span>
+                        <span className="llm-usage-hero-clock">
+                          <Clock size={11} /> {formatResetShortMs(codexUsage.primary.resetsAtMs)}
+                        </span>
+                      </div>
+                      <div className="llm-usage-hero-sub">
+                        plano {codexUsage.plan || '—'}
+                        {codexUsage.rateLimited ? ' · limite atingido' : ''}
+                      </div>
+
+                      <div className="llm-usage-bars">
+                        <UsageBarRow
+                          bar={{ key: 'primary', label: primaryLabel, window: { utilization: primaryPct, resetsAt: null } }}
+                        />
+                        {hasSecondary && (
+                          <UsageBarRow
+                            bar={{
+                              key: 'secondary',
+                              label: secondaryLabel,
+                              window: { utilization: secondaryPct, resetsAt: null },
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      <div className="llm-usage-reset-grid">
+                        <div>
+                          <span className="llm-usage-reset-label">reset {primaryLabel}</span>
+                          <span className="llm-usage-reset-value">{formatResetShortMs(codexUsage.primary.resetsAtMs)}</span>
+                        </div>
+                        {hasSecondary && (
+                          <div>
+                            <span className="llm-usage-reset-label">reset {secondaryLabel}</span>
+                            <span className="llm-usage-reset-value">
+                              {formatResetShortMs(codexUsage.secondary.resetsAtMs)}
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="llm-usage-reset-label">plano</span>
+                          <span className="llm-usage-reset-value">{codexUsage.plan || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="llm-usage-reset-label">créditos</span>
+                          <span className="llm-usage-reset-value">{codexUsage.resetCredits}</span>
+                        </div>
+                      </div>
+
+                      <div className="llm-usage-popover-footer">
+                        <span>
+                          <span className="llm-usage-live-dot muted" /> {primaryLabel}
+                          {hasSecondary ? ` · ${secondaryLabel}` : ''} · créditos
+                        </span>
+                        <span>{codexUsage.rateLimited ? 'limite atingido' : `${codexUsage.resetCredits} créditos`}</span>
+                      </div>
+                    </>
+                  );
+                })() : null}
+
+                {SHOW_REAL_USAGE && cli.id === 'codex' && !codexUsage && !usageLoading && (
+                  <div className="llm-usage-popover-dim">uso indisponível (codex não encontrado ou não autenticado)</div>
+                )}
 
                 <div className="llm-usage-popover-sessions">
                   {total > 0 ? `${busy} em execução de ${total} ${total !== 1 ? 'sessões' : 'sessão'}` : 'nenhuma sessão em uso'}

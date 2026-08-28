@@ -11,3 +11,10 @@
   cursor: default;
   user-select: none;
 }
+
+.cost-usage-footer-error {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #ff5c57;
+}
