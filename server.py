@@ -14,6 +14,7 @@ import json
 import fcntl
 import os
 import pty
+import queue
 import re
 import signal
 import struct
@@ -22,8 +23,10 @@ import termios
 import threading
 import time
 import urllib.parse
+import urllib.error
+import urllib.request
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import sys
@@ -31,6 +34,11 @@ import sys
 CLAUDE_DIR = Path.home() / ".claude"
 SESSIONS_DIR = CLAUDE_DIR / "sessions"
 TEAMS_DIR = CLAUDE_DIR / "teams"
+CODEX_DIR = Path.home() / ".codex"
+# quantas entradas MAIS RECENTES do indice do Codex olhar por sessao viva —
+# o indice e append-only e so cresce, entao basta o rabo do arquivo pra achar
+# qualquer sessao que ainda esteja rodando agora.
+CODEX_INDEX_SCAN_LIMIT = 60
 PROJECTS_DIR = CLAUDE_DIR / "projects"
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -415,6 +423,374 @@ def _proc_comm(pid):
         return Path(f"/proc/{pid}/comm").read_text().strip()
     except OSError:
         return None
+
+
+def _proc_cmdline(pid):
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+        return raw.replace(b"\x00", b" ").decode("utf-8", "ignore").strip()
+    except OSError:
+        return ""
+
+
+def _proc_cwd(pid):
+    try:
+        return os.readlink(f"/proc/{pid}/cwd")
+    except OSError:
+        return None
+
+
+def _running_pids_by_comm(comm_name):
+    """pids (Linux, via /proc) cujo binario tem exatamente esse nome — usado
+    pra achar processos de CLIs externas (ex: codex) rodando fora do app,
+    sem depender de nenhuma lib de terceiros (psutil etc)."""
+    pids = []
+    try:
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdigit():
+                continue
+            if _proc_comm(int(entry.name)) == comm_name:
+                pids.append(int(entry.name))
+    except OSError:
+        pass
+    return pids
+
+
+def _iso_to_ms(iso_str):
+    if not iso_str:
+        return None
+    try:
+        # Codex grava timestamps ISO8601 terminados em "Z" — datetime.fromisoformat
+        # do Python so aceita "+00:00" nesse lugar, nao "Z" direto.
+        return int(datetime.fromisoformat(iso_str.replace("Z", "+00:00")).timestamp() * 1000)
+    except (ValueError, TypeError):
+        return None
+
+
+def _codex_rollout_meta_from_path(fpath):
+    """Le so a PRIMEIRA linha (session_meta) do rollout — da cwd, session_id
+    e timestamp de inicio sem carregar o transcript inteiro."""
+    try:
+        with fpath.open("r", encoding="utf-8") as f:
+            first_line = f.readline()
+        meta = json.loads(first_line)
+    except (OSError, json.JSONDecodeError):
+        return None
+    payload = meta.get("payload") or {}
+    payload["timestamp"] = payload.get("timestamp") or meta.get("timestamp")
+    return payload
+
+
+def _recent_codex_rollout_files(max_age_hours=48):
+    """Rollouts candidatos a sessao VIVA agora — as pastas sao YYYY/MM/DD em
+    UTC, entao olha hoje + ontem (cobre virada de meia-noite UTC) e devolve
+    ordenado do mais recentemente MODIFICADO pro mais antigo. So um processo
+    de verdade escrevendo naquele arquivo o mantem "recente" — e o sinal
+    mais confiavel de "essa e a sessao ativa AGORA", bem melhor que
+    session_index.jsonl (ver read_codex_sessions() pra saber o motivo)."""
+    sessions_dir = CODEX_DIR / "sessions"
+    if not sessions_dir.is_dir():
+        return []
+    now = datetime.utcnow()
+    candidates = []
+    for days_back in range(2):
+        day = now - timedelta(days=days_back)
+        day_dir = sessions_dir / f"{day.year:04d}" / f"{day.month:02d}" / f"{day.day:02d}"
+        if day_dir.is_dir():
+            candidates.extend(day_dir.glob("rollout-*.jsonl"))
+    cutoff = time.time() - max_age_hours * 3600
+    candidates = [p for p in candidates if p.stat().st_mtime >= cutoff]
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidates
+
+
+def read_codex_sessions():
+    """Sessoes do Codex CLI rodando FORA do app (num terminal externo do
+    usuario) — mesma ideia de read_sessions() pro Claude Code, mas pro
+    Codex: casa processos `codex` vivos (via /proc) com o rollout mais
+    RECENTEMENTE MODIFICADO daquele cwd, pra aparecer no grupo "external" da
+    arvore (appManaged=False — ver groupOf() em SessionTree.tsx).
+
+    NAO usa mais ~/.codex/session_index.jsonl pra casar sessao (so pra
+    enfeitar o nome, se disponivel) — confirmado na pratica que esse indice
+    demora a registrar sessoes bem novas (uma sessao recem-aberta podia
+    ficar sem nenhuma entrada nele por varios minutos), o que fazia uma
+    sessao nova nao aparecer, ou pior, "roubar" o card de uma sessao antiga
+    que por coincidencia tinha o MESMO cwd ainda no indice.
+
+    Sem sinal proprio de "status" gravado em disco (o Codex, ao contrario do
+    Claude Code, nao escreve isso pra ninguem ler), usa "modificado ha
+    pouco" como proxy grosseiro de "trabalhando agora"."""
+    pids = [
+        pid for pid in _running_pids_by_comm("codex")
+        # "app-server" e a integracao com editor (ex: extensao do VS Code),
+        # nao uma sessao de terminal interativa — nao deve virar card aqui.
+        if "app-server" not in _proc_cmdline(pid)
+    ]
+    if not pids:
+        return []
+    pid_cwds = {pid: cwd for pid in pids if (cwd := _proc_cwd(pid))}
+    if not pid_cwds:
+        return []
+
+    rollout_files = _recent_codex_rollout_files()
+    if not rollout_files:
+        return []
+
+    # nome amigavel: so cosmetico, busca no indice se ja existir uma entrada
+    # pra essa sessao (pode nao existir ainda — ver docstring acima) — NUNCA
+    # usado pra decidir qual sessao casa com qual processo.
+    names_by_sid = {}
+    index_path = CODEX_DIR / "session_index.jsonl"
+    if index_path.exists():
+        try:
+            lines = index_path.read_text().splitlines()
+        except OSError:
+            lines = []
+        for line in reversed(lines[-CODEX_INDEX_SCAN_LIMIT:]):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            sid = entry.get("id")
+            if sid and sid not in names_by_sid and entry.get("thread_name"):
+                names_by_sid[sid] = entry["thread_name"]
+
+    sessions = []
+    used_paths = set()
+    now_ms = int(time.time() * 1000)
+    for pid, cwd in pid_cwds.items():
+        for fpath in rollout_files:
+            if fpath in used_paths:
+                continue
+            payload = _codex_rollout_meta_from_path(fpath)
+            if not payload or payload.get("cwd") != cwd:
+                continue
+            used_paths.add(fpath)
+            sid = payload.get("session_id") or fpath.stem.rsplit("-", 1)[-1]
+            started_ms = _iso_to_ms(payload.get("timestamp")) or now_ms
+            updated_ms = int(fpath.stat().st_mtime * 1000)
+            sessions.append({
+                "pid": pid,
+                "sessionId": sid,
+                "cwd": cwd,
+                "startedAt": started_ms,
+                "updatedAt": updated_ms,
+                "name": names_by_sid.get(sid) or sid[:8],
+                "status": "busy" if (now_ms - updated_ms) < 15_000 else "idle",
+                "alive": True,
+                "appManaged": False,
+                "appAgentId": None,
+                "isSubagent": False,
+                "parentSessionId": None,
+                "llm": "codex",
+                # ver resolve_transcript() e _stream_steps() — deixa o
+                # rollout ja resolvido aqui, sem precisar re-globar por
+                # sessionId toda vez que o loop de streaming olhar essa
+                # sessao de novo.
+                "_transcriptPath": str(fpath),
+            })
+            break
+    return sessions
+
+
+ANTIGRAVITY_DIR = Path.home() / ".gemini" / "antigravity-cli"
+
+
+def _antigravity_uri_to_path(uri):
+    # WorkspaceURIs vem como file:// URI (ex: "file:///home/tou/projeto"),
+    # nao um path puro como o resto deste arquivo trabalha.
+    if uri.startswith("file://"):
+        return uri[len("file://"):]
+    return uri
+
+
+def read_antigravity_sessions():
+    """Sessoes do Antigravity (Google, binario `agy`) rodando FORA do app —
+    mesma ideia de read_codex_sessions(), casando processos `agy` vivos (via
+    /proc) com a conversa mais recente daquele cwd em
+    ~/.gemini/antigravity-cli/cache/conversation_metadata.json. Formato
+    confirmado lendo o arquivo real nesta maquina: {"conversations": {"<id>":
+    {"summary": {"Title", "Preview", "UpdatedAt", "WorkspaceURIs": [...]},
+    "last_modified_time": ...}}} — sem sinal proprio de "status", mesmo
+    proxy grosseiro de "atualizado ha pouco = trabalhando" do Codex."""
+    meta_path = ANTIGRAVITY_DIR / "cache" / "conversation_metadata.json"
+    if not meta_path.is_file():
+        return []
+    pids = _running_pids_by_comm("agy")
+    if not pids:
+        return []
+    pid_cwds = {pid: cwd for pid in pids if (cwd := _proc_cwd(pid))}
+    if not pid_cwds:
+        return []
+
+    try:
+        data = json.loads(meta_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    conversations = data.get("conversations")
+    if not isinstance(conversations, dict):
+        return []
+
+    sessions = []
+    used_sids = set()
+    now_ms = int(time.time() * 1000)
+    for pid, cwd in pid_cwds.items():
+        best = None
+        for sid, item in conversations.items():
+            if sid in used_sids or not isinstance(item, dict):
+                continue
+            summary = item.get("summary") or {}
+            uris = summary.get("WorkspaceURIs") or []
+            matches = any(
+                isinstance(u, str) and _antigravity_uri_to_path(u) == cwd for u in uris
+            )
+            if not matches:
+                continue
+            updated_ms = _iso_to_ms(summary.get("UpdatedAt")) or _iso_to_ms(item.get("last_modified_time")) or now_ms
+            if best is None or updated_ms > best[1]:
+                best = (sid, updated_ms, summary)
+        if not best:
+            continue
+        sid, updated_ms, summary = best
+        used_sids.add(sid)
+        sessions.append({
+            "pid": pid,
+            "sessionId": sid,
+            "cwd": cwd,
+            "startedAt": updated_ms,
+            "updatedAt": updated_ms,
+            "name": summary.get("Title") or summary.get("Preview") or sid[:8],
+            "status": "busy" if (now_ms - updated_ms) < 15_000 else "idle",
+            "alive": True,
+            "appManaged": False,
+            "appAgentId": None,
+            "isSubagent": False,
+            "parentSessionId": None,
+            "llm": "agy",
+        })
+    return sessions
+
+
+COPILOT_DIR = Path.home() / ".copilot"
+
+
+def _parse_simple_yaml(text):
+    # workspace.yaml do Copilot CLI e "chave: valor" sem aninhamento — nao
+    # justifica puxar uma lib de YAML so pra isso (server.py e sem
+    # dependencias externas de proposito).
+    result = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        result[key.strip()] = value.strip()
+    return result
+
+
+def read_copilot_sessions():
+    """Sessoes do GitHub Copilot CLI rodando FORA do app. Ao contrario do
+    Codex/Antigravity (que exigem casar processo vivo com cwd na unha), o
+    Copilot CLI ja grava um lock `inuse.<pid>.lock` DENTRO da propria pasta
+    da sessao (~/.copilot/session-state/<uuid>/) enquanto ela esta aberta —
+    o pid no NOME do arquivo ja diz exatamente qual processo e dono de qual
+    sessao, sem precisar adivinhar por cwd (confirmado lendo o disco real
+    desta maquina com duas sessoes abertas em cwds diferentes ao mesmo
+    tempo)."""
+    state_dir = COPILOT_DIR / "session-state"
+    if not state_dir.is_dir():
+        return []
+    sessions = []
+    now_ms = int(time.time() * 1000)
+    for lock_path in state_dir.glob("*/inuse.*.lock"):
+        try:
+            pid = int(lock_path.name.split(".")[1])
+        except (ValueError, IndexError):
+            continue
+        if not pid_alive(pid):
+            continue
+        try:
+            meta = _parse_simple_yaml((lock_path.parent / "workspace.yaml").read_text())
+        except OSError:
+            continue
+        cwd = meta.get("cwd")
+        if not cwd:
+            continue
+        started_ms = _iso_to_ms(meta.get("created_at")) or now_ms
+        updated_ms = _iso_to_ms(meta.get("updated_at")) or started_ms
+        sessions.append({
+            "pid": pid,
+            "sessionId": meta.get("id") or lock_path.parent.name,
+            "cwd": cwd,
+            "startedAt": started_ms,
+            "updatedAt": updated_ms,
+            "name": meta.get("repository") or Path(cwd).name,
+            "status": "busy" if (now_ms - updated_ms) < 15_000 else "idle",
+            "alive": True,
+            "appManaged": False,
+            "appAgentId": None,
+            "isSubagent": False,
+            "parentSessionId": None,
+            "llm": "copilot",
+        })
+    return sessions
+
+
+def _proc_start_ms(pid):
+    # o mtime do proprio diretorio /proc/<pid> e atualizado na criacao do
+    # processo (Linux) — proxy barato de "quando comecou" sem parsear
+    # /proc/<pid>/stat (que exige somar com o boot time do sistema).
+    try:
+        return int(Path(f"/proc/{pid}").stat().st_mtime * 1000)
+    except OSError:
+        return None
+
+
+def read_generic_external_sessions(comm, llm_id, exclude_cmdline_substrings=()):
+    """Fallback GENERICO pra CLIs sem um arquivo de sessao proprio conhecido
+    (ex: Gemini CLI — nao achamos um indice/lock confiavel de sessao ativa
+    parecido com o do Codex/Antigravity/Copilot) — so casa processo vivo com
+    esse `comm` exato e usa o cwd real (via /proc) como identidade. Sem nome
+    de sessao "de verdade": usa o nome da pasta do projeto. Pior que uma
+    leitura especifica, mas garante que a sessao pelo menos APARECE na
+    arvore em vez de ficar invisivel."""
+    pids = [
+        pid for pid in _running_pids_by_comm(comm)
+        if not any(s in _proc_cmdline(pid) for s in exclude_cmdline_substrings)
+    ]
+    if not pids:
+        return []
+    now_ms = int(time.time() * 1000)
+    sessions = []
+    for pid in pids:
+        cwd = _proc_cwd(pid)
+        if not cwd:
+            continue
+        started_ms = _proc_start_ms(pid) or now_ms
+        sessions.append({
+            "pid": pid,
+            "sessionId": f"{llm_id}-{pid}",
+            "cwd": cwd,
+            "startedAt": started_ms,
+            "updatedAt": now_ms,
+            "name": Path(cwd).name,
+            "status": "idle",
+            "alive": True,
+            "appManaged": False,
+            "appAgentId": None,
+            "isSubagent": False,
+            "parentSessionId": None,
+            "llm": llm_id,
+        })
+    return sessions
+
+
+def read_gemini_sessions():
+    return read_generic_external_sessions("gemini", "gemini")
 
 
 def kill_real_session(pid):
@@ -1151,6 +1527,79 @@ def parse_step(raw_line):
     return steps
 
 
+def parse_codex_step(raw_line):
+    """Equivalente a parse_step(), mas pro formato de rollout do Codex CLI
+    (~/.codex/sessions/**/rollout-*.jsonl) — bem diferente do transcript do
+    Claude Code: cada linha e {"timestamp":..., "type": "response_item"|
+    "event_msg"|..., "payload": {...}}. So "response_item" tem conteudo de
+    conversa de verdade; os outros tipos (event_msg, turn_context,
+    session_meta, world_state) sao progresso/metadado interno, sem
+    equivalente no card de "passos" — ignorados aqui."""
+    try:
+        d = json.loads(raw_line)
+    except json.JSONDecodeError:
+        return []
+    if d.get("type") != "response_item":
+        return []
+    payload = d.get("payload") or {}
+    ptype = payload.get("type")
+    ts = d.get("timestamp")
+    steps = []
+
+    if ptype == "message":
+        role = payload.get("role")
+        content = payload.get("content")
+        text = ""
+        if isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict):
+                    text += item.get("text", "")
+        text = text.strip()
+        if text:
+            if role == "user":
+                steps.append({"kind": "prompt", "text": truncate(text, MAX_TEXT_LEN, collapse_newlines=False), "ts": ts})
+            elif role == "assistant":
+                steps.append({"kind": "text", "text": truncate(text, MAX_TEXT_LEN, collapse_newlines=False), "ts": ts})
+
+    elif ptype == "function_call":
+        name = payload.get("name") or "tool"
+        detail = ""
+        try:
+            args = json.loads(payload.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            args = None
+        if isinstance(args, dict):
+            detail = args.get("cmd") or args.get("command") or args.get("path") or ""
+            if not detail:
+                for v in args.values():
+                    if isinstance(v, str):
+                        detail = v
+                        break
+        steps.append({"kind": "tool", "name": name, "text": truncate(detail, MAX_TOOL_DETAIL_LEN), "ts": ts})
+
+    elif ptype == "custom_tool_call":
+        name = payload.get("name") or "tool"
+        inp = payload.get("input")
+        detail = inp if isinstance(inp, str) else json.dumps(inp) if inp else ""
+        steps.append({"kind": "tool", "name": name, "text": truncate(detail, MAX_TOOL_DETAIL_LEN), "ts": ts})
+    # function_call_output / custom_tool_call_output / reasoning / web_search_call:
+    # ruido demais (ou redundante com o texto do assistente que ja vem
+    # depois) — ignorados, mesmo criterio do tool_result do parse_step().
+
+    return steps
+
+
+def _parser_for_session(session):
+    """Cada CLI externa grava o transcript num formato proprio — despacha
+    pro parser certo com base no `llm` da sessao (ver read_codex_sessions()
+    etc.). Sem entrada aqui (Claude Code, ou uma CLI sem leitura de
+    transcript implementada ainda) cai no parser do Claude por padrao, que
+    so retorna [] pra um arquivo que nao bate no formato dele."""
+    if session.get("llm") == "codex":
+        return parse_codex_step
+    return parse_step
+
+
 def _parse_frontmatter(text):
     """Parser minimo de frontmatter YAML (so os campos simples que os arquivos
     de agente/skill do Claude Code realmente usam: `key: valor` e blocos
@@ -1299,6 +1748,13 @@ KNOWN_LLM_CLIS = [
     {"id": "opencode", "name": "OpenCode", "bin": "opencode", "vendor": "OpenCode", "install": "npm install -g opencode-ai", "login": "opencode auth login", "logout": "opencode auth logout"},
     {"id": "amp", "name": "Amp", "bin": "amp", "vendor": "Sourcegraph", "install": "npm install -g @sourcegraph/amp", "login": "amp login", "logout": "amp logout"},
     {"id": "copilot", "name": "GitHub Copilot CLI", "bin": "copilot", "vendor": "GitHub", "install": "npm install -g @github/copilot", "login": "gh auth login", "logout": "gh auth logout"},
+    # Antigravity (Google) — o binario se chama "agy", nao "antigravity". Sem
+    # comando de instalacao verificado (nao achamos um instalador oficial de
+    # 1 linha documentado) — deixa em branco de proposito em vez de arriscar
+    # sugerir um curl|bash pra um dominio nao confirmado. O login tambem nao
+    # tem subcomando dedicado: rodar o binario sem argumentos ja dispara o
+    # fluxo OAuth interativo na primeira vez (mesmo padrao do "gemini").
+    {"id": "antigravity", "name": "Antigravity", "bin": "agy", "vendor": "Google", "install": "", "login": "agy", "logout": ""},
     # LLMs abertas/locais — rodam modelo local, sem chave de API de terceiro,
     # nao tem "login"/"logout" (nada pra autenticar num serviço externo).
     {"id": "ollama", "name": "Ollama", "bin": "ollama", "vendor": "Ollama (open-source)", "install": "curl -fsSL https://ollama.com/install.sh | sh", "login": "", "logout": ""},
@@ -1358,6 +1814,32 @@ def _codex_authenticated():
     return (Path.home() / ".codex" / "auth.json").is_file()
 
 
+_ANTIGRAVITY_AUTH_CACHE = {"checkedAt": 0.0, "value": False}
+ANTIGRAVITY_AUTH_CACHE_TTL = 30.0
+
+
+def _antigravity_authenticated():
+    """Antigravity (`agy`) guarda o token OAuth no keyring do proprio SO
+    (Secret Service no Linux, Keychain no macOS, Credential Manager no
+    Windows) — nao ha arquivo de credencial pra ler direto, e este backend
+    nao usa nenhuma lib externa (nem de keyring) de proposito. Em vez disso
+    pergunta pro proprio binario: `agy models` so lista os modelos com um
+    token valido, e falha rapido sem um. Cacheado por
+    ANTIGRAVITY_AUTH_CACHE_TTL pra nao rodar esse processo (que bate na rede)
+    a cada poll de /api/llms."""
+    now = time.time()
+    if now - _ANTIGRAVITY_AUTH_CACHE["checkedAt"] < ANTIGRAVITY_AUTH_CACHE_TTL:
+        return _ANTIGRAVITY_AUTH_CACHE["value"]
+    ok = False
+    try:
+        result = subprocess.run(["agy", "models"], capture_output=True, timeout=6)
+        ok = result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        ok = False
+    _ANTIGRAVITY_AUTH_CACHE.update({"checkedAt": now, "value": ok})
+    return ok
+
+
 def _opencode_authenticated():
     """MELHOR-ESFORCO / NAO VERIFICADO: nao ha um local documentado unico
     pra credenciais do OpenCode; checamos alguns caminhos plausiveis. Se
@@ -1394,6 +1876,24 @@ def _amp_authenticated():
     return False
 
 
+def _path_dirs_with_user_bins():
+    # complementa o PATH herdado com os diretorios de binario de usuario mais
+    # comuns — o app empacotado (ver commit "Fix agents never starting when
+    # the packaged app inherits a minimal PATH") pode herdar um PATH minimo
+    # do SO que nao inclui esses diretorios mesmo com a CLI instalada ali.
+    home = str(Path.home())
+    path_dirs = os.environ.get("PATH", "").split(os.pathsep)
+    for d in (
+        f"{home}/.local/bin",
+        f"{home}/bin",
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+    ):
+        if d not in path_dirs:
+            path_dirs.insert(0, d)
+    return [p for p in path_dirs if p]
+
+
 # checagem de autenticacao real por CLI — so pras que temos um local de
 # credencial conhecido (ou melhor-esforco); as demais (sem conceito de
 # login, ou desconhecidas) caem no fallback "authenticated == installed"
@@ -1405,15 +1905,118 @@ AUTH_CHECKS = {
     "codex": _codex_authenticated,
     "opencode": _opencode_authenticated,
     "amp": _amp_authenticated,
+    "antigravity": _antigravity_authenticated,
 }
 
 
-def read_claude_usage():
-    """Uso/quota REAL do Claude (a propria CLI grava isso em ~/.claude.json
-    depois de consultar a API) — janelas de 5h e 7 dias, em % utilizado, com
-    o horario de reset. Nao existe equivalente pras outras CLIs (nenhuma
-    grava dado de quota local que este backend consiga ler), entao so o
-    Claude tem numero de uso de verdade — as outras so mostram conectado/nao."""
+_CLAUDE_USAGE_CACHE = {"fetchedAt": 0.0, "value": None}
+CLAUDE_USAGE_CACHE_TTL = 60.0
+
+
+def _extract_claude_token_from_secret(secret):
+    if not secret:
+        return None
+    try:
+        data = json.loads(secret)
+    except json.JSONDecodeError:
+        return secret
+    token = (
+        (data.get("claudeAiOauth") or {}).get("accessToken")
+        if isinstance(data, dict)
+        else None
+    )
+    return token or secret
+
+
+def _read_claude_credentials_token(path):
+    # Claude pode estar regravando esse arquivo no mesmo momento; tenta de novo
+    # rapidamente antes de desistir para evitar falsos "sem token".
+    for attempt in range(3):
+        if attempt:
+            time.sleep(0.08)
+        try:
+            secret = path.read_text()
+        except OSError:
+            continue
+        token = _extract_claude_token_from_secret(secret)
+        if token:
+            return token
+    return None
+
+
+def _read_macos_claude_keychain_token():
+    if sys.platform != "darwin":
+        return None
+    usernames = []
+    for key in ("USER", "USERNAME"):
+        value = os.environ.get(key)
+        if value:
+            usernames.append(value)
+    usernames.extend(["default", "user", "claude", ""])
+    seen = set()
+    for username in usernames:
+        if username in seen:
+            continue
+        seen.add(username)
+        cmd = ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"]
+        if username:
+            cmd.extend(["-a", username])
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if proc.returncode == 0:
+            token = _extract_claude_token_from_secret(proc.stdout.strip())
+            if token:
+                return token
+    return None
+
+
+def _discover_claude_oauth_token():
+    token = os.environ.get("CLAUDE_OAUTH_TOKEN")
+    if token:
+        return token
+    token = _read_claude_credentials_token(CLAUDE_DIR / ".credentials.json")
+    if token:
+        return token
+    return _read_macos_claude_keychain_token()
+
+
+def _parse_claude_usage_window(body, key):
+    obj = body.get(key)
+    if not isinstance(obj, dict):
+        return None
+    return {
+        "utilization": obj.get("utilization") if isinstance(obj.get("utilization"), (int, float)) else 0,
+        "resetsAt": obj.get("resets_at") if isinstance(obj.get("resets_at"), str) else None,
+    }
+
+
+def _fetch_claude_usage_live(token):
+    req = urllib.request.Request(
+        "https://api.anthropic.com/api/oauth/usage",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "anthropic-beta": "oauth-2025-04-20",
+            "User-Agent": "claude-sessions-dashboard",
+        },
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        body = json.loads(resp.read().decode("utf-8"))
+    five_hour = _parse_claude_usage_window(body, "five_hour") or {"utilization": 0, "resetsAt": None}
+    seven_day = _parse_claude_usage_window(body, "seven_day") or {"utilization": 0, "resetsAt": None}
+    return {
+        "fiveHour": five_hour,
+        "sevenDay": seven_day,
+        "opus": _parse_claude_usage_window(body, "seven_day_opus"),
+        "fetchedAtMs": int(time.time() * 1000),
+        "source": "anthropic",
+    }
+
+
+def _read_claude_usage_from_local_cache():
+    """Fallback para o cache que a propria CLI grava em ~/.claude.json."""
     try:
         cfg = json.loads((Path.home() / ".claude.json").read_text())
     except (OSError, json.JSONDecodeError):
@@ -1443,12 +2046,156 @@ def read_claude_usage():
         # por conta propria. Exibir essa idade evita prometer "tempo real"
         # que este backend nao tem como entregar.
         "fetchedAtMs": fetched_at_ms,
+        "source": "claude-cache",
     }
+
+
+def read_claude_usage(force=False):
+    """Uso/quota real do Claude via API OAuth da Anthropic.
+
+    Porta o mesmo mecanismo do Alethe: reutiliza o token OAuth local do Claude
+    Code, consulta /api/oauth/usage e mantem o token restrito ao backend local.
+    Se a rede/API falhar, conserva o ultimo valor live conhecido ou cai no
+    cache local antigo do Claude CLI."""
+    now = time.time()
+    if not force and _CLAUDE_USAGE_CACHE["value"] and now - _CLAUDE_USAGE_CACHE["fetchedAt"] < CLAUDE_USAGE_CACHE_TTL:
+        return _CLAUDE_USAGE_CACHE["value"]
+
+    token = _discover_claude_oauth_token()
+    if token:
+        try:
+            value = _fetch_claude_usage_live(token)
+            _CLAUDE_USAGE_CACHE.update({"fetchedAt": now, "value": value})
+            return value
+        except (OSError, urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
+            if _CLAUDE_USAGE_CACHE["value"]:
+                return _CLAUDE_USAGE_CACHE["value"]
+
+    value = _read_claude_usage_from_local_cache()
+    if value:
+        _CLAUDE_USAGE_CACHE.update({"fetchedAt": now, "value": value})
+    return value
+
+
+_CODEX_USAGE_CACHE = {"fetchedAt": 0.0, "value": None}
+CODEX_USAGE_CACHE_TTL = 60.0
+
+
+def _resolve_codex_bin():
+    for d in _path_dirs_with_user_bins():
+        candidate = Path(d) / "codex"
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
+def _parse_codex_usage_window(obj):
+    if not isinstance(obj, dict):
+        return {"usedPercent": 0, "windowMinutes": 0, "resetsAtMs": 0}
+    resets_at = obj.get("resetsAt")
+    return {
+        "usedPercent": obj.get("usedPercent") if isinstance(obj.get("usedPercent"), (int, float)) else 0,
+        "windowMinutes": obj.get("windowDurationMins") if isinstance(obj.get("windowDurationMins"), int) else 0,
+        # O app-server do Codex retorna epoch em segundos; o frontend trabalha em ms.
+        "resetsAtMs": resets_at * 1000 if isinstance(resets_at, (int, float)) else 0,
+    }
+
+
+def _fetch_codex_usage_live():
+    """Uso/quota real do Codex CLI — ao contrario do Claude (API OAuth REST
+    documentada), o Codex so expoe isso via JSON-RPC no proprio `codex
+    app-server` (stdin/stdout). Sobe o processo, manda initialize +
+    account/rateLimits/read, le so a resposta com id=2 e mata o processo —
+    nao deixamos um app-server pendurado rodando pra sempre so pra essa
+    consulta pontual."""
+    exe = _resolve_codex_bin()
+    if not exe:
+        raise OSError("codex_not_found")
+    proc = subprocess.Popen(
+        [exe, "app-server"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    out_queue = queue.Queue()
+
+    def read_stdout():
+        try:
+            for line in proc.stdout:
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if data.get("id") == 2:
+                    out_queue.put(data)
+                    return
+        finally:
+            out_queue.put(None)
+
+    reader = threading.Thread(target=read_stdout, daemon=True)
+    reader.start()
+    requests = (
+        '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"orbit","version":"1.0.1"}}}\n'
+        '{"method":"initialized"}\n'
+        '{"id":2,"method":"account/rateLimits/read"}\n'
+    )
+    try:
+        proc.stdin.write(requests)
+        proc.stdin.flush()
+        message = out_queue.get(timeout=12)
+        if not message:
+            raise TimeoutError("codex_usage_timeout")
+        if message.get("error"):
+            raise OSError(f"codex_rpc_error: {message.get('error')}")
+        result = message.get("result") or {}
+        rate_limits = result.get("rateLimits")
+        if not isinstance(rate_limits, dict):
+            raise OSError("codex_no_rate_limits")
+        limited_type = rate_limits.get("rateLimitReachedType")
+        reset_credits = result.get("rateLimitResetCredits") or {}
+        return {
+            "primary": _parse_codex_usage_window(rate_limits.get("primary")),
+            "secondary": _parse_codex_usage_window(rate_limits.get("secondary")),
+            "plan": rate_limits.get("planType") if isinstance(rate_limits.get("planType"), str) else "",
+            "rateLimited": limited_type is not None,
+            "resetCredits": reset_credits.get("availableCount") if isinstance(reset_credits.get("availableCount"), int) else 0,
+            "fetchedAtMs": int(time.time() * 1000),
+            "source": "codex-app-server",
+        }
+    finally:
+        try:
+            if proc.stdin:
+                proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            proc.kill()
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=2)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+
+def read_codex_usage(force=False):
+    now = time.time()
+    if not force and _CODEX_USAGE_CACHE["value"] and now - _CODEX_USAGE_CACHE["fetchedAt"] < CODEX_USAGE_CACHE_TTL:
+        return _CODEX_USAGE_CACHE["value"]
+    try:
+        value = _fetch_codex_usage_live()
+        _CODEX_USAGE_CACHE.update({"fetchedAt": now, "value": value})
+        return value
+    except (OSError, TimeoutError):
+        return _CODEX_USAGE_CACHE["value"]
 
 
 def read_llm_clis():
     result = []
-    path_dirs = os.environ.get("PATH", "").split(os.pathsep)
+    path_dirs = _path_dirs_with_user_bins()
     for cli in KNOWN_LLM_CLIS:
         if cli["id"] == "claude":
             continue  # so serve pro /api/install/start achar login/logout — ver comentario acima
@@ -1545,6 +2292,15 @@ class Handler(BaseHTTPRequestHandler):
                 if s.get("isSubagent") and s.get("_transcriptPath"):
                     activity_nodes += _mcp_nodes_for_session(s["sessionId"], Path(s["_transcriptPath"]))
             sessions += activity_nodes
+            # sessoes de OUTRAS CLIs (Codex, Antigravity, Copilot, Gemini)
+            # rodando fora do app — mesmo grupo "external" das sessoes do
+            # Claude Code lidas acima, so que descobertas via processo vivo
+            # + arquivo/lock de sessao proprio da CLI, ja que elas nunca
+            # escrevem em ~/.claude/sessions/*.json.
+            sessions += read_codex_sessions()
+            sessions += read_antigravity_sessions()
+            sessions += read_copilot_sessions()
+            sessions += read_gemini_sessions()
             # um agente iniciado pelo app roda um `claude` de verdade, que
             # depois de subir grava sua PROPRIA sessao real em
             # ~/.claude/sessions/*.json (achada acima por read_sessions() e
@@ -1581,7 +2337,14 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path.startswith("/api/usage"):
-            self._send_json({"claude": read_claude_usage(), "claudeAuthenticated": _claude_authenticated()})
+            query = urllib.parse.urlparse(self.path).query
+            params = urllib.parse.parse_qs(query)
+            force = (params.get("force") or [""])[0] in ("1", "true", "yes")
+            self._send_json({
+                "claude": read_claude_usage(force=force),
+                "claudeAuthenticated": _claude_authenticated() or bool(_discover_claude_oauth_token()),
+                "codex": read_codex_usage(force=force),
+            })
             return
 
         if self.path.startswith("/api/cost-summary"):
@@ -1888,13 +2651,14 @@ class Handler(BaseHTTPRequestHandler):
             # backlog inicial: ultimas linhas de cada sessao viva
             sessions = {
                 s["sessionId"]: s
-                for s in read_sessions() + subagent_list
+                for s in read_sessions() + subagent_list + read_codex_sessions()
                 if s.get("alive")
             }
             for sid, s in sessions.items():
                 fpath = resolve_transcript(s)
                 if not fpath:
                     continue
+                parser = _parser_for_session(s)
                 size = fpath.stat().st_size
                 # historico completo da sessao (nao so os ultimos KB) - o usuario quer
                 # ver a conversa inteira ao abrir, nao um recorte recente e fora de contexto
@@ -1905,7 +2669,7 @@ class Handler(BaseHTTPRequestHandler):
                 collected = []
                 for line in lines:
                     if line.strip():
-                        collected.extend(parse_step(line))
+                        collected.extend(parser(line))
                 for step in collected[-HISTORY_BACKLOG_STEPS:]:
                     step["sessionId"] = sid
                     step["pid"] = s["pid"]
@@ -1919,13 +2683,14 @@ class Handler(BaseHTTPRequestHandler):
                     next_subagent_refresh = now + SUBAGENT_LIST_REFRESH_SECS
                 sessions = {
                     s["sessionId"]: s
-                    for s in read_sessions() + subagent_list
+                    for s in read_sessions() + subagent_list + read_codex_sessions()
                     if s.get("alive")
                 }
                 for sid, s in sessions.items():
                     fpath = resolve_transcript(s)
                     if not fpath:
                         continue
+                    parser = _parser_for_session(s)
                     size = fpath.stat().st_size
                     if sid not in offsets:
                         # sessao nascida DEPOIS da conexao deste stream (agente
@@ -1947,7 +2712,7 @@ class Handler(BaseHTTPRequestHandler):
                         collected = []
                         for line in lines:
                             if line.strip():
-                                collected.extend(parse_step(line))
+                                collected.extend(parser(line))
                         for step in collected[-HISTORY_BACKLOG_STEPS:]:
                             step["sessionId"] = sid
                             step["pid"] = s["pid"]
@@ -1968,7 +2733,7 @@ class Handler(BaseHTTPRequestHandler):
                         for line in lines[:-1]:
                             if not line.strip():
                                 continue
-                            for step in parse_step(line):
+                            for step in parser(line):
                                 step["sessionId"] = sid
                                 step["pid"] = s["pid"]
                                 step["sessionName"] = s.get("name")
