@@ -14,6 +14,7 @@
     { "from": "../../server.py", "to": "server.py" }
   ],
   "publish": null,
+  "afterPack": "scripts/afterPack.js",
   "nsis": {
     "allowElevation": true,
     "oneClick": false,
@@ -25,7 +26,8 @@
   },
   "mac": {
     "category": "public.app-category.developer-tools",
-    "target": "dmg"
+    "target": "dmg",
+    "identity": null
   },
   "linux": {
     "target": ["AppImage", "deb"],

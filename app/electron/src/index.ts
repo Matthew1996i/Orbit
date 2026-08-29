@@ -4,7 +4,6 @@ import type { MenuItemConstructorOptions } from 'electron';
 import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem } from 'electron';
 import electronIsDev from 'electron-is-dev';
 import unhandled from 'electron-unhandled';
-import { autoUpdater } from 'electron-updater';
 import { join } from 'path';
 
 import { startBackend, stopBackend } from './backend';
@@ -80,9 +79,6 @@ if (gotSingleInstanceLock) (async () => {
   // Checagem de update desligada: o app nunca é publicado/empacotado com feed de
   // update configurado, e isso ficava disparando uma notificação nativa confusa
   // ("Claude Sessions" + \"\" está pronto) sem relação com nenhuma ação do usuário.
-  if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify();
-  }
 })();
 
 // localStorage (onde o app guarda quais paineis estavam abertos, pra
@@ -121,7 +117,8 @@ app.on('will-quit', () => {
 app.on('activate', async function () {
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
-  if (myCapacitorApp.getMainWindow().isDestroyed()) {
+  const win = myCapacitorApp.getMainWindow();
+  if (!win || win.isDestroyed()) {
     await myCapacitorApp.init();
   }
 });

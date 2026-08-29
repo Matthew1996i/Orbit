@@ -905,7 +905,12 @@ def _dedupe_sessions_by_id(sessions):
 
 
 def transcript_path(cwd, session_id):
-    project_dir = PROJECTS_DIR / cwd.replace("/", "-")
+    # O Claude Code sanitiza o cwd inteiro pra nomear a pasta em
+    # ~/.claude/projects/ trocando "/" E "_" por "-" (ex: /Users/mr_robot/...
+    # vira -Users-mr-robot-...) — trocar só "/" deixa o underscore original
+    # no nome, que nunca bate com a pasta real quando o cwd tem underscore
+    # (usuario, nome de projeto etc), e a sessao nunca acha seu transcript.
+    project_dir = PROJECTS_DIR / cwd.replace("/", "-").replace("_", "-")
     fpath = project_dir / f"{session_id}.jsonl"
     return fpath if fpath.exists() else None
 
