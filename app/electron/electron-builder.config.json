@@ -27,11 +27,12 @@
   "mac": {
     "category": "public.app-category.developer-tools",
     "target": "dmg",
-    "identity": null
+    "identity": null,
+    "icon": "assets/appIcon.png"
   },
   "linux": {
     "target": ["AppImage", "deb"],
-    "icon": "assets/appIcon.png",
+    "icon": "assets/icons",
     "category": "Utility",
     "maintainer": "Axyo <ti@axyo.com.br>"
   }
