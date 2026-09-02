@@ -4,16 +4,16 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
   background: var(--orbit-activitybar-bg);
   border-right: 1px solid var(--orbit-activitybar-border);
-  padding: 12px 0;
+  padding: 18px 0;
 }
 
 .orbit-activitybar-btn {
   position: relative;
   width: 48px;
-  height: 48px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;

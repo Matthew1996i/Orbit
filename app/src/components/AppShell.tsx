@@ -20,16 +20,21 @@ interface Props {
 }
 
 export default function AppShell({ stats, children }: Props) {
-  const [sidebarOpen, setSidebarOpen] = useState(() => readPref(SIDEBAR_OPEN_KEY, '0') === '1');
+  // aberto/secao-ativa juntos NUM SO estado (nao dois useState separados) —
+  // assim o toggle "clicar no icone ja ativo fecha" sempre le os dois valores
+  // do MESMO snapshot atomico dentro do updater funcional, sem risco de um
+  // dos dois ficar defasado por causa de como os cliques disparam re-render.
+  const [sidebar, setSidebar] = useState<{ open: boolean; section: SectionKey | null }>(() => ({
+    open: readPref(SIDEBAR_OPEN_KEY, '0') === '1',
+    section: (readPref(SIDEBAR_SECTION_KEY, '') as SectionKey) || null,
+  }));
+  const sidebarOpen = sidebar.open;
+  const activeSection = sidebar.section;
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Number(readPref(SIDEBAR_WIDTH_KEY, String(SIDEBAR_DEFAULT))) || SIDEBAR_DEFAULT)),
   );
   const [themeId, setThemeId] = useState(() => loadThemeId());
   const [resizing, setResizing] = useState(false);
-  const [activeSection, setActiveSection] = useState<SectionKey | null>(() => {
-    const saved = readPref(SIDEBAR_SECTION_KEY, '');
-    return (saved as SectionKey) || null;
-  });
 
   // evita stale closure no listener de pointerup, que le o valor MAIS RECENTE
   // pra gravar — sem isso o handler capturava o `sidebarWidth` do momento em
@@ -47,17 +52,16 @@ export default function AppShell({ stats, children }: Props) {
   // Clicar no icone da secao JA ATIVA fecha o painel (mesmo gesto de toggle
   // de antes); clicar em outro icone troca a secao e garante o painel aberto.
   const selectSection = (key: SectionKey) => {
-    setSidebarOpen((curOpen) => {
-      const next = !(curOpen && activeSection === key);
-      writePref(SIDEBAR_OPEN_KEY, next ? '1' : '0');
-      return next;
+    setSidebar((cur) => {
+      const open = !(cur.open && cur.section === key);
+      writePref(SIDEBAR_OPEN_KEY, open ? '1' : '0');
+      writePref(SIDEBAR_SECTION_KEY, key);
+      return { open, section: key };
     });
-    setActiveSection(key);
-    writePref(SIDEBAR_SECTION_KEY, key);
   };
 
   const closeSidebar = () => {
-    setSidebarOpen(false);
+    setSidebar((cur) => ({ ...cur, open: false }));
     writePref(SIDEBAR_OPEN_KEY, '0');
   };
 
