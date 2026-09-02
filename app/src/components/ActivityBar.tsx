@@ -37,7 +37,7 @@ export default function ActivityBar({ activeSection, sidebarOpen, onSelectSectio
           aria-label={label}
           title={label}
         >
-          <Icon size={22} />
+          <Icon size={24} />
         </button>
       ))}
 
@@ -47,7 +47,7 @@ export default function ActivityBar({ activeSection, sidebarOpen, onSelectSectio
         aria-label="Selecionar tema"
         title="Tema de cores"
       >
-        <Settings size={22} />
+        <Settings size={24} />
       </button>
 
       {themeMenuAnchor && (

@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, SquareSlash, Wrench, Server, Plus, X, PanelLeft, RefreshCw, KeyRound, Cpu } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Plus, X, RefreshCw } from 'lucide-react';
 import { fetchCatalog, fetchLlms, fetchUsage, fetchSecretGroups, fetchAiProviders, CatalogResponse, LlmCli, AgentFileKind, SecretGroup, AiProvider } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
-import { SectionKey, SECTION_LABELS } from '../utils/sidebarSections';
+import { SectionKey, SECTION_ICONS, SECTION_LABELS } from '../utils/sidebarSections';
 import ConnectLlmModal from './ConnectLlmModal';
 import AgentEditModal from './AgentEditModal';
 import SecretsModal from './SecretsModal';
@@ -11,9 +11,8 @@ import './Sidebar.css';
 
 interface Props {
   onClose: () => void;
-  // secao selecionada na Activity Bar — ao mudar, expande so essa secao e
-  // colapsa as outras (o usuario ainda pode abrir mais secoes manualmente
-  // depois, isso so controla o estado inicial ao trocar de icone).
+  // secao escolhida na Activity Bar — a sidebar mostra SO o conteudo dessa
+  // secao (como uma view do VS Code), nao um acordeao com todas juntas.
   activeSection?: SectionKey | null;
 }
 
@@ -22,25 +21,9 @@ interface Props {
 // dessa correcao), pra nao ficar defasado em relacao ao resto da tela.
 const AGENT_SYNC_MS = 4000;
 
-const ALL_CLOSED: Record<SectionKey, boolean> = {
-  llms: false,
-  agents: false,
-  skills: false,
-  commands: false,
-  tools: false,
-  mcps: false,
-  secrets: false,
-  aiProviders: false,
-};
-
 export default function Sidebar({ onClose, activeSection }: Props) {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
-  // a secao escolhida na Activity Bar (se veio alguma) comeca aberta; o
-  // resto comeca fechado — o usuario abre mais secoes manualmente depois.
-  const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>(() =>
-    activeSection ? { ...ALL_CLOSED, [activeSection]: true } : ALL_CLOSED,
-  );
   const [showConnect, setShowConnect] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [editTarget, setEditTarget] = useState<
@@ -96,34 +79,217 @@ export default function Sidebar({ onClose, activeSection }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // troca de secao pela Activity Bar com a sidebar JA aberta — o componente
-  // continua montado (so o toggle inicial acima cobre o primeiro mount),
-  // entao precisa desse efeito pra reagir a mudanca de activeSection.
-  const isFirstActiveSection = useRef(true);
-  useEffect(() => {
-    if (isFirstActiveSection.current) {
-      isFirstActiveSection.current = false;
-      return;
-    }
-    if (activeSection) setExpanded({ ...ALL_CLOSED, [activeSection]: true });
-  }, [activeSection]);
-
-  const toggle = (key: SectionKey) => setExpanded((cur) => ({ ...cur, [key]: !cur[key] }));
-
   // so mostra LLM que esta de fato instalada na maquina — sem botao de
   // conectar/desconectar aqui, essa lista e so informativa (o "+ Conectar
   // LLM" no titulo continua sendo o unico fluxo de instalar/logar).
   const installedLlms = llms.filter((l) => l.status !== 'none');
 
+  const section = activeSection ?? 'llms';
+  const sectionMeta = SECTION_ICONS.find((s) => s.key === section) ?? SECTION_ICONS[0];
+
+  const sectionCount: Partial<Record<SectionKey, number>> = {
+    llms: installedLlms.length,
+    agents: catalog?.agents.length,
+    skills: catalog?.skills.length,
+    commands: catalog?.commands.length,
+    tools: catalog?.tools.length,
+    mcps: catalog?.mcps.length,
+    secrets: secretGroups.length,
+    aiProviders: aiProviders.length,
+  };
+
+  // botao "+" do cabecalho e especifico de cada secao (algumas nem tem, ex:
+  // Tools/MCPs sao so leitura) — undefined esconde o botao.
+  const onAdd: Partial<Record<SectionKey, { label: string; onClick: () => void }>> = {
+    llms: { label: 'Conectar LLM', onClick: () => setShowConnect(true) },
+    agents: { label: 'Criar agente', onClick: () => setEditTarget({ name: '', kind: 'agent', isNew: true }) },
+    skills: { label: 'Criar skill', onClick: () => setEditTarget({ name: '', kind: 'skill', isNew: true }) },
+    commands: { label: 'Criar comando', onClick: () => setEditTarget({ name: '', kind: 'command', isNew: true }) },
+    secrets: { label: 'Novo grupo de chaves', onClick: () => setSecretsTarget({}) },
+    aiProviders: { label: 'Novo provedor de IA', onClick: () => setAiProviderTarget({}) },
+  };
+  const addAction = onAdd[section];
+
+  const renderBody = () => {
+    switch (section) {
+      case 'llms':
+        return installedLlms.length === 0 ? (
+          <div className="sidebar-empty">Nenhuma LLM instalada</div>
+        ) : (
+          installedLlms.map((llm) => {
+            const Logo = llmLogoFor(llm.id);
+            return (
+              <div key={llm.id} className="sidebar-item">
+                <span className="sidebar-item-logo">
+                  <Logo size={15} />
+                </span>
+                <div className="sidebar-item-body">
+                  <div className="sidebar-item-name">{llm.name}</div>
+                  <div className="sidebar-item-sub">{llm.vendor}</div>
+                </div>
+                <span className={`sidebar-dot ${llm.status === 'connected' ? 'on' : 'warn'}`} />
+              </div>
+            );
+          })
+        );
+
+      case 'agents':
+        return (catalog?.agents || []).map((agent) => (
+          <button
+            key={agent.name}
+            className="sidebar-item sidebar-item-stack sidebar-item-clickable"
+            onClick={() =>
+              setEditTarget({
+                name: agent.name,
+                kind: 'agent',
+                subtitle: [agent.model && `modelo: ${agent.model}`, agent.tools && `tools: ${agent.tools}`]
+                  .filter(Boolean)
+                  .join(' · '),
+              })
+            }
+            type="button"
+          >
+            <div className="sidebar-item-name">
+              {agent.name}
+              {agent.model && <span className="sidebar-item-badge">{agent.model}</span>}
+            </div>
+            <div className="sidebar-item-desc" title={agent.description}>
+              {agent.description}
+            </div>
+          </button>
+        ));
+
+      case 'skills':
+        return (catalog?.skills || []).map((skill) => (
+          <button
+            key={skill.name}
+            className="sidebar-item sidebar-item-stack sidebar-item-clickable"
+            onClick={() =>
+              setEditTarget({
+                name: skill.name,
+                kind: 'skill',
+                subtitle: skill.version ? `versão: ${skill.version}` : undefined,
+              })
+            }
+            type="button"
+          >
+            <div className="sidebar-item-name">
+              {skill.name}
+              {skill.version && <span className="sidebar-item-badge">v{skill.version}</span>}
+            </div>
+            <div className="sidebar-item-desc" title={skill.description}>
+              {skill.description}
+            </div>
+          </button>
+        ));
+
+      case 'commands':
+        return (catalog?.commands || []).length === 0 ? (
+          <div className="sidebar-empty">Nenhum comando configurado</div>
+        ) : (
+          (catalog?.commands || []).map((command) => (
+            <button
+              key={command.name}
+              className="sidebar-item sidebar-item-stack sidebar-item-clickable"
+              onClick={() => setEditTarget({ name: command.name, kind: 'command' })}
+              type="button"
+            >
+              <div className="sidebar-item-name">/{command.name}</div>
+              {command.description && (
+                <div className="sidebar-item-desc" title={command.description}>
+                  {command.description}
+                </div>
+              )}
+            </button>
+          ))
+        );
+
+      case 'tools':
+        return (
+          <div className="sidebar-tools-grid">
+            {(catalog?.tools || []).map((tool) => (
+              <span key={tool} className="sidebar-tool-pill">{tool}</span>
+            ))}
+          </div>
+        );
+
+      case 'mcps':
+        return (catalog?.mcps || []).length === 0 ? (
+          <div className="sidebar-empty">Nenhum MCP configurado</div>
+        ) : (
+          (catalog?.mcps || []).map((mcp) => (
+            <div key={mcp.name} className="sidebar-item">
+              <span className={`sidebar-dot ${mcp.enabled ? 'on' : 'off'}`} />
+              <div className="sidebar-item-body">
+                <div className="sidebar-item-name">{mcp.name}</div>
+                <div className="sidebar-item-sub">
+                  {mcp.projects.length} {mcp.projects.length === 1 ? 'projeto' : 'projetos'}
+                </div>
+              </div>
+            </div>
+          ))
+        );
+
+      case 'secrets':
+        return secretGroups.length === 0 ? (
+          <div className="sidebar-empty">Nenhuma chave cadastrada</div>
+        ) : (
+          secretGroups.map((group) => (
+            <button
+              key={group.id}
+              className="sidebar-item sidebar-item-stack sidebar-item-clickable"
+              onClick={() => setSecretsTarget({ group })}
+              type="button"
+            >
+              <div className="sidebar-item-name">{group.title}</div>
+              <div className="sidebar-item-desc">
+                {group.entries.length} {group.entries.length === 1 ? 'chave' : 'chaves'}
+              </div>
+            </button>
+          ))
+        );
+
+      case 'aiProviders':
+        return aiProviders.length === 0 ? (
+          <div className="sidebar-empty">Nenhum provedor cadastrado</div>
+        ) : (
+          aiProviders.map((p) => (
+            <button
+              key={p.id}
+              className="sidebar-item sidebar-item-stack sidebar-item-clickable"
+              onClick={() => setAiProviderTarget({ provider: p })}
+              type="button"
+            >
+              <div className="sidebar-item-name">{p.title}</div>
+            </button>
+          ))
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <>
-    <div className="sidebar-panel">
-      <div className="sidebar-header">
+      <div className="sidebar-panel">
+        <div className="sidebar-header">
           <span className="sidebar-header-title">
-            <PanelLeft size={14} color="#ffffff" />
-            Recursos disponíveis
+            <sectionMeta.Icon size={14} />
+            {SECTION_LABELS[section]}
+            <span className="sidebar-header-count">{sectionCount[section] ?? ''}</span>
           </span>
           <span className="sidebar-header-actions">
+            {addAction && (
+              <button
+                className="sidebar-close-btn"
+                onClick={addAction.onClick}
+                aria-label={addAction.label}
+                title={addAction.label}
+              >
+                <Plus size={14} />
+              </button>
+            )}
             <button
               className="sidebar-close-btn"
               onClick={() => syncAll()}
@@ -139,308 +305,7 @@ export default function Sidebar({ onClose, activeSection }: Props) {
           </span>
         </div>
 
-        <div className="sidebar-content">
-          <section className="sidebar-section">
-            <div className="sidebar-section-row">
-              <button className="sidebar-section-head" onClick={() => toggle('llms')}>
-                {expanded.llms ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <Plug size={13} />
-                <span>{SECTION_LABELS.llms}</span>
-                <span className="sidebar-section-count">
-                  {llms.filter((l) => l.status === 'connected').length}/{installedLlms.length}
-                </span>
-              </button>
-              <button
-                className="sidebar-section-add-btn"
-                onClick={() => setShowConnect(true)}
-                aria-label="Conectar LLM"
-                title="Conectar LLM"
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-            {expanded.llms && (
-              <div className="sidebar-section-body">
-                {installedLlms.length === 0 && <div className="sidebar-empty">Nenhuma LLM instalada</div>}
-                {installedLlms.map((llm) => {
-                  const Logo = llmLogoFor(llm.id);
-                  return (
-                    <div key={llm.id} className="sidebar-item">
-                      <span className="sidebar-item-logo">
-                        <Logo size={15} />
-                      </span>
-                      <div className="sidebar-item-body">
-                        <div className="sidebar-item-name">{llm.name}</div>
-                        <div className="sidebar-item-sub">{llm.vendor}</div>
-                      </div>
-                      <span className={`sidebar-dot ${llm.status === 'connected' ? 'on' : 'warn'}`} />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section className="sidebar-section">
-            <div className="sidebar-section-row">
-              <button className="sidebar-section-head" onClick={() => toggle('agents')}>
-                {expanded.agents ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <Bot size={13} />
-                <span>{SECTION_LABELS.agents}</span>
-                <span className="sidebar-section-count">{catalog?.agents.length ?? '…'}</span>
-              </button>
-              <button
-                className="sidebar-section-add-btn"
-                onClick={() => setEditTarget({ name: '', kind: 'agent', isNew: true })}
-                aria-label="Criar agente"
-                title="Criar agente"
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-            {expanded.agents && (
-              <div className="sidebar-section-body">
-                {(catalog?.agents || []).map((agent) => (
-                  <button
-                    key={agent.name}
-                    className="sidebar-item sidebar-item-stack sidebar-item-clickable"
-                    onClick={() =>
-                      setEditTarget({
-                        name: agent.name,
-                        kind: 'agent',
-                        subtitle: [agent.model && `modelo: ${agent.model}`, agent.tools && `tools: ${agent.tools}`]
-                          .filter(Boolean)
-                          .join(' · '),
-                      })
-                    }
-                    type="button"
-                  >
-                    <div className="sidebar-item-name">
-                      {agent.name}
-                      {agent.model && <span className="sidebar-item-badge">{agent.model}</span>}
-                    </div>
-                    <div className="sidebar-item-desc" title={agent.description}>
-                      {agent.description}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="sidebar-section">
-            <div className="sidebar-section-row">
-              <button className="sidebar-section-head" onClick={() => toggle('skills')}>
-                {expanded.skills ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <Sparkles size={13} />
-                <span>{SECTION_LABELS.skills}</span>
-                <span className="sidebar-section-count">{catalog?.skills.length ?? '…'}</span>
-              </button>
-              <button
-                className="sidebar-section-add-btn"
-                onClick={() => setEditTarget({ name: '', kind: 'skill', isNew: true })}
-                aria-label="Criar skill"
-                title="Criar skill"
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-            {expanded.skills && (
-              <div className="sidebar-section-body">
-                {(catalog?.skills || []).map((skill) => (
-                  <button
-                    key={skill.name}
-                    className="sidebar-item sidebar-item-stack sidebar-item-clickable"
-                    onClick={() =>
-                      setEditTarget({
-                        name: skill.name,
-                        kind: 'skill',
-                        subtitle: skill.version ? `versão: ${skill.version}` : undefined,
-                      })
-                    }
-                    type="button"
-                  >
-                    <div className="sidebar-item-name">
-                      {skill.name}
-                      {skill.version && <span className="sidebar-item-badge">v{skill.version}</span>}
-                    </div>
-                    <div className="sidebar-item-desc" title={skill.description}>
-                      {skill.description}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="sidebar-section">
-            <div className="sidebar-section-row">
-              <button className="sidebar-section-head" onClick={() => toggle('commands')}>
-                {expanded.commands ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <SquareSlash size={13} />
-                <span>{SECTION_LABELS.commands}</span>
-                <span className="sidebar-section-count">{catalog?.commands.length ?? '…'}</span>
-              </button>
-              <button
-                className="sidebar-section-add-btn"
-                onClick={() => setEditTarget({ name: '', kind: 'command', isNew: true })}
-                aria-label="Criar comando"
-                title="Criar comando"
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-            {expanded.commands && (
-              <div className="sidebar-section-body">
-                {(catalog?.commands || []).length === 0 && (
-                  <div className="sidebar-empty">Nenhum comando configurado</div>
-                )}
-                {(catalog?.commands || []).map((command) => (
-                  <button
-                    key={command.name}
-                    className="sidebar-item sidebar-item-stack sidebar-item-clickable"
-                    onClick={() => setEditTarget({ name: command.name, kind: 'command' })}
-                    type="button"
-                  >
-                    <div className="sidebar-item-name">/{command.name}</div>
-                    {command.description && (
-                      <div className="sidebar-item-desc" title={command.description}>
-                        {command.description}
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="sidebar-section">
-            <div className="sidebar-section-row">
-              <button className="sidebar-section-head" onClick={() => toggle('tools')}>
-                {expanded.tools ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <Wrench size={13} />
-                <span>{SECTION_LABELS.tools}</span>
-                <span className="sidebar-section-count">{catalog?.tools.length ?? '…'}</span>
-              </button>
-            </div>
-            {expanded.tools && (
-              <div className="sidebar-section-body sidebar-tools-grid">
-                {(catalog?.tools || []).map((tool) => (
-                  <span key={tool} className="sidebar-tool-pill">{tool}</span>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="sidebar-section">
-            <div className="sidebar-section-row">
-              <button className="sidebar-section-head" onClick={() => toggle('mcps')}>
-                {expanded.mcps ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <Server size={13} />
-                <span>{SECTION_LABELS.mcps}</span>
-                <span className="sidebar-section-count">{catalog?.mcps.length ?? '…'}</span>
-              </button>
-            </div>
-            {expanded.mcps && (
-              <div className="sidebar-section-body">
-                {(catalog?.mcps || []).length === 0 && (
-                  <div className="sidebar-empty">Nenhum MCP configurado</div>
-                )}
-                {(catalog?.mcps || []).map((mcp) => (
-                  <div key={mcp.name} className="sidebar-item">
-                    <span className={`sidebar-dot ${mcp.enabled ? 'on' : 'off'}`} />
-                    <div className="sidebar-item-body">
-                      <div className="sidebar-item-name">{mcp.name}</div>
-                      <div className="sidebar-item-sub">
-                        {mcp.projects.length} {mcp.projects.length === 1 ? 'projeto' : 'projetos'}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="sidebar-section">
-            <div className="sidebar-section-row">
-              <button className="sidebar-section-head" onClick={() => toggle('secrets')}>
-                {expanded.secrets ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <KeyRound size={13} />
-                <span>{SECTION_LABELS.secrets}</span>
-                <span className="sidebar-section-count">{secretGroups.length}</span>
-              </button>
-              <button
-                className="sidebar-section-add-btn"
-                onClick={() => setSecretsTarget({})}
-                aria-label="Novo grupo de chaves"
-                title="Novo grupo de chaves"
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-            {expanded.secrets && (
-              <div className="sidebar-section-body">
-                {secretGroups.length === 0 && (
-                  <div className="sidebar-empty">Nenhuma chave cadastrada</div>
-                )}
-                {secretGroups.map((group) => (
-                  <button
-                    key={group.id}
-                    className="sidebar-item sidebar-item-stack sidebar-item-clickable"
-                    onClick={() => setSecretsTarget({ group })}
-                    type="button"
-                  >
-                    <div className="sidebar-item-name">{group.title}</div>
-                    <div className="sidebar-item-desc">
-                      {group.entries.length} {group.entries.length === 1 ? 'chave' : 'chaves'}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="sidebar-section">
-            <div className="sidebar-section-row">
-              <button className="sidebar-section-head" onClick={() => toggle('aiProviders')}>
-                {expanded.aiProviders ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <Cpu size={13} />
-                <span>{SECTION_LABELS.aiProviders}</span>
-                <span className="sidebar-section-count">{aiProviders.length}</span>
-              </button>
-              <button
-                className="sidebar-section-add-btn"
-                onClick={() => setAiProviderTarget({})}
-                aria-label="Novo provedor de IA"
-                title="Novo provedor de IA"
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-            {expanded.aiProviders && (
-              <div className="sidebar-section-body">
-                {aiProviders.length === 0 && (
-                  <div className="sidebar-empty">Nenhum provedor cadastrado</div>
-                )}
-                {aiProviders.map((p) => (
-                  <button
-                    key={p.id}
-                    className="sidebar-item sidebar-item-stack sidebar-item-clickable"
-                    onClick={() => setAiProviderTarget({ provider: p })}
-                    type="button"
-                  >
-                    <div className="sidebar-item-name">
-                      {p.title}
-                      <span className="sidebar-item-badge">
-                        {p.provider === 'anthropic' ? 'formato 1' : 'formato 2'}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
+        <div className="sidebar-content">{renderBody()}</div>
       </div>
 
       {showConnect && (
