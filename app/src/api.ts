@@ -218,6 +218,9 @@ export interface SecretEntry {
 export interface SecretGroup {
   id: string;
   title: string;
+  // slug unico usado em {{identificador.chave}} — permite que grupos
+  // diferentes tenham uma chave com o MESMO nome sem colidir.
+  identifier: string;
   entries: SecretEntry[];
 }
 

@@ -1,23 +1,46 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Save, Trash2, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { SecretEntry, SecretGroup, deleteSecretGroup, saveSecretGroup } from '../api';
 import './ConfirmDialog.css';
 import './SecretsModal.css';
 
 interface Props {
   group?: SecretGroup;
+  existingGroups: SecretGroup[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function SecretsModal({ group, onClose, onSaved }: Props) {
+// mesma normalizacao usada pro nome de arquivo de agent/skill/command (ver
+// AgentEditModal) — identificador tem que ser um slug valido pra funcionar
+// dentro de {{identificador.chave}}.
+function slugify(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export default function SecretsModal({ group, existingGroups, onClose, onSaved }: Props) {
   const [title, setTitle] = useState(group?.title ?? '');
+  // identificador comeca igual ao slug do titulo, mas e' editavel — uma vez
+  // que o usuario mexe nele, para de seguir o titulo automaticamente.
+  const [identifier, setIdentifier] = useState(group?.identifier ?? '');
+  const [identifierTouched, setIdentifierTouched] = useState(!!group?.identifier);
   const [entries, setEntries] = useState<SecretEntry[]>(
     group?.entries && group.entries.length > 0 ? group.entries : [{ key: '', value: '' }],
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const effectiveIdentifier = identifierTouched ? identifier : slugify(title);
+  const identifierTaken = existingGroups.some(
+    (g) => g.id !== group?.id && g.identifier === effectiveIdentifier.trim(),
+  );
+  const identifierValid = /^[a-zA-Z0-9_-]+$/.test(effectiveIdentifier.trim()) && !identifierTaken;
 
   const setEntry = (i: number, field: 'key' | 'value', v: string) => {
     setEntries((cur) => cur.map((e, idx) => (idx === i ? { ...e, [field]: v } : e)));
@@ -26,13 +49,18 @@ export default function SecretsModal({ group, onClose, onSaved }: Props) {
   const addRow = () => setEntries((cur) => [...cur, { key: '', value: '' }]);
   const removeRow = (i: number) => setEntries((cur) => cur.filter((_, idx) => idx !== i));
 
-  const valid = title.trim().length > 0 && entries.some((e) => e.key.trim().length > 0);
+  const valid = title.trim().length > 0 && identifierValid && entries.some((e) => e.key.trim().length > 0);
 
   const save = async () => {
     if (!valid) return;
     setSaving(true);
     setError('');
-    const res = await saveSecretGroup({ id: group?.id, title: title.trim(), entries });
+    const res = await saveSecretGroup({
+      id: group?.id,
+      title: title.trim(),
+      identifier: effectiveIdentifier.trim(),
+      entries,
+    });
     setSaving(false);
     if ('error' in res) {
       setError(res.error);
@@ -70,6 +98,23 @@ export default function SecretsModal({ group, onClose, onSaved }: Props) {
           autoFocus
           spellCheck={false}
         />
+
+        <label className="new-agent-label">Identificador (usado em {'{{identificador.chave}}'})</label>
+        <input
+          className={`new-agent-input${identifier || title ? (identifierValid ? '' : ' secret-ref-invalid-input') : ''}`}
+          value={effectiveIdentifier}
+          onChange={(e) => {
+            setIdentifierTouched(true);
+            setIdentifier(e.target.value);
+          }}
+          placeholder="ex: openrouter, minha-conta"
+          spellCheck={false}
+        />
+        <span className="ai-provider-hint">
+          {identifierTaken
+            ? `já existe um grupo com o identificador "${effectiveIdentifier.trim()}"`
+            : 'único entre os grupos — grupos diferentes podem ter uma chave com o mesmo nome, o identificador é o que evita colisão'}
+        </span>
 
         <label className="new-agent-label">Chaves</label>
         <div className="secrets-rows">
@@ -111,14 +156,11 @@ export default function SecretsModal({ group, onClose, onSaved }: Props) {
         <div className="confirm-actions">
           {group && (
             <button className="confirm-btn-danger secrets-delete-btn" onClick={remove} disabled={saving} type="button">
-              <Trash2 size={13} /> Excluir grupo
+              Excluir
             </button>
           )}
-          <button className="confirm-btn-cancel" onClick={onClose} type="button">
-            Cancelar
-          </button>
           <button className="confirm-btn-submit" onClick={save} disabled={saving || !valid} type="button">
-            <Save size={13} /> {saving ? 'Salvando…' : 'Salvar'}
+            {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
       </div>

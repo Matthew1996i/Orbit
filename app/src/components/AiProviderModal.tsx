@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Save, Trash2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { AiProvider, AiProviderKind, SecretGroup, deleteAiProvider, fetchSecretGroups, saveAiProvider } from '../api';
 import { isSecretRef, validateSecretRef } from '../utils/secretRefs';
+import SecretRefInput from './SecretRefInput';
 import './AiProviderModal.css';
 import './ConfirmDialog.css';
 import './SecretsModal.css';
@@ -37,11 +38,10 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
     fetchSecretGroups().then(setSecretGroups).catch(() => setSecretGroups([]));
   }, []);
 
-  // se a chave de API for um `{{CHAVE}}`/`{{CHAVE.campo}}`, valida contra as
-  // chaves cadastradas em Chaves e tokens pra dar feedback visual na hora —
-  // a resolucao de verdade acontece no backend, isso e so o highlight.
-  const apiKeyIsRef = isSecretRef(apiKey);
-  const apiKeyValidation = apiKeyIsRef ? validateSecretRef(apiKey, secretGroups) : null;
+  // URL/modelo tambem aceitam {{CHAVE}} (ex: um endpoint por-conta ou um
+  // nome de modelo guardados como segredo) — so a chave de API bloqueia o
+  // Salvar se a referencia nao existir, os outros dois sao so cosmeticos.
+  const apiKeyValidation = isSecretRef(apiKey) ? validateSecretRef(apiKey, secretGroups) : null;
 
   const valid = title.trim().length > 0 && apiKey.trim().length > 0 && (!apiKeyValidation || apiKeyValidation.ok);
 
@@ -96,36 +96,32 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
         />
 
         <label className="new-agent-label">URL da API</label>
-        <input
-          className="new-agent-input"
+        <SecretRefInput
           value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
+          onChange={setBaseUrl}
           placeholder="opcional — usa a URL padrão do formato se vazio"
-          spellCheck={false}
+          secretGroups={secretGroups}
         />
 
         <label className="new-agent-label">Chave de API</label>
-        <input
-          className={`new-agent-input${apiKeyValidation ? (apiKeyValidation.ok ? ' secret-ref-valid' : ' secret-ref-invalid') : ''}`}
+        <SecretRefInput
           value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="cole sua chave, ou use {{CHAVE}} pra referenciar uma já cadastrada"
-          type="text"
-          spellCheck={false}
+          onChange={setApiKey}
+          placeholder="cole sua chave, ou use {{identificador.chave}} pra referenciar uma já cadastrada"
+          secretGroups={secretGroups}
+          password
         />
-        <span className={`ai-provider-hint${apiKeyValidation && !apiKeyValidation.ok ? ' ai-provider-hint-error' : ''}`}>
-          {apiKeyValidation && !apiKeyValidation.ok
-            ? apiKeyValidation.message
-            : 'use {{CHAVE}} ou {{CHAVE.campo}} pra referenciar uma chave de "Chaves e tokens" sem colar o valor aqui'}
+        <span className="ai-provider-hint">
+          use {'{{identificador.chave}}'} pra referenciar uma chave de "Chaves e tokens" sem colar o valor aqui — o
+          identificador é o que aparece ao lado do título do grupo
         </span>
 
         <label className="new-agent-label">Modelo (opcional)</label>
-        <input
-          className="new-agent-input"
+        <SecretRefInput
           value={model}
-          onChange={(e) => setModel(e.target.value)}
+          onChange={setModel}
           placeholder="opcional — usa o modelo padrão do formato se vazio"
-          spellCheck={false}
+          secretGroups={secretGroups}
         />
 
         {error && <p className="confirm-message secrets-error">{error}</p>}
@@ -133,14 +129,11 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
         <div className="confirm-actions">
           {provider && (
             <button className="confirm-btn-danger secrets-delete-btn" onClick={remove} disabled={saving} type="button">
-              <Trash2 size={13} /> Excluir
+              Excluir
             </button>
           )}
-          <button className="confirm-btn-cancel" onClick={onClose} type="button">
-            Cancelar
-          </button>
           <button className="confirm-btn-submit" onClick={save} disabled={saving || !valid} type="button">
-            <Save size={13} /> {saving ? 'Salvando…' : 'Salvar'}
+            {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
       </div>

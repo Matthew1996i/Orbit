@@ -241,7 +241,10 @@ export default function Sidebar({ onClose, activeSection }: Props) {
               onClick={() => setSecretsTarget({ group })}
               type="button"
             >
-              <div className="sidebar-item-name">{group.title}</div>
+              <div className="sidebar-item-name">
+                {group.title}
+                <span className="sidebar-item-badge">{group.identifier}</span>
+              </div>
               <div className="sidebar-item-desc">
                 {group.entries.length} {group.entries.length === 1 ? 'chave' : 'chaves'}
               </div>
@@ -341,6 +344,7 @@ export default function Sidebar({ onClose, activeSection }: Props) {
       {secretsTarget && (
         <SecretsModal
           group={secretsTarget.group}
+          existingGroups={secretGroups}
           onClose={() => setSecretsTarget(null)}
           onSaved={reloadSecrets}
         />

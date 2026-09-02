@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Eye, Pencil, Sparkles } from 'lucide-react';
+import { X, Eye, Pencil, Sparkles } from 'lucide-react';
 import { marked } from 'marked';
 import { AgentFileKind, AiProvider, fetchAgentFile, saveAgentFile, generateMarkdown } from '../api';
 import './ConfirmDialog.css';
@@ -43,6 +43,19 @@ function parseFrontmatterName(text: string): string {
   const line = match[1].split('\n').find((l) => /^name:/.test(l));
   if (!line) return '';
   return line.slice(line.indexOf(':') + 1).trim().replace(/^['"]|['"]$/g, '');
+}
+
+// vira um slug valido pra nome de arquivo (letras/numeros/-/_) — o "Gerar
+// com IA" as vezes devolve um `name:` mais humano ("Test Command"), com
+// espaco ou acento, que o backend rejeitaria; em vez de travar o Salvar
+// com um erro, normaliza sozinho pro que a IA claramente quis dizer.
+function slugify(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // acentos combinados apos a normalizacao NFD
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 interface Props {
@@ -109,19 +122,31 @@ export default function AgentEditModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiProviders]);
 
-  const effectiveName = !isNew ? name : parseFrontmatterName(content);
+  const rawName = !isNew ? name : parseFrontmatterName(content);
+  // nome do arquivo de verdade: se o que veio do frontmatter ja for um slug
+  // valido usa direto, senao normaliza (cobre o "Gerar com IA" devolvendo
+  // algo tipo "Test Command" em vez de "test-command").
+  const effectiveName = !isNew || AGENT_NAME_RE.test(rawName.trim()) ? rawName : slugify(rawName);
   const nameValid = AGENT_NAME_RE.test(effectiveName.trim());
 
   const save = async () => {
     if (isNew && !nameValid) return;
     setSaving(true);
     setSaved(false);
-    const res = await saveAgentFile(effectiveName.trim(), content, kind);
+    // se o nome precisou ser normalizado, reescreve o `name:` do frontmatter
+    // pra bater com o arquivo de verdade — evita o arquivo salvo com um nome
+    // interno diferente do nome pelo qual ele e conhecido.
+    const finalContent =
+      isNew && rawName.trim() !== effectiveName
+        ? content.replace(/^(---\n[\s\S]*?\nname:)([^\n]*)/, `$1 ${effectiveName}`)
+        : content;
+    const res = await saveAgentFile(effectiveName.trim(), finalContent, kind);
     setSaving(false);
     if ('error' in res) {
       setError(res.error);
       return;
     }
+    if (finalContent !== content) setContent(finalContent);
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
@@ -238,16 +263,13 @@ export default function AgentEditModal({
 
         <div className="agent-edit-footer">
           {saved && <span className="agent-edit-saved">Salvo</span>}
-          <button className="confirm-btn-cancel" onClick={onClose} type="button">
-            Fechar
-          </button>
           <button
             className="confirm-btn-submit"
             onClick={save}
             disabled={saving || loading || (isNew && !nameValid)}
             type="button"
           >
-            <Save size={13} /> {saving ? 'Salvando…' : isNew ? 'Criar' : 'Salvar'}
+            {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
       </div>

@@ -2703,32 +2703,43 @@ def _call_openai(api_key, base_url, model, system, user_text):
     return data["choices"][0]["message"]["content"]
 
 
-SECRET_REF_RE = re.compile(r"\{\{\s*([A-Za-z0-9_]+)((?:\.[A-Za-z0-9_]+)*)\s*\}\}")
+SECRET_REF_RE = re.compile(
+    r"\{\{\s*([A-Za-z0-9_-]+)\.([A-Za-z0-9_]+)((?:\.[A-Za-z0-9_]+)*)\s*\}\}"
+)
 
 
 def resolve_secret_refs(text):
-    """Substitui `{{CHAVE}}` (ou `{{CHAVE.campo.sub}}` pra acessar dentro de
-    um valor JSON como se fosse um objeto) pelo valor cadastrado em Chaves e
-    tokens — assim o campo de chave de API de um provedor pode referenciar
-    uma chave ja cadastrada em vez de precisar colar o valor de novo.
-    Levanta ValueError com mensagem clara se a chave/campo nao existir, pra
-    falhar visivelmente em vez de mandar o placeholder cru pra API."""
+    """Substitui `{{identificador.CHAVE}}` (ou `{{identificador.CHAVE.campo.sub}}`
+    pra acessar dentro de um valor JSON como se fosse um objeto) pelo valor
+    cadastrado em Chaves e tokens. O endereco e ESCOPADO por grupo
+    (identificador do grupo + nome da chave dentro dele) de proposito — assim
+    dois grupos diferentes podem ter uma chave com o MESMO nome (ex: dois
+    grupos com uma chave "API_KEY") sem colidir, porque o identificador do
+    grupo e' unico mas o nome da chave dentro dele nao precisa ser.
+    Levanta ValueError com mensagem clara se o grupo/chave/campo nao existir,
+    pra falhar visivelmente em vez de mandar o placeholder cru pra API."""
     def _sub(m):
-        key, path = m.group(1), m.group(2)
-        flat = secrets_as_env()
-        if key not in flat:
-            raise ValueError(f'chave "{key}" não encontrada em Chaves e tokens')
-        value = flat[key]
+        group_id, key, path = m.group(1), m.group(2), m.group(3)
+        group = next((g for g in read_secret_groups() if g.get("identifier") == group_id), None)
+        if not group:
+            raise ValueError(f'grupo "{group_id}" não encontrado em Chaves e tokens')
+        entry = next(
+            (e for e in group.get("entries") or [] if (e.get("key") or "").strip() == key),
+            None,
+        )
+        if not entry:
+            raise ValueError(f'chave "{key}" não encontrada no grupo "{group_id}"')
+        value = entry.get("value", "")
         if path:
             try:
                 obj = json.loads(value)
             except json.JSONDecodeError:
-                raise ValueError(f'chave "{key}" não é um JSON válido pra acessar "{path.lstrip(".")}"')
+                raise ValueError(f'chave "{group_id}.{key}" não é um JSON válido pra acessar "{path.lstrip(".")}"')
             for part in path.lstrip(".").split("."):
                 if isinstance(obj, dict) and part in obj:
                     obj = obj[part]
                 else:
-                    raise ValueError(f'campo "{part}" não existe em "{key}"')
+                    raise ValueError(f'campo "{part}" não existe em "{group_id}.{key}"')
             value = obj if isinstance(obj, str) else json.dumps(obj)
         return value
     return SECRET_REF_RE.sub(_sub, text)
@@ -2742,13 +2753,15 @@ def generate_markdown_with_ai(provider_id, kind, description):
     if not provider:
         return None, "provedor não encontrado"
     kind_name = provider.get("provider")
-    api_key = provider.get("apiKey") or ""
     try:
-        api_key = resolve_secret_refs(api_key)
+        # {{CHAVE}}/{{CHAVE.campo}} funciona em qualquer um dos tres campos —
+        # nao so a chave de API, tambem a URL (ex: um endpoint por-conta) e o
+        # nome do modelo, se o usuario guardou algum desses como segredo.
+        api_key = resolve_secret_refs(provider.get("apiKey") or "")
+        base_url = resolve_secret_refs(provider.get("baseUrl") or "") or DEFAULT_BASE_URL_BY_PROVIDER.get(kind_name, "")
+        model = resolve_secret_refs(provider.get("model") or "") or DEFAULT_MODEL_BY_PROVIDER.get(kind_name, "")
     except ValueError as e:
         return None, str(e)
-    base_url = provider.get("baseUrl") or DEFAULT_BASE_URL_BY_PROVIDER.get(kind_name, "")
-    model = provider.get("model") or DEFAULT_MODEL_BY_PROVIDER.get(kind_name, "")
     system = _ai_generate_system_prompt(kind)
     try:
         if kind_name == "anthropic":
@@ -3653,18 +3666,28 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/secrets":
             body = self._read_json_body()
             title = (body.get("title") or "").strip()
+            identifier = (body.get("identifier") or "").strip()
             if not title:
                 self._send_json({"error": "título obrigatório"}, status=400)
+                return
+            if not identifier or not _AGENT_NAME_RE.match(identifier):
+                self._send_json({"error": "identificador obrigatório (letras/números/-/_)"}, status=400)
+                return
+            group_id = body.get("id") or uuid.uuid4().hex[:12]
+            groups = read_secret_groups()
+            # identificador e' o endereco usado em {{identificador.chave}} —
+            # tem que ser unico entre os grupos (chave repetida entre grupos
+            # DIFERENTES e permitida de proposito, so o identificador nao pode).
+            if any(g.get("identifier") == identifier and g.get("id") != group_id for g in groups):
+                self._send_json({"error": f'já existe um grupo com o identificador "{identifier}"'}, status=400)
                 return
             entries = [
                 {"key": (e.get("key") or "").strip(), "value": e.get("value", "")}
                 for e in (body.get("entries") or [])
                 if (e.get("key") or "").strip()
             ]
-            group_id = body.get("id") or uuid.uuid4().hex[:12]
-            groups = read_secret_groups()
             groups = [g for g in groups if g.get("id") != group_id]
-            groups.append({"id": group_id, "title": title, "entries": entries})
+            groups.append({"id": group_id, "title": title, "identifier": identifier, "entries": entries})
             write_secret_groups(groups)
             self._send_json({"ok": True, "id": group_id})
             return

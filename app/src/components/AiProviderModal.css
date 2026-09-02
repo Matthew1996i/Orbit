@@ -1,11 +1,3 @@
-.secret-ref-valid {
-  border-color: var(--orbit-status-ok) !important;
-}
-
-.secret-ref-invalid {
-  border-color: var(--orbit-danger) !important;
-}
-
 .ai-provider-hint-error {
   color: var(--orbit-danger);
 }
