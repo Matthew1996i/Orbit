@@ -100,6 +100,12 @@
   min-height: 22px;
   padding: 2px 8px 2px 14px;
   border-radius: 0;
+  /* .sidebar-content virou um flex column (pra caber a lista inteira sem
+     acordeao) — sem flex-shrink:0 aqui, uma lista comprida (skills com 70+
+     itens) faz o Chromium ESPREMER cada linha abaixo da altura de verdade
+     do conteudo em vez de deixar o scroll (proprio do container pai)
+     resolver, e o texto de linhas vizinhas passa a se sobrepor. */
+  flex-shrink: 0;
 }
 .sidebar-item:hover {
   background: var(--orbit-list-hover-bg);
