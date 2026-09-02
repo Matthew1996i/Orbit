@@ -2496,14 +2496,17 @@ _AGENT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 def _agent_file_path(name, kind="agent"):
-    """Resolve o caminho de ~/.claude/agents/<name>.md (kind="agent") ou
-    ~/.claude/skills/<name>/SKILL.md (kind="skill"), com validacao estrita
+    """Resolve o caminho de ~/.claude/agents/<name>.md (kind="agent"),
+    ~/.claude/skills/<name>/SKILL.md (kind="skill") ou
+    ~/.claude/commands/<name>.md (kind="command"), com validacao estrita
     do nome (so letras/numeros/-/_) — evita path traversal (../../etc) numa
     rota que le E escreve arquivo a partir de um parametro vindo da API."""
     if not name or not _AGENT_NAME_RE.match(name):
         return None
     if kind == "skill":
         return CLAUDE_DIR / "skills" / name / "SKILL.md"
+    if kind == "command":
+        return CLAUDE_DIR / "commands" / f"{name}.md"
     return CLAUDE_DIR / "agents" / f"{name}.md"
 
 

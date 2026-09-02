@@ -212,6 +212,14 @@ export default function Sidebar({ onClose }: Props) {
                 <span>{SECTION_LABELS.skills}</span>
                 <span className="sidebar-section-count">{catalog?.skills.length ?? '…'}</span>
               </button>
+              <button
+                className="sidebar-section-add-btn"
+                onClick={() => setEditTarget({ name: '', kind: 'skill', isNew: true })}
+                aria-label="Criar skill"
+                title="Criar skill"
+              >
+                <Plus size={13} />
+              </button>
             </div>
             {expanded.skills && (
               <div className="sidebar-section-body">
@@ -249,6 +257,14 @@ export default function Sidebar({ onClose }: Props) {
                 <span>{SECTION_LABELS.commands}</span>
                 <span className="sidebar-section-count">{catalog?.commands.length ?? '…'}</span>
               </button>
+              <button
+                className="sidebar-section-add-btn"
+                onClick={() => setEditTarget({ name: '', kind: 'command', isNew: true })}
+                aria-label="Criar comando"
+                title="Criar comando"
+              >
+                <Plus size={13} />
+              </button>
             </div>
             {expanded.commands && (
               <div className="sidebar-section-body">
@@ -256,14 +272,19 @@ export default function Sidebar({ onClose }: Props) {
                   <div className="sidebar-empty">Nenhum comando configurado</div>
                 )}
                 {(catalog?.commands || []).map((command) => (
-                  <div key={command.name} className="sidebar-item sidebar-item-stack">
+                  <button
+                    key={command.name}
+                    className="sidebar-item sidebar-item-stack sidebar-item-clickable"
+                    onClick={() => setEditTarget({ name: command.name, kind: 'command' })}
+                    type="button"
+                  >
                     <div className="sidebar-item-name">/{command.name}</div>
                     {command.description && (
                       <div className="sidebar-item-desc" title={command.description}>
                         {command.description}
                       </div>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}

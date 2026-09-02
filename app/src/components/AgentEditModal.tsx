@@ -8,14 +8,43 @@ import './Sidebar.css';
 import './AgentEditModal.css';
 
 const AGENT_NAME_RE = /^[a-zA-Z0-9_-]+$/;
-const NEW_AGENT_TEMPLATE = `---
-name:
+
+// agente/skill tem `name:` no frontmatter (o proprio Claude Code le dali) —
+// entao o nome do arquivo vem do que o usuario escreve no markdown, sem
+// pedir de novo num campo separado. Comando NAO tem essa convencao (o nome
+// do comando E o nome do arquivo, o frontmatter so tem `description`), por
+// isso comando continua com campo de nome editavel no cabecalho.
+const NEW_TEMPLATES: Record<AgentFileKind, string> = {
+  agent: `---
+name: nome-do-agente
 description:
 model: sonnet
 tools:
 ---
 
-`;
+`,
+  skill: `---
+name: nome-da-skill
+description:
+version: 1.0.0
+---
+
+`,
+  command: `---
+description:
+---
+
+`,
+};
+
+// le so o campo `name:` do frontmatter (--- ... ---) no topo do arquivo.
+function parseFrontmatterName(text: string): string {
+  const match = text.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return '';
+  const line = match[1].split('\n').find((l) => /^name:/.test(l));
+  if (!line) return '';
+  return line.slice(line.indexOf(':') + 1).trim().replace(/^['"]|['"]$/g, '');
+}
 
 interface Props {
   name: string;
@@ -29,8 +58,8 @@ interface Props {
 }
 
 export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = false }: Props) {
-  const [agentName, setAgentName] = useState(name);
-  const [content, setContent] = useState(isNew ? NEW_AGENT_TEMPLATE : '');
+  const [content, setContent] = useState(isNew ? NEW_TEMPLATES[kind] : '');
+  const [commandName, setCommandName] = useState('');
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -61,13 +90,15 @@ export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, kind]);
 
-  const nameValid = AGENT_NAME_RE.test(agentName.trim());
+  const usesFrontmatterName = kind === 'agent' || kind === 'skill';
+  const effectiveName = !isNew ? name : usesFrontmatterName ? parseFrontmatterName(content) : commandName;
+  const nameValid = AGENT_NAME_RE.test(effectiveName.trim());
 
   const save = async () => {
     if (isNew && !nameValid) return;
     setSaving(true);
     setSaved(false);
-    const res = await saveAgentFile(agentName.trim(), content, kind);
+    const res = await saveAgentFile(effectiveName.trim(), content, kind);
     setSaving(false);
     if ('error' in res) {
       setError(res.error);
@@ -82,17 +113,20 @@ export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = 
       <div className="agent-edit-dialog">
         <div className="agent-edit-header">
           <div>
-            {isNew ? (
+            {isNew && !usesFrontmatterName ? (
               <input
                 className="agent-edit-name-input"
-                value={agentName}
-                onChange={(e) => setAgentName(e.target.value)}
-                placeholder="nome-do-agente"
+                value={commandName}
+                onChange={(e) => setCommandName(e.target.value)}
+                placeholder="nome-do-comando"
                 autoFocus
                 spellCheck={false}
               />
             ) : (
-              <h2>{name}</h2>
+              <h2>{isNew ? effectiveName || 'Novo item' : name}</h2>
+            )}
+            {isNew && !nameValid && usesFrontmatterName && (
+              <span className="agent-edit-sub">defina um `name:` válido no frontmatter (letras/números/-/_)</span>
             )}
             {subtitle && <span className="agent-edit-sub">{subtitle}</span>}
           </div>

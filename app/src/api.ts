@@ -181,7 +181,7 @@ export async function startInstall(
   return res.json();
 }
 
-export type AgentFileKind = 'agent' | 'skill';
+export type AgentFileKind = 'agent' | 'skill' | 'command';
 
 export async function fetchAgentFile(
   name: string,
