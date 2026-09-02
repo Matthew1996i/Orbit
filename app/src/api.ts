@@ -246,6 +246,56 @@ export async function deleteSecretGroup(id: string): Promise<{ ok: true } | { er
   return res.json();
 }
 
+// provedores de IA cadastrados pelo usuario — usados so pelo "Gerar com IA"
+// dos modais de markdown (agent/skill/command), nao pra iniciar agentes.
+export type AiProviderKind = 'anthropic' | 'openai';
+
+export interface AiProvider {
+  id: string;
+  title: string;
+  provider: AiProviderKind;
+  apiKey: string;
+  model: string;
+}
+
+export async function fetchAiProviders(): Promise<AiProvider[]> {
+  const res = await fetch(`${BACKEND_HTTP}/api/ai-providers`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`ai-providers ${res.status}`);
+  const data = await res.json();
+  return data.providers as AiProvider[];
+}
+
+export async function saveAiProvider(
+  provider: Partial<Pick<AiProvider, 'id'>> & Omit<AiProvider, 'id'>,
+): Promise<{ ok: true; id: string } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/ai-providers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(provider),
+  });
+  return res.json();
+}
+
+export async function deleteAiProvider(id: string): Promise<{ ok: true } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/ai-providers/${encodeURIComponent(id)}/delete`, {
+    method: 'POST',
+  });
+  return res.json();
+}
+
+export async function generateMarkdown(
+  providerId: string,
+  kind: AgentFileKind,
+  description: string,
+): Promise<{ content: string } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/ai-providers/${encodeURIComponent(providerId)}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, description }),
+  });
+  return res.json();
+}
+
 export interface StartAgentOptions {
   resumeSessionId?: string;
   rows?: number;

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Eye, Pencil } from 'lucide-react';
+import { X, Save, Eye, Pencil, Sparkles } from 'lucide-react';
 import { marked } from 'marked';
-import { AgentFileKind, fetchAgentFile, saveAgentFile } from '../api';
+import { AgentFileKind, AiProvider, fetchAgentFile, saveAgentFile, generateMarkdown } from '../api';
 import './ConfirmDialog.css';
 import './Sidebar.css';
 import './AgentEditModal.css';
@@ -54,15 +54,28 @@ interface Props {
   // cabecalho (em vez do titulo fixo) e o Salvar CRIA o arquivo em vez de
   // atualizar um existente.
   isNew?: boolean;
+  aiProviders?: AiProvider[];
 }
 
-export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = false }: Props) {
+export default function AgentEditModal({
+  name,
+  subtitle,
+  kind,
+  onClose,
+  isNew = false,
+  aiProviders = [],
+}: Props) {
   const [content, setContent] = useState(isNew ? NEW_TEMPLATES[kind] : '');
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [genProviderId, setGenProviderId] = useState(aiProviders[0]?.id ?? '');
+  const [genDescription, setGenDescription] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState('');
 
   // o `marked` nao entende frontmatter YAML (---...---) — sem isso ele
   // renderiza tudo junto num paragrafo so, porque markdown junta linhas
@@ -88,6 +101,14 @@ export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, kind]);
 
+  // aiProviders chega via prop e pode ainda estar vazio no primeiro render
+  // (a sidebar busca de forma assincrona) — assim que a lista chega, usa o
+  // primeiro provedor como padrao do seletor.
+  useEffect(() => {
+    if (!genProviderId && aiProviders.length > 0) setGenProviderId(aiProviders[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiProviders]);
+
   const effectiveName = !isNew ? name : parseFrontmatterName(content);
   const nameValid = AGENT_NAME_RE.test(effectiveName.trim());
 
@@ -105,6 +126,21 @@ export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = 
     setTimeout(() => setSaved(false), 1800);
   };
 
+  const generate = async () => {
+    if (!genProviderId || !genDescription.trim()) return;
+    setGenerating(true);
+    setGenError('');
+    const res = await generateMarkdown(genProviderId, kind, genDescription.trim());
+    setGenerating(false);
+    if ('error' in res) {
+      setGenError(res.error);
+      return;
+    }
+    setContent(res.content);
+    setShowGenerate(false);
+    setGenDescription('');
+  };
+
   return createPortal(
     <div className="agent-edit-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="agent-edit-dialog">
@@ -117,6 +153,15 @@ export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = 
             {subtitle && <span className="agent-edit-sub">{subtitle}</span>}
           </div>
           <div className="agent-edit-header-actions">
+            <button
+              className="agent-edit-generate-btn"
+              onClick={() => setShowGenerate((v) => !v)}
+              disabled={aiProviders.length === 0}
+              title={aiProviders.length === 0 ? 'Cadastre um provedor de IA na sidebar primeiro' : 'Gerar com IA'}
+              type="button"
+            >
+              <Sparkles size={13} /> Gerar com IA
+            </button>
             <div className="agent-edit-tabs">
               <button
                 className={`agent-edit-tab ${mode === 'edit' ? 'active' : ''}`}
@@ -138,6 +183,43 @@ export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = 
             </button>
           </div>
         </div>
+
+        {showGenerate && (
+          <div className="agent-edit-generate-panel">
+            <select
+              className="new-agent-input agent-edit-generate-select"
+              value={genProviderId}
+              onChange={(e) => setGenProviderId(e.target.value)}
+            >
+              {aiProviders.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title} ({p.provider})
+                </option>
+              ))}
+            </select>
+            <textarea
+              className="agent-edit-generate-textarea"
+              value={genDescription}
+              onChange={(e) => setGenDescription(e.target.value)}
+              placeholder="Descreva o que esse arquivo deve conter — a IA só gera o texto markdown, não executa nada."
+              spellCheck={false}
+            />
+            {genError && <div className="agent-edit-error agent-edit-generate-error">{genError}</div>}
+            <div className="agent-edit-generate-actions">
+              <button className="confirm-btn-cancel" onClick={() => setShowGenerate(false)} type="button">
+                Cancelar
+              </button>
+              <button
+                className="confirm-btn-submit"
+                onClick={generate}
+                disabled={generating || !genDescription.trim()}
+                type="button"
+              >
+                <Sparkles size={13} /> {generating ? 'Gerando…' : 'Gerar'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="agent-edit-loading">Carregando…</div>

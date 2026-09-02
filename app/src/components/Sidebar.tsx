@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, SquareSlash, Wrench, Server, Plus, X, PanelLeft, RefreshCw, KeyRound } from 'lucide-react';
-import { fetchCatalog, fetchLlms, fetchUsage, fetchSecretGroups, CatalogResponse, LlmCli, AgentFileKind, SecretGroup } from '../api';
+import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, SquareSlash, Wrench, Server, Plus, X, PanelLeft, RefreshCw, KeyRound, Cpu } from 'lucide-react';
+import { fetchCatalog, fetchLlms, fetchUsage, fetchSecretGroups, fetchAiProviders, CatalogResponse, LlmCli, AgentFileKind, SecretGroup, AiProvider } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import ConnectLlmModal from './ConnectLlmModal';
 import AgentEditModal from './AgentEditModal';
 import SecretsModal from './SecretsModal';
+import AiProviderModal from './AiProviderModal';
 import './Sidebar.css';
 
 interface Props {
   onClose: () => void;
 }
 
-type SectionKey = 'llms' | 'agents' | 'skills' | 'commands' | 'tools' | 'mcps' | 'secrets';
+type SectionKey = 'llms' | 'agents' | 'skills' | 'commands' | 'tools' | 'mcps' | 'secrets' | 'aiProviders';
 
 // sync automatico do status dos agentes/LLMs instalados na maquina — mesmo
 // ritmo do LlmUsageWidget (unico lugar que ja fazia polling de verdade antes
@@ -26,6 +27,7 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   tools: 'Tools',
   mcps: 'MCPs conectados',
   secrets: 'Chaves e tokens',
+  aiProviders: 'Provedores de IA',
 };
 
 export default function Sidebar({ onClose }: Props) {
@@ -40,6 +42,7 @@ export default function Sidebar({ onClose }: Props) {
     tools: false,
     mcps: false,
     secrets: false,
+    aiProviders: false,
   });
   const [showConnect, setShowConnect] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -48,8 +51,11 @@ export default function Sidebar({ onClose }: Props) {
   >(null);
   const [secretGroups, setSecretGroups] = useState<SecretGroup[]>([]);
   const [secretsTarget, setSecretsTarget] = useState<{ group?: SecretGroup } | null>(null);
+  const [aiProviders, setAiProviders] = useState<AiProvider[]>([]);
+  const [aiProviderTarget, setAiProviderTarget] = useState<{ provider?: AiProvider } | null>(null);
 
   const reloadSecrets = () => fetchSecretGroups().then(setSecretGroups).catch(() => setSecretGroups([]));
+  const reloadAiProviders = () => fetchAiProviders().then(setAiProviders).catch(() => setAiProviders([]));
 
   const reloadLlms = () =>
     fetchLlms()
@@ -82,6 +88,7 @@ export default function Sidebar({ onClose }: Props) {
       fetchCatalog().then(setCatalog).catch(() => setCatalog(null)),
       reloadLlms(),
       reloadSecrets(),
+      reloadAiProviders(),
     ]).finally(() => setSyncing(false));
   };
 
@@ -383,6 +390,45 @@ export default function Sidebar({ onClose }: Props) {
               </div>
             )}
           </section>
+
+          <section className="sidebar-section">
+            <div className="sidebar-section-row">
+              <button className="sidebar-section-head" onClick={() => toggle('aiProviders')}>
+                {expanded.aiProviders ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <Cpu size={13} />
+                <span>{SECTION_LABELS.aiProviders}</span>
+                <span className="sidebar-section-count">{aiProviders.length}</span>
+              </button>
+              <button
+                className="sidebar-section-add-btn"
+                onClick={() => setAiProviderTarget({})}
+                aria-label="Novo provedor de IA"
+                title="Novo provedor de IA"
+              >
+                <Plus size={13} />
+              </button>
+            </div>
+            {expanded.aiProviders && (
+              <div className="sidebar-section-body">
+                {aiProviders.length === 0 && (
+                  <div className="sidebar-empty">Nenhum provedor cadastrado</div>
+                )}
+                {aiProviders.map((p) => (
+                  <button
+                    key={p.id}
+                    className="sidebar-item sidebar-item-stack sidebar-item-clickable"
+                    onClick={() => setAiProviderTarget({ provider: p })}
+                    type="button"
+                  >
+                    <div className="sidebar-item-name">
+                      {p.title}
+                      <span className="sidebar-item-badge">{p.provider}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </div>
 
@@ -400,10 +446,19 @@ export default function Sidebar({ onClose }: Props) {
           subtitle={editTarget.subtitle}
           kind={editTarget.kind}
           isNew={editTarget.isNew}
+          aiProviders={aiProviders}
           onClose={() => {
             setEditTarget(null);
             syncAll();
           }}
+        />
+      )}
+
+      {aiProviderTarget && (
+        <AiProviderModal
+          provider={aiProviderTarget.provider}
+          onClose={() => setAiProviderTarget(null)}
+          onSaved={reloadAiProviders}
         />
       )}
 
