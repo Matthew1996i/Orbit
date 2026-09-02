@@ -42,7 +42,7 @@
    um rotulo pequeno estilo "legend" cortando a borda de cima. */
 .session-tree-group-box {
   position: absolute;
-  border: 1px dashed #33333a;
+  border: 1px dashed var(--orbit-canvas-border);
   border-radius: 14px;
   pointer-events: none;
 }
@@ -57,7 +57,7 @@
   font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #55555c;
+  color: var(--orbit-fg-subtle);
   white-space: nowrap;
 }
 

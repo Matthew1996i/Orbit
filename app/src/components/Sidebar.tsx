@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, SquareSlash, Wrench, Server, Plus, X, PanelLeft, RefreshCw, KeyRound, Cpu } from 'lucide-react';
 import { fetchCatalog, fetchLlms, fetchUsage, fetchSecretGroups, fetchAiProviders, CatalogResponse, LlmCli, AgentFileKind, SecretGroup, AiProvider } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
+import { SectionKey, SECTION_LABELS } from '../utils/sidebarSections';
 import ConnectLlmModal from './ConnectLlmModal';
 import AgentEditModal from './AgentEditModal';
 import SecretsModal from './SecretsModal';
@@ -10,40 +11,36 @@ import './Sidebar.css';
 
 interface Props {
   onClose: () => void;
+  // secao selecionada na Activity Bar — ao mudar, expande so essa secao e
+  // colapsa as outras (o usuario ainda pode abrir mais secoes manualmente
+  // depois, isso so controla o estado inicial ao trocar de icone).
+  activeSection?: SectionKey | null;
 }
-
-type SectionKey = 'llms' | 'agents' | 'skills' | 'commands' | 'tools' | 'mcps' | 'secrets' | 'aiProviders';
 
 // sync automatico do status dos agentes/LLMs instalados na maquina — mesmo
 // ritmo do LlmUsageWidget (unico lugar que ja fazia polling de verdade antes
 // dessa correcao), pra nao ficar defasado em relacao ao resto da tela.
 const AGENT_SYNC_MS = 4000;
 
-const SECTION_LABELS: Record<SectionKey, string> = {
-  llms: 'LLMs instaladas',
-  agents: 'Agentes',
-  skills: 'Skills',
-  commands: 'Commands',
-  tools: 'Tools',
-  mcps: 'MCPs conectados',
-  secrets: 'Chaves e tokens',
-  aiProviders: 'Provedores de IA',
+const ALL_CLOSED: Record<SectionKey, boolean> = {
+  llms: false,
+  agents: false,
+  skills: false,
+  commands: false,
+  tools: false,
+  mcps: false,
+  secrets: false,
+  aiProviders: false,
 };
 
-export default function Sidebar({ onClose }: Props) {
+export default function Sidebar({ onClose, activeSection }: Props) {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
-  // todas as secoes comecam fechadas — o usuario abre so o que interessa.
-  const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
-    llms: false,
-    agents: false,
-    skills: false,
-    commands: false,
-    tools: false,
-    mcps: false,
-    secrets: false,
-    aiProviders: false,
-  });
+  // a secao escolhida na Activity Bar (se veio alguma) comeca aberta; o
+  // resto comeca fechado — o usuario abre mais secoes manualmente depois.
+  const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>(() =>
+    activeSection ? { ...ALL_CLOSED, [activeSection]: true } : ALL_CLOSED,
+  );
   const [showConnect, setShowConnect] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [editTarget, setEditTarget] = useState<
@@ -98,6 +95,18 @@ export default function Sidebar({ onClose }: Props) {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // troca de secao pela Activity Bar com a sidebar JA aberta — o componente
+  // continua montado (so o toggle inicial acima cobre o primeiro mount),
+  // entao precisa desse efeito pra reagir a mudanca de activeSection.
+  const isFirstActiveSection = useRef(true);
+  useEffect(() => {
+    if (isFirstActiveSection.current) {
+      isFirstActiveSection.current = false;
+      return;
+    }
+    if (activeSection) setExpanded({ ...ALL_CLOSED, [activeSection]: true });
+  }, [activeSection]);
 
   const toggle = (key: SectionKey) => setExpanded((cur) => ({ ...cur, [key]: !cur[key] }));
 

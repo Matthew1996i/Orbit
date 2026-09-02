@@ -2703,6 +2703,37 @@ def _call_openai(api_key, base_url, model, system, user_text):
     return data["choices"][0]["message"]["content"]
 
 
+SECRET_REF_RE = re.compile(r"\{\{\s*([A-Za-z0-9_]+)((?:\.[A-Za-z0-9_]+)*)\s*\}\}")
+
+
+def resolve_secret_refs(text):
+    """Substitui `{{CHAVE}}` (ou `{{CHAVE.campo.sub}}` pra acessar dentro de
+    um valor JSON como se fosse um objeto) pelo valor cadastrado em Chaves e
+    tokens — assim o campo de chave de API de um provedor pode referenciar
+    uma chave ja cadastrada em vez de precisar colar o valor de novo.
+    Levanta ValueError com mensagem clara se a chave/campo nao existir, pra
+    falhar visivelmente em vez de mandar o placeholder cru pra API."""
+    def _sub(m):
+        key, path = m.group(1), m.group(2)
+        flat = secrets_as_env()
+        if key not in flat:
+            raise ValueError(f'chave "{key}" não encontrada em Chaves e tokens')
+        value = flat[key]
+        if path:
+            try:
+                obj = json.loads(value)
+            except json.JSONDecodeError:
+                raise ValueError(f'chave "{key}" não é um JSON válido pra acessar "{path.lstrip(".")}"')
+            for part in path.lstrip(".").split("."):
+                if isinstance(obj, dict) and part in obj:
+                    obj = obj[part]
+                else:
+                    raise ValueError(f'campo "{part}" não existe em "{key}"')
+            value = obj if isinstance(obj, str) else json.dumps(obj)
+        return value
+    return SECRET_REF_RE.sub(_sub, text)
+
+
 def generate_markdown_with_ai(provider_id, kind, description):
     """Chama a API do provedor cadastrado pra gerar SO o conteudo markdown —
     sem passar nenhum `tools`/`functions` pra API, entao o modelo literalmente
@@ -2712,6 +2743,10 @@ def generate_markdown_with_ai(provider_id, kind, description):
         return None, "provedor não encontrado"
     kind_name = provider.get("provider")
     api_key = provider.get("apiKey") or ""
+    try:
+        api_key = resolve_secret_refs(api_key)
+    except ValueError as e:
+        return None, str(e)
     base_url = provider.get("baseUrl") or DEFAULT_BASE_URL_BY_PROVIDER.get(kind_name, "")
     model = provider.get("model") or DEFAULT_MODEL_BY_PROVIDER.get(kind_name, "")
     system = _ai_generate_system_prompt(kind)

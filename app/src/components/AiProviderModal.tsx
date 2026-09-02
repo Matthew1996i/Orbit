@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Save, Trash2, X } from 'lucide-react';
-import { AiProvider, AiProviderKind, deleteAiProvider, saveAiProvider } from '../api';
+import { AiProvider, AiProviderKind, SecretGroup, deleteAiProvider, fetchSecretGroups, saveAiProvider } from '../api';
+import { isSecretRef, validateSecretRef } from '../utils/secretRefs';
+import './AiProviderModal.css';
 import './ConfirmDialog.css';
 import './SecretsModal.css';
 
@@ -11,34 +13,37 @@ interface Props {
   onSaved: () => void;
 }
 
-// "formato" aqui e so o shape do request/response da API — nao amarra a
-// nenhuma marca/provedor especifico de proposito (funciona com qualquer
-// servico que fale esse mesmo protocolo). O label e o texto exibido nunca
-// citam um nome de LLM/provedor; defaultUrl fica interno so como fallback
-// tecnico quando o usuario deixa a URL em branco.
-const PROVIDER_OPTIONS: { id: AiProviderKind; label: string; defaultUrl: string }[] = [
-  {
-    id: 'anthropic',
-    label: 'Formato 1 (mensagem + instrução do sistema separada)',
-    defaultUrl: 'https://api.anthropic.com/v1/messages',
-  },
-  {
-    id: 'openai',
-    label: 'Formato 2 (lista de mensagens com papéis)',
-    defaultUrl: 'https://api.openai.com/v1/chat/completions',
-  },
-];
+// o "formato" (shape do request/response) nao aparece mais como escolha na
+// UI — na pratica so mudava o campo por baixo e confundia sem servir pra
+// nada visivel. Em vez de pedir isso, deriva sozinho a partir da URL: se
+// apontar pro endpoint de mensagens (.../v1/messages), usa esse formato;
+// qualquer outra coisa (o caso mais comum — a maioria dos servicos
+// compativeis fala o formato de lista de mensagens) usa o outro.
+function inferKind(baseUrl: string, fallback: AiProviderKind): AiProviderKind {
+  if (!baseUrl.trim()) return fallback;
+  return /\/v1\/messages\b/.test(baseUrl) ? 'anthropic' : 'openai';
+}
 
 export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
   const [title, setTitle] = useState(provider?.title ?? '');
-  const [kind, setKind] = useState<AiProviderKind>(provider?.provider ?? 'anthropic');
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? '');
   const [apiKey, setApiKey] = useState(provider?.apiKey ?? '');
   const [model, setModel] = useState(provider?.model ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [secretGroups, setSecretGroups] = useState<SecretGroup[]>([]);
 
-  const valid = title.trim().length > 0 && apiKey.trim().length > 0;
+  useEffect(() => {
+    fetchSecretGroups().then(setSecretGroups).catch(() => setSecretGroups([]));
+  }, []);
+
+  // se a chave de API for um `{{CHAVE}}`/`{{CHAVE.campo}}`, valida contra as
+  // chaves cadastradas em Chaves e tokens pra dar feedback visual na hora —
+  // a resolucao de verdade acontece no backend, isso e so o highlight.
+  const apiKeyIsRef = isSecretRef(apiKey);
+  const apiKeyValidation = apiKeyIsRef ? validateSecretRef(apiKey, secretGroups) : null;
+
+  const valid = title.trim().length > 0 && apiKey.trim().length > 0 && (!apiKeyValidation || apiKeyValidation.ok);
 
   const save = async () => {
     if (!valid) return;
@@ -47,7 +52,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
     const res = await saveAiProvider({
       id: provider?.id,
       title: title.trim(),
-      provider: kind,
+      provider: inferKind(baseUrl, provider?.provider ?? 'openai'),
       baseUrl: baseUrl.trim(),
       apiKey: apiKey.trim(),
       model: model.trim(),
@@ -90,24 +95,6 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
           spellCheck={false}
         />
 
-        <label className="new-agent-label">Formato da API</label>
-        <div className="ai-provider-kind-row">
-          {PROVIDER_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              className={`ai-provider-kind-btn${kind === opt.id ? ' selected' : ''}`}
-              onClick={() => setKind(opt.id)}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <span className="ai-provider-hint">
-          escolha o formato que o serviço da sua chave usa — qualquer serviço compatível com esse
-          formato funciona, mesmo que não seja quem o criou
-        </span>
-
         <label className="new-agent-label">URL da API</label>
         <input
           className="new-agent-input"
@@ -119,13 +106,18 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
 
         <label className="new-agent-label">Chave de API</label>
         <input
-          className="new-agent-input"
+          className={`new-agent-input${apiKeyValidation ? (apiKeyValidation.ok ? ' secret-ref-valid' : ' secret-ref-invalid') : ''}`}
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder="cole sua chave aqui"
-          type="password"
+          placeholder="cole sua chave, ou use {{CHAVE}} pra referenciar uma já cadastrada"
+          type="text"
           spellCheck={false}
         />
+        <span className={`ai-provider-hint${apiKeyValidation && !apiKeyValidation.ok ? ' ai-provider-hint-error' : ''}`}>
+          {apiKeyValidation && !apiKeyValidation.ok
+            ? apiKeyValidation.message
+            : 'use {{CHAVE}} ou {{CHAVE.campo}} pra referenciar uma chave de "Chaves e tokens" sem colar o valor aqui'}
+        </span>
 
         <label className="new-agent-label">Modelo (opcional)</label>
         <input

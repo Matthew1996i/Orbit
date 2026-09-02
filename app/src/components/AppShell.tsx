@@ -4,10 +4,12 @@ import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
 import { readPref, writePref } from '../utils/uiPrefs';
 import { loadThemeId, applyTheme } from '../theme/themes';
+import { SectionKey } from '../utils/sidebarSections';
 import './AppShell.css';
 
 const SIDEBAR_OPEN_KEY = 'dashboard.sidebarOpen';
 const SIDEBAR_WIDTH_KEY = 'dashboard.sidebarWidth';
+const SIDEBAR_SECTION_KEY = 'dashboard.sidebarActiveSection';
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 600;
 const SIDEBAR_DEFAULT = 300;
@@ -24,6 +26,10 @@ export default function AppShell({ stats, children }: Props) {
   );
   const [themeId, setThemeId] = useState(() => loadThemeId());
   const [resizing, setResizing] = useState(false);
+  const [activeSection, setActiveSection] = useState<SectionKey | null>(() => {
+    const saved = readPref(SIDEBAR_SECTION_KEY, '');
+    return (saved as SectionKey) || null;
+  });
 
   // evita stale closure no listener de pointerup, que le o valor MAIS RECENTE
   // pra gravar — sem isso o handler capturava o `sidebarWidth` do momento em
@@ -37,12 +43,17 @@ export default function AppShell({ stats, children }: Props) {
     applyTheme(themeId);
   }, [themeId]);
 
-  const toggleSidebar = () => {
-    setSidebarOpen((cur) => {
-      const next = !cur;
+  // cada icone da Activity Bar = uma secao da Sidebar (ver sidebarSections.ts).
+  // Clicar no icone da secao JA ATIVA fecha o painel (mesmo gesto de toggle
+  // de antes); clicar em outro icone troca a secao e garante o painel aberto.
+  const selectSection = (key: SectionKey) => {
+    setSidebarOpen((curOpen) => {
+      const next = !(curOpen && activeSection === key);
       writePref(SIDEBAR_OPEN_KEY, next ? '1' : '0');
       return next;
     });
+    setActiveSection(key);
+    writePref(SIDEBAR_SECTION_KEY, key);
   };
 
   const closeSidebar = () => {
@@ -79,14 +90,15 @@ export default function AppShell({ stats, children }: Props) {
       <TitleBar stats={stats} />
       <div className="orbit-shell">
         <ActivityBar
+          activeSection={activeSection}
           sidebarOpen={sidebarOpen}
-          onToggleSidebar={toggleSidebar}
+          onSelectSection={selectSection}
           themeId={themeId}
           onSelectTheme={setThemeId}
         />
         {sidebarOpen && (
           <div className="orbit-sidebar" style={{ width: sidebarWidth }}>
-            <Sidebar onClose={closeSidebar} />
+            <Sidebar activeSection={activeSection} onClose={closeSidebar} />
             <div
               className={`orbit-sash${resizing ? ' dragging' : ''}`}
               onPointerDown={onSashPointerDown}
