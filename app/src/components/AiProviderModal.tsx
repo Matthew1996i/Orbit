@@ -11,22 +11,21 @@ interface Props {
   onSaved: () => void;
 }
 
-// "formato" aqui e o shape do request/response da API, nao um vendor
-// travado — qualquer servico compativel funciona preenchendo a URL dele
-// nesse mesmo formato (ex: formato OpenAI cobre OpenRouter, Groq, Together,
-// Mistral, Azure OpenAI, um Ollama local, etc).
-const PROVIDER_OPTIONS: { id: AiProviderKind; label: string; defaultUrl: string; modelHint: string }[] = [
+// "formato" aqui e so o shape do request/response da API — nao amarra a
+// nenhuma marca/provedor especifico de proposito (funciona com qualquer
+// servico que fale esse mesmo protocolo). O label e o texto exibido nunca
+// citam um nome de LLM/provedor; defaultUrl fica interno so como fallback
+// tecnico quando o usuario deixa a URL em branco.
+const PROVIDER_OPTIONS: { id: AiProviderKind; label: string; defaultUrl: string }[] = [
   {
     id: 'anthropic',
-    label: 'Formato Anthropic',
+    label: 'Formato 1 (mensagem + instrução do sistema separada)',
     defaultUrl: 'https://api.anthropic.com/v1/messages',
-    modelHint: 'padrão: claude-3-5-haiku-20241022',
   },
   {
     id: 'openai',
-    label: 'Formato OpenAI (compatível)',
+    label: 'Formato 2 (lista de mensagens com papéis)',
     defaultUrl: 'https://api.openai.com/v1/chat/completions',
-    modelHint: 'padrão: gpt-4o-mini',
   },
 ];
 
@@ -40,7 +39,6 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
   const [error, setError] = useState('');
 
   const valid = title.trim().length > 0 && apiKey.trim().length > 0;
-  const selected = PROVIDER_OPTIONS.find((p) => p.id === kind);
 
   const save = async () => {
     if (!valid) return;
@@ -87,7 +85,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
           className="new-agent-input"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="ex: minha conta Anthropic"
+          placeholder="ex: minha conta pessoal, projeto X…"
           autoFocus
           spellCheck={false}
         />
@@ -106,8 +104,8 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
           ))}
         </div>
         <span className="ai-provider-hint">
-          qualquer serviço compatível funciona — não precisa ser o dono do formato (ex: OpenRouter,
-          Groq, Azure, um Ollama local usam o formato OpenAI)
+          escolha o formato que o serviço da sua chave usa — qualquer serviço compatível com esse
+          formato funciona, mesmo que não seja quem o criou
         </span>
 
         <label className="new-agent-label">URL da API</label>
@@ -115,7 +113,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
           className="new-agent-input"
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder={selected?.defaultUrl}
+          placeholder="opcional — usa a URL padrão do formato se vazio"
           spellCheck={false}
         />
 
@@ -124,7 +122,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
           className="new-agent-input"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-…"
+          placeholder="cole sua chave aqui"
           type="password"
           spellCheck={false}
         />
@@ -134,7 +132,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
           className="new-agent-input"
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          placeholder={selected?.modelHint}
+          placeholder="opcional — usa o modelo padrão do formato se vazio"
           spellCheck={false}
         />
 

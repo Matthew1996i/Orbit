@@ -193,7 +193,7 @@ export default function AgentEditModal({
             >
               {aiProviders.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.title} ({p.provider})
+                  {p.title}
                 </option>
               ))}
             </select>

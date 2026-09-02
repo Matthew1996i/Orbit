@@ -1,7 +1,7 @@
 import type { CapacitorElectronConfig } from '@capacitor-community/electron';
 import { getCapacitorElectronConfig, setupElectronDeepLinking } from '@capacitor-community/electron';
 import type { MenuItemConstructorOptions } from 'electron';
-import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, MenuItem } from 'electron';
 import electronIsDev from 'electron-is-dev';
 import unhandled from 'electron-unhandled';
 import { join } from 'path';
@@ -16,6 +16,12 @@ unhandled();
 const trayMenuTemplate: (MenuItemConstructorOptions | MenuItem)[] = [new MenuItem({ label: 'Quit App', role: 'quit' })];
 const appMenuBarMenuTemplate: (MenuItemConstructorOptions | MenuItem)[] = [
   { role: process.platform === 'darwin' ? 'appMenu' : 'fileMenu' },
+  // 'editMenu' nao aparece pra decoracao — no macOS/Electron, Cmd+C/V/X/A/Z
+  // em QUALQUER campo de texto da UI (inputs, textareas, o terminal) so
+  // funcionam se o app tiver um menu de verdade com esses roles registrados;
+  // sem ele nao tem como copiar/colar em lugar nenhum, mesmo com o menu
+  // visualmente escondido/substituido pelo chrome custom do app.
+  { role: 'editMenu' },
   { role: 'viewMenu' },
 ];
 
@@ -73,9 +79,11 @@ if (gotSingleInstanceLock) (async () => {
   await startBackend();
   // Initialize our app, build windows, and load content.
   await myCapacitorApp.init();
-  // Remove a barra de menu nativa do SO (File/View) — o app tem seu próprio
-  // menu customizado embutido na UI, não precisa do menu nativo do Electron.
-  Menu.setApplicationMenu(null);
+  // NAO usar Menu.setApplicationMenu(null) aqui — zera TODOS os keyboard
+  // accelerators do app inteiro (Cmd+C/V/X/A/Z param de funcionar em
+  // qualquer input/textarea da UI, nao so o menu visual some). O menu
+  // (appMenu + editMenu + viewMenu) ja foi aplicado dentro de
+  // myCapacitorApp.init() via appMenuBarMenuTemplate acima; mantemos ele.
   // Checagem de update desligada: o app nunca é publicado/empacotado com feed de
   // update configurado, e isso ficava disparando uma notificação nativa confusa
   // ("Claude Sessions" + \"\" está pronto) sem relação com nenhuma ação do usuário.

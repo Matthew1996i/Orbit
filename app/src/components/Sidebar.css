@@ -18,13 +18,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 35px;
-  padding: 0 8px 0 20px;
-  font-size: 11px;
+  height: 42px;
+  padding: 0 10px 0 16px;
+  font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--orbit-fg-muted);
+  color: var(--orbit-sidebar-fg);
+  border-bottom: 1px solid var(--orbit-sidebar-border);
 }
 
 .sidebar-header-title {
@@ -75,14 +74,17 @@
 }
 
 .sidebar-section {
+  border-bottom: 1px solid var(--orbit-sidebar-border);
+}
+.sidebar-section:last-child {
   border-bottom: none;
 }
 
 .sidebar-section-row {
   display: flex;
   align-items: center;
-  height: 22px;
-  background: var(--orbit-sidebar-section-header-bg);
+  height: 30px;
+  background: transparent;
 }
 .sidebar-section-row:hover {
   background: var(--orbit-list-hover-bg);
@@ -113,16 +115,14 @@
   height: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 8px 0 4px;
+  gap: 7px;
+  padding: 0 8px 0 8px;
   background: transparent;
   border: none;
-  color: var(--orbit-sidebar-section-header-fg);
+  color: var(--orbit-sidebar-fg);
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   cursor: pointer;
 }
 .sidebar-section-head svg {

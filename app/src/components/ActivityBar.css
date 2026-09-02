@@ -4,9 +4,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 4px;
   background: var(--orbit-activitybar-bg);
   border-right: 1px solid var(--orbit-activitybar-border);
-  padding: 4px 0;
+  padding: 12px 0;
 }
 
 .orbit-activitybar-btn {

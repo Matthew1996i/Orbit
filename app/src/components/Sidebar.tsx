@@ -422,7 +422,9 @@ export default function Sidebar({ onClose }: Props) {
                   >
                     <div className="sidebar-item-name">
                       {p.title}
-                      <span className="sidebar-item-badge">{p.provider}</span>
+                      <span className="sidebar-item-badge">
+                        {p.provider === 'anthropic' ? 'formato 1' : 'formato 2'}
+                      </span>
                     </div>
                   </button>
                 ))}
