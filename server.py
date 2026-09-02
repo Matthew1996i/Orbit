@@ -2551,6 +2551,27 @@ def read_skills_catalog():
     return skills
 
 
+def read_commands_catalog():
+    """Comandos slash customizados definidos em ~/.claude/commands/**/*.md —
+    cada arquivo vira um comando `/nome` (subpastas viram namespace `/pasta:nome`,
+    mesma convencao do proprio Claude Code)."""
+    commands = []
+    commands_dir = CLAUDE_DIR / "commands"
+    if not commands_dir.exists():
+        return commands
+    for f in sorted(commands_dir.rglob("*.md")):
+        try:
+            fm = _parse_frontmatter(f.read_text(errors="ignore"))
+        except OSError:
+            continue
+        rel = f.relative_to(commands_dir).with_suffix("")
+        commands.append({
+            "name": ":".join(rel.parts),
+            "description": fm.get("description", ""),
+        })
+    return commands
+
+
 # ferramentas nativas do Claude Code (nao-MCP) — lista fixa, o CLI nao expoe
 # isso em nenhum arquivo local pra ler; e a mesma lista documentada oficialmente.
 BUILTIN_TOOLS = [
@@ -3237,6 +3258,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({
                 "agents": read_agents_catalog(),
                 "skills": read_skills_catalog(),
+                "commands": read_commands_catalog(),
                 "tools": BUILTIN_TOOLS,
                 "mcps": read_mcp_catalog(),
             })
@@ -3360,10 +3382,14 @@ class Handler(BaseHTTPRequestHandler):
             name = body.get("name", "")
             content = body.get("content", "")
             fpath = _agent_file_path(name, body.get("kind", "agent"))
-            if not fpath or not fpath.exists():
-                self._send_json({"error": "não encontrado"}, status=404)
+            if not fpath:
+                self._send_json({"error": "nome inválido"}, status=400)
                 return
             try:
+                # cria a pasta do agente/skill se ainda nao existir — permite
+                # tambem CRIAR um arquivo novo aqui (nao so editar um existente),
+                # ex: skill nova em ~/.claude/skills/<nome>/ ainda sem pasta.
+                fpath.parent.mkdir(parents=True, exist_ok=True)
                 fpath.write_text(content)
             except OSError as e:
                 self._send_json({"error": str(e)}, status=500)

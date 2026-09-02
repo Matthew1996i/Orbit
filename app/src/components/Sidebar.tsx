@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, Wrench, Server, Plus, X, PanelLeft, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, SquareSlash, Wrench, Server, Plus, X, PanelLeft, RefreshCw } from 'lucide-react';
 import { fetchCatalog, fetchLlms, fetchUsage, CatalogResponse, LlmCli, AgentFileKind } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import ConnectLlmModal from './ConnectLlmModal';
@@ -10,7 +10,7 @@ interface Props {
   onClose: () => void;
 }
 
-type SectionKey = 'llms' | 'agents' | 'skills' | 'tools' | 'mcps';
+type SectionKey = 'llms' | 'agents' | 'skills' | 'commands' | 'tools' | 'mcps';
 
 // sync automatico do status dos agentes/LLMs instalados na maquina — mesmo
 // ritmo do LlmUsageWidget (unico lugar que ja fazia polling de verdade antes
@@ -21,6 +21,7 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   llms: 'LLMs instaladas',
   agents: 'Agentes',
   skills: 'Skills',
+  commands: 'Commands',
   tools: 'Tools',
   mcps: 'MCPs conectados',
 };
@@ -33,14 +34,15 @@ export default function Sidebar({ onClose }: Props) {
     llms: false,
     agents: false,
     skills: false,
+    commands: false,
     tools: false,
     mcps: false,
   });
   const [showConnect, setShowConnect] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [editTarget, setEditTarget] = useState<{ name: string; subtitle?: string; kind: AgentFileKind } | null>(
-    null,
-  );
+  const [editTarget, setEditTarget] = useState<
+    { name: string; subtitle?: string; kind: AgentFileKind; isNew?: boolean } | null
+  >(null);
 
   const reloadLlms = () =>
     fetchLlms()
@@ -163,6 +165,14 @@ export default function Sidebar({ onClose }: Props) {
                 <span>{SECTION_LABELS.agents}</span>
                 <span className="sidebar-section-count">{catalog?.agents.length ?? '…'}</span>
               </button>
+              <button
+                className="sidebar-section-add-btn"
+                onClick={() => setEditTarget({ name: '', kind: 'agent', isNew: true })}
+                aria-label="Criar agente"
+                title="Criar agente"
+              >
+                <Plus size={13} />
+              </button>
             </div>
             {expanded.agents && (
               <div className="sidebar-section-body">
@@ -233,6 +243,34 @@ export default function Sidebar({ onClose }: Props) {
 
           <section className="sidebar-section">
             <div className="sidebar-section-row">
+              <button className="sidebar-section-head" onClick={() => toggle('commands')}>
+                {expanded.commands ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <SquareSlash size={13} />
+                <span>{SECTION_LABELS.commands}</span>
+                <span className="sidebar-section-count">{catalog?.commands.length ?? '…'}</span>
+              </button>
+            </div>
+            {expanded.commands && (
+              <div className="sidebar-section-body">
+                {(catalog?.commands || []).length === 0 && (
+                  <div className="sidebar-empty">Nenhum comando configurado</div>
+                )}
+                {(catalog?.commands || []).map((command) => (
+                  <div key={command.name} className="sidebar-item sidebar-item-stack">
+                    <div className="sidebar-item-name">/{command.name}</div>
+                    {command.description && (
+                      <div className="sidebar-item-desc" title={command.description}>
+                        {command.description}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="sidebar-section">
+            <div className="sidebar-section-row">
               <button className="sidebar-section-head" onClick={() => toggle('tools')}>
                 {expanded.tools ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 <Wrench size={13} />
@@ -293,7 +331,11 @@ export default function Sidebar({ onClose }: Props) {
           name={editTarget.name}
           subtitle={editTarget.subtitle}
           kind={editTarget.kind}
-          onClose={() => setEditTarget(null)}
+          isNew={editTarget.isNew}
+          onClose={() => {
+            setEditTarget(null);
+            syncAll();
+          }}
         />
       )}
 

@@ -7,16 +7,31 @@ import './ConfirmDialog.css';
 import './Sidebar.css';
 import './AgentEditModal.css';
 
+const AGENT_NAME_RE = /^[a-zA-Z0-9_-]+$/;
+const NEW_AGENT_TEMPLATE = `---
+name:
+description:
+model: sonnet
+tools:
+---
+
+`;
+
 interface Props {
   name: string;
   subtitle?: string;
   kind: AgentFileKind;
   onClose: () => void;
+  // true = ainda nao existe arquivo nenhum — o nome vira um campo editavel no
+  // cabecalho (em vez do titulo fixo) e o Salvar CRIA o arquivo em vez de
+  // atualizar um existente.
+  isNew?: boolean;
 }
 
-export default function AgentEditModal({ name, subtitle, kind, onClose }: Props) {
-  const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(true);
+export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = false }: Props) {
+  const [agentName, setAgentName] = useState(name);
+  const [content, setContent] = useState(isNew ? NEW_AGENT_TEMPLATE : '');
+  const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +49,7 @@ export default function AgentEditModal({ name, subtitle, kind, onClose }: Props)
   );
 
   useEffect(() => {
+    if (isNew) return;
     fetchAgentFile(name, kind).then((res) => {
       setLoading(false);
       if ('error' in res) {
@@ -42,12 +58,16 @@ export default function AgentEditModal({ name, subtitle, kind, onClose }: Props)
       }
       setContent(res.content);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, kind]);
 
+  const nameValid = AGENT_NAME_RE.test(agentName.trim());
+
   const save = async () => {
+    if (isNew && !nameValid) return;
     setSaving(true);
     setSaved(false);
-    const res = await saveAgentFile(name, content, kind);
+    const res = await saveAgentFile(agentName.trim(), content, kind);
     setSaving(false);
     if ('error' in res) {
       setError(res.error);
@@ -62,7 +82,18 @@ export default function AgentEditModal({ name, subtitle, kind, onClose }: Props)
       <div className="agent-edit-dialog">
         <div className="agent-edit-header">
           <div>
-            <h2>{name}</h2>
+            {isNew ? (
+              <input
+                className="agent-edit-name-input"
+                value={agentName}
+                onChange={(e) => setAgentName(e.target.value)}
+                placeholder="nome-do-agente"
+                autoFocus
+                spellCheck={false}
+              />
+            ) : (
+              <h2>{name}</h2>
+            )}
             {subtitle && <span className="agent-edit-sub">{subtitle}</span>}
           </div>
           <div className="agent-edit-header-actions">
@@ -108,8 +139,13 @@ export default function AgentEditModal({ name, subtitle, kind, onClose }: Props)
           <button className="confirm-btn-cancel" onClick={onClose} type="button">
             Fechar
           </button>
-          <button className="confirm-btn-submit" onClick={save} disabled={saving || loading} type="button">
-            <Save size={13} /> {saving ? 'Salvando…' : 'Salvar'}
+          <button
+            className="confirm-btn-submit"
+            onClick={save}
+            disabled={saving || loading || (isNew && !nameValid)}
+            type="button"
+          >
+            <Save size={13} /> {saving ? 'Salvando…' : isNew ? 'Criar' : 'Salvar'}
           </button>
         </div>
       </div>

@@ -34,6 +34,21 @@
   font-size: 15px;
   font-weight: 600;
 }
+.agent-edit-name-input {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  background: transparent;
+  border: 1px solid #2a2a2f;
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: #e8e8ea;
+}
+.agent-edit-name-input:focus {
+  outline: none;
+  border-color: #f5a623;
+}
 .agent-edit-sub {
   font-size: 11px;
   color: #7a7a82;

@@ -63,6 +63,11 @@ export interface SkillDef {
   version: string;
 }
 
+export interface CommandDef {
+  name: string;
+  description: string;
+}
+
 export interface McpDef {
   name: string;
   type: string;
@@ -73,6 +78,7 @@ export interface McpDef {
 export interface CatalogResponse {
   agents: AgentDef[];
   skills: SkillDef[];
+  commands: CommandDef[];
   tools: string[];
   mcps: McpDef[];
 }
