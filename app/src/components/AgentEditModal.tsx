@@ -9,11 +9,9 @@ import './AgentEditModal.css';
 
 const AGENT_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
-// agente/skill tem `name:` no frontmatter (o proprio Claude Code le dali) —
-// entao o nome do arquivo vem do que o usuario escreve no markdown, sem
-// pedir de novo num campo separado. Comando NAO tem essa convencao (o nome
-// do comando E o nome do arquivo, o frontmatter so tem `description`), por
-// isso comando continua com campo de nome editavel no cabecalho.
+// nome do arquivo vem do campo `name:` que o usuario escreve no frontmatter
+// do proprio markdown (agent/skill/command) — sem pedir de novo num campo
+// separado no cabecalho do modal.
 const NEW_TEMPLATES: Record<AgentFileKind, string> = {
   agent: `---
 name: nome-do-agente
@@ -31,6 +29,7 @@ version: 1.0.0
 
 `,
   command: `---
+name: nome-do-comando
 description:
 ---
 
@@ -59,7 +58,6 @@ interface Props {
 
 export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = false }: Props) {
   const [content, setContent] = useState(isNew ? NEW_TEMPLATES[kind] : '');
-  const [commandName, setCommandName] = useState('');
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -90,8 +88,7 @@ export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, kind]);
 
-  const usesFrontmatterName = kind === 'agent' || kind === 'skill';
-  const effectiveName = !isNew ? name : usesFrontmatterName ? parseFrontmatterName(content) : commandName;
+  const effectiveName = !isNew ? name : parseFrontmatterName(content);
   const nameValid = AGENT_NAME_RE.test(effectiveName.trim());
 
   const save = async () => {
@@ -113,19 +110,8 @@ export default function AgentEditModal({ name, subtitle, kind, onClose, isNew = 
       <div className="agent-edit-dialog">
         <div className="agent-edit-header">
           <div>
-            {isNew && !usesFrontmatterName ? (
-              <input
-                className="agent-edit-name-input"
-                value={commandName}
-                onChange={(e) => setCommandName(e.target.value)}
-                placeholder="nome-do-comando"
-                autoFocus
-                spellCheck={false}
-              />
-            ) : (
-              <h2>{isNew ? effectiveName || 'Novo item' : name}</h2>
-            )}
-            {isNew && !nameValid && usesFrontmatterName && (
+            <h2>{isNew ? effectiveName || 'Novo item' : name}</h2>
+            {isNew && !nameValid && (
               <span className="agent-edit-sub">defina um `name:` válido no frontmatter (letras/números/-/_)</span>
             )}
             {subtitle && <span className="agent-edit-sub">{subtitle}</span>}

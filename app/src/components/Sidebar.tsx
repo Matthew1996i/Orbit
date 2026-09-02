@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, SquareSlash, Wrench, Server, Plus, X, PanelLeft, RefreshCw } from 'lucide-react';
-import { fetchCatalog, fetchLlms, fetchUsage, CatalogResponse, LlmCli, AgentFileKind } from '../api';
+import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, SquareSlash, Wrench, Server, Plus, X, PanelLeft, RefreshCw, KeyRound } from 'lucide-react';
+import { fetchCatalog, fetchLlms, fetchUsage, fetchSecretGroups, CatalogResponse, LlmCli, AgentFileKind, SecretGroup } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import ConnectLlmModal from './ConnectLlmModal';
 import AgentEditModal from './AgentEditModal';
+import SecretsModal from './SecretsModal';
 import './Sidebar.css';
 
 interface Props {
   onClose: () => void;
 }
 
-type SectionKey = 'llms' | 'agents' | 'skills' | 'commands' | 'tools' | 'mcps';
+type SectionKey = 'llms' | 'agents' | 'skills' | 'commands' | 'tools' | 'mcps' | 'secrets';
 
 // sync automatico do status dos agentes/LLMs instalados na maquina — mesmo
 // ritmo do LlmUsageWidget (unico lugar que ja fazia polling de verdade antes
@@ -24,6 +25,7 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   commands: 'Commands',
   tools: 'Tools',
   mcps: 'MCPs conectados',
+  secrets: 'Chaves e tokens',
 };
 
 export default function Sidebar({ onClose }: Props) {
@@ -37,12 +39,17 @@ export default function Sidebar({ onClose }: Props) {
     commands: false,
     tools: false,
     mcps: false,
+    secrets: false,
   });
   const [showConnect, setShowConnect] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [editTarget, setEditTarget] = useState<
     { name: string; subtitle?: string; kind: AgentFileKind; isNew?: boolean } | null
   >(null);
+  const [secretGroups, setSecretGroups] = useState<SecretGroup[]>([]);
+  const [secretsTarget, setSecretsTarget] = useState<{ group?: SecretGroup } | null>(null);
+
+  const reloadSecrets = () => fetchSecretGroups().then(setSecretGroups).catch(() => setSecretGroups([]));
 
   const reloadLlms = () =>
     fetchLlms()
@@ -74,6 +81,7 @@ export default function Sidebar({ onClose }: Props) {
     return Promise.all([
       fetchCatalog().then(setCatalog).catch(() => setCatalog(null)),
       reloadLlms(),
+      reloadSecrets(),
     ]).finally(() => setSyncing(false));
   };
 
@@ -336,6 +344,45 @@ export default function Sidebar({ onClose }: Props) {
               </div>
             )}
           </section>
+
+          <section className="sidebar-section">
+            <div className="sidebar-section-row">
+              <button className="sidebar-section-head" onClick={() => toggle('secrets')}>
+                {expanded.secrets ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <KeyRound size={13} />
+                <span>{SECTION_LABELS.secrets}</span>
+                <span className="sidebar-section-count">{secretGroups.length}</span>
+              </button>
+              <button
+                className="sidebar-section-add-btn"
+                onClick={() => setSecretsTarget({})}
+                aria-label="Novo grupo de chaves"
+                title="Novo grupo de chaves"
+              >
+                <Plus size={13} />
+              </button>
+            </div>
+            {expanded.secrets && (
+              <div className="sidebar-section-body">
+                {secretGroups.length === 0 && (
+                  <div className="sidebar-empty">Nenhuma chave cadastrada</div>
+                )}
+                {secretGroups.map((group) => (
+                  <button
+                    key={group.id}
+                    className="sidebar-item sidebar-item-stack sidebar-item-clickable"
+                    onClick={() => setSecretsTarget({ group })}
+                    type="button"
+                  >
+                    <div className="sidebar-item-name">{group.title}</div>
+                    <div className="sidebar-item-desc">
+                      {group.entries.length} {group.entries.length === 1 ? 'chave' : 'chaves'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </div>
 
@@ -360,6 +407,13 @@ export default function Sidebar({ onClose }: Props) {
         />
       )}
 
+      {secretsTarget && (
+        <SecretsModal
+          group={secretsTarget.group}
+          onClose={() => setSecretsTarget(null)}
+          onSaved={reloadSecrets}
+        />
+      )}
     </>
   );
 }

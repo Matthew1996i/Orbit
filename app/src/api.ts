@@ -207,6 +207,45 @@ export async function saveAgentFile(
   return res.json();
 }
 
+// grupos de tokens/chaves secretas — ver server.py secrets_as_env(): toda
+// chave cadastrada aqui e injetada como env var em todo agente novo, pra
+// nao precisar colar de novo em cada sessao.
+export interface SecretEntry {
+  key: string;
+  value: string;
+}
+
+export interface SecretGroup {
+  id: string;
+  title: string;
+  entries: SecretEntry[];
+}
+
+export async function fetchSecretGroups(): Promise<SecretGroup[]> {
+  const res = await fetch(`${BACKEND_HTTP}/api/secrets`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`secrets ${res.status}`);
+  const data = await res.json();
+  return data.groups as SecretGroup[];
+}
+
+export async function saveSecretGroup(
+  group: Partial<Pick<SecretGroup, 'id'>> & Omit<SecretGroup, 'id'>,
+): Promise<{ ok: true; id: string } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/secrets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(group),
+  });
+  return res.json();
+}
+
+export async function deleteSecretGroup(id: string): Promise<{ ok: true } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/secrets/${encodeURIComponent(id)}/delete`, {
+    method: 'POST',
+  });
+  return res.json();
+}
+
 export interface StartAgentOptions {
   resumeSessionId?: string;
   rows?: number;

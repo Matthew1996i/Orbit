@@ -42,6 +42,10 @@ CODEX_DIR = Path.home() / ".codex"
 CODEX_INDEX_SCAN_LIMIT = 60
 PROJECTS_DIR = CLAUDE_DIR / "projects"
 STATIC_DIR = Path(__file__).parent / "static"
+# armazem proprio do Orbit (nao ~/.claude — isso e config do app, nao do
+# Claude Code) pros grupos de tokens/chaves secretas cadastrados pelo usuario.
+ORBIT_DIR = Path.home() / ".orbit"
+SECRETS_PATH = ORBIT_DIR / "secrets.json"
 
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_SCROLLBACK = 300_000  # bytes de buffer mantidos por agente
@@ -275,6 +279,10 @@ def _start_agent_process(agent_id):
         COLORTERM="truecolor",  # sem isso, algumas CLIs (inclusive o claude) caem pra uma paleta
         FORCE_COLOR="3",         # de cores mais pobre/diferente do terminal real, "parece outro tema"
     )
+    # tokens/chaves cadastrados no Orbit (ver read_secret_groups) — injetados
+    # como env var pra ja estarem disponiveis pro processo, sem o usuario
+    # precisar colar de novo em cada agente novo.
+    env.update(secrets_as_env())
     try:
         proc = subprocess.Popen(
             cmd,
@@ -2554,6 +2562,40 @@ def read_skills_catalog():
     return skills
 
 
+def read_secret_groups():
+    """Grupos de tokens/chaves secretas cadastrados pelo usuario em
+    ~/.orbit/secrets.json. Cada grupo: {id, title, entries: [{key, value}]}."""
+    try:
+        data = json.loads(SECRETS_PATH.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def write_secret_groups(groups):
+    ORBIT_DIR.mkdir(parents=True, exist_ok=True)
+    SECRETS_PATH.write_text(json.dumps(groups, indent=2))
+    try:
+        os.chmod(ORBIT_DIR, 0o700)
+        os.chmod(SECRETS_PATH, 0o600)
+    except OSError:
+        pass  # best-effort — nao bloqueia o cadastro por causa de permissao
+
+
+def secrets_as_env():
+    """Achata todos os grupos num dict {KEY: value} pronto pra injetar no
+    ambiente de um processo de agente — e assim que uma chave cadastrada
+    aqui vira "ja disponivel" pra qualquer CLI que leia essa env var, sem o
+    usuario ter que colar de novo em cada sessao."""
+    env = {}
+    for group in read_secret_groups():
+        for entry in group.get("entries") or []:
+            key = (entry.get("key") or "").strip()
+            if key:
+                env[key] = entry.get("value", "")
+    return env
+
+
 def read_commands_catalog():
     """Comandos slash customizados definidos em ~/.claude/commands/**/*.md —
     cada arquivo vira um comando `/nome` (subpastas viram namespace `/pasta:nome`,
@@ -3267,6 +3309,10 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
+        if self.path.startswith("/api/secrets"):
+            self._send_json({"groups": read_secret_groups()})
+            return
+
         if self.path.startswith("/api/llms"):
             self._send_json({"llms": read_llm_clis()})
             return
@@ -3420,6 +3466,32 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path.startswith("/api/resources/") and self.path.endswith("/stop"):
             self._handle_resource_stop()
+            return
+
+        if self.path == "/api/secrets":
+            body = self._read_json_body()
+            title = (body.get("title") or "").strip()
+            if not title:
+                self._send_json({"error": "título obrigatório"}, status=400)
+                return
+            entries = [
+                {"key": (e.get("key") or "").strip(), "value": e.get("value", "")}
+                for e in (body.get("entries") or [])
+                if (e.get("key") or "").strip()
+            ]
+            group_id = body.get("id") or uuid.uuid4().hex[:12]
+            groups = read_secret_groups()
+            groups = [g for g in groups if g.get("id") != group_id]
+            groups.append({"id": group_id, "title": title, "entries": entries})
+            write_secret_groups(groups)
+            self._send_json({"ok": True, "id": group_id})
+            return
+
+        if self.path.startswith("/api/secrets/") and self.path.endswith("/delete"):
+            group_id = self.path.split("/")[3]
+            groups = [g for g in read_secret_groups() if g.get("id") != group_id]
+            write_secret_groups(groups)
+            self._send_json({"ok": True})
             return
 
         self._send_json({"error": "not found"}, status=404)
