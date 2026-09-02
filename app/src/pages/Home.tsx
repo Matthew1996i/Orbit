@@ -8,7 +8,7 @@ import TerminalPanel from '../components/TerminalPanel';
 import NewAgentDialog from '../components/NewAgentDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ContextMenu, { ContextMenuItem } from '../components/ContextMenu';
-import TitleBar from '../components/TitleBar';
+import AppShell from '../components/AppShell';
 import {
   SessionInfo,
   StepEvent,
@@ -285,7 +285,7 @@ export default function Home() {
 
   return (
     <IonPage>
-      <TitleBar
+      <AppShell
         stats={
           <div className="stats-bar">
             <span className="stat"><span className="dot busy" />{busy} busy</span>
@@ -294,29 +294,29 @@ export default function Home() {
             <span className="stats-title">sessões do Claude Code nesta máquina</span>
           </div>
         }
-      />
+      >
+        <IonContent className="home-content">
+          {sessions.length === 0 ? (
+            <div className="empty-state">
+              Nenhuma sessão encontrada.
+              <br />
+              Toque em + para iniciar um agente.
+            </div>
+          ) : (
+            <SessionTree
+              sessions={[...sessions].sort((a, b) => a.startedAt - b.startedAt)}
+              onOpen={openPanel}
+              onContextMenu={handleCardContextMenu}
+            />
+          )}
 
-      <IonContent className="home-content">
-        {sessions.length === 0 ? (
-          <div className="empty-state">
-            Nenhuma sessão encontrada.
-            <br />
-            Toque em + para iniciar um agente.
-          </div>
-        ) : (
-          <SessionTree
-            sessions={[...sessions].sort((a, b) => a.startedAt - b.startedAt)}
-            onOpen={openPanel}
-            onContextMenu={handleCardContextMenu}
-          />
-        )}
-
-        <IonFab vertical="bottom" horizontal="end" slot="fixed">
-          <IonFabButton onClick={() => setShowNewAgent(true)}>
-            <Plus size={22} />
-          </IonFabButton>
-        </IonFab>
-      </IonContent>
+          <IonFab vertical="bottom" horizontal="end" slot="fixed">
+            <IonFabButton onClick={() => setShowNewAgent(true)}>
+              <Plus size={22} />
+            </IonFabButton>
+          </IonFab>
+        </IonContent>
+      </AppShell>
 
       {createPortal(
         <>
