@@ -11,21 +11,36 @@ interface Props {
   onSaved: () => void;
 }
 
-const PROVIDER_OPTIONS: { id: AiProviderKind; label: string; modelHint: string }[] = [
-  { id: 'anthropic', label: 'Anthropic', modelHint: 'padrão: claude-3-5-haiku-20241022' },
-  { id: 'openai', label: 'OpenAI', modelHint: 'padrão: gpt-4o-mini' },
+// "formato" aqui e o shape do request/response da API, nao um vendor
+// travado — qualquer servico compativel funciona preenchendo a URL dele
+// nesse mesmo formato (ex: formato OpenAI cobre OpenRouter, Groq, Together,
+// Mistral, Azure OpenAI, um Ollama local, etc).
+const PROVIDER_OPTIONS: { id: AiProviderKind; label: string; defaultUrl: string; modelHint: string }[] = [
+  {
+    id: 'anthropic',
+    label: 'Formato Anthropic',
+    defaultUrl: 'https://api.anthropic.com/v1/messages',
+    modelHint: 'padrão: claude-3-5-haiku-20241022',
+  },
+  {
+    id: 'openai',
+    label: 'Formato OpenAI (compatível)',
+    defaultUrl: 'https://api.openai.com/v1/chat/completions',
+    modelHint: 'padrão: gpt-4o-mini',
+  },
 ];
 
 export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
   const [title, setTitle] = useState(provider?.title ?? '');
   const [kind, setKind] = useState<AiProviderKind>(provider?.provider ?? 'anthropic');
+  const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? '');
   const [apiKey, setApiKey] = useState(provider?.apiKey ?? '');
   const [model, setModel] = useState(provider?.model ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const valid = title.trim().length > 0 && apiKey.trim().length > 0;
-  const modelHint = PROVIDER_OPTIONS.find((p) => p.id === kind)?.modelHint;
+  const selected = PROVIDER_OPTIONS.find((p) => p.id === kind);
 
   const save = async () => {
     if (!valid) return;
@@ -35,6 +50,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
       id: provider?.id,
       title: title.trim(),
       provider: kind,
+      baseUrl: baseUrl.trim(),
       apiKey: apiKey.trim(),
       model: model.trim(),
     });
@@ -76,7 +92,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
           spellCheck={false}
         />
 
-        <label className="new-agent-label">Provedor</label>
+        <label className="new-agent-label">Formato da API</label>
         <div className="ai-provider-kind-row">
           {PROVIDER_OPTIONS.map((opt) => (
             <button
@@ -89,6 +105,19 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
             </button>
           ))}
         </div>
+        <span className="ai-provider-hint">
+          qualquer serviço compatível funciona — não precisa ser o dono do formato (ex: OpenRouter,
+          Groq, Azure, um Ollama local usam o formato OpenAI)
+        </span>
+
+        <label className="new-agent-label">URL da API</label>
+        <input
+          className="new-agent-input"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder={selected?.defaultUrl}
+          spellCheck={false}
+        />
 
         <label className="new-agent-label">Chave de API</label>
         <input
@@ -105,7 +134,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
           className="new-agent-input"
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          placeholder={modelHint}
+          placeholder={selected?.modelHint}
           spellCheck={false}
         />
 

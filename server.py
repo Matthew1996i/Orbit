@@ -2627,6 +2627,16 @@ DEFAULT_MODEL_BY_PROVIDER = {
     "openai": "gpt-4o-mini",
 }
 
+# "provider" aqui e o FORMATO da API (o shape do request/response), nao o
+# vendor em si — qualquer servico compativel com o formato OpenAI (OpenRouter,
+# Groq, Together, Mistral, Azure OpenAI, um Ollama local, etc) funciona
+# preenchendo a URL base dele nesse mesmo formato. So usado quando o usuario
+# nao preenche uma URL propria no cadastro.
+DEFAULT_BASE_URL_BY_PROVIDER = {
+    "anthropic": "https://api.anthropic.com/v1/messages",
+    "openai": "https://api.openai.com/v1/chat/completions",
+}
+
 
 def _ai_generate_system_prompt(kind):
     label = AI_MARKDOWN_KIND_LABEL.get(kind, "arquivo")
@@ -2649,7 +2659,7 @@ def _ai_generate_system_prompt(kind):
     )
 
 
-def _call_anthropic(api_key, model, system, user_text):
+def _call_anthropic(api_key, base_url, model, system, user_text):
     body = json.dumps({
         "model": model,
         "max_tokens": 4096,
@@ -2657,7 +2667,7 @@ def _call_anthropic(api_key, model, system, user_text):
         "messages": [{"role": "user", "content": user_text}],
     }).encode()
     req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
+        base_url,
         data=body,
         method="POST",
         headers={
@@ -2671,7 +2681,7 @@ def _call_anthropic(api_key, model, system, user_text):
     return "".join(block.get("text", "") for block in data.get("content", []) if block.get("type") == "text")
 
 
-def _call_openai(api_key, model, system, user_text):
+def _call_openai(api_key, base_url, model, system, user_text):
     body = json.dumps({
         "model": model,
         "messages": [
@@ -2680,7 +2690,7 @@ def _call_openai(api_key, model, system, user_text):
         ],
     }).encode()
     req = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
+        base_url,
         data=body,
         method="POST",
         headers={
@@ -2702,13 +2712,14 @@ def generate_markdown_with_ai(provider_id, kind, description):
         return None, "provedor não encontrado"
     kind_name = provider.get("provider")
     api_key = provider.get("apiKey") or ""
+    base_url = provider.get("baseUrl") or DEFAULT_BASE_URL_BY_PROVIDER.get(kind_name, "")
     model = provider.get("model") or DEFAULT_MODEL_BY_PROVIDER.get(kind_name, "")
     system = _ai_generate_system_prompt(kind)
     try:
         if kind_name == "anthropic":
-            text = _call_anthropic(api_key, model, system, description)
+            text = _call_anthropic(api_key, base_url, model, system, description)
         elif kind_name == "openai":
-            text = _call_openai(api_key, model, system, description)
+            text = _call_openai(api_key, base_url, model, system, description)
         else:
             return None, f"provedor desconhecido: {kind_name}"
     except urllib.error.HTTPError as e:
@@ -3645,6 +3656,11 @@ class Handler(BaseHTTPRequestHandler):
                 "title": title,
                 "provider": provider,
                 "apiKey": api_key,
+                # URL da API — em branco usa o default publico do formato
+                # (ver DEFAULT_BASE_URL_BY_PROVIDER); preenchida, aponta pra
+                # qualquer servico compativel (OpenRouter, Groq, Azure, um
+                # Ollama local, etc), nao so o vendor "dono" do formato.
+                "baseUrl": (body.get("baseUrl") or "").strip(),
                 "model": (body.get("model") or "").strip(),
             })
             write_ai_providers(providers)

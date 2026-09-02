@@ -253,7 +253,10 @@ export type AiProviderKind = 'anthropic' | 'openai';
 export interface AiProvider {
   id: string;
   title: string;
+  // formato da API (shape do request/response) — nao trava no vendor "dono"
+  // do formato: baseUrl aponta pra qualquer servico compativel.
   provider: AiProviderKind;
+  baseUrl: string;
   apiKey: string;
   model: string;
 }
