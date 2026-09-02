@@ -52,7 +52,7 @@
   top: -8px;
   left: 16px;
   padding: 0 8px;
-  background: #0a0a0c;
+  background: var(--orbit-canvas-bg);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
   letter-spacing: 0.04em;
@@ -300,6 +300,11 @@
 .tree-card-pill.skill {
   --background: rgba(245, 166, 35, 0.15);
   --color: #f5a623;
+}
+
+.tree-card-pill.resource-idle {
+  --background: rgba(87, 199, 255, 0.15);
+  --color: #57c7ff;
 }
 
 /* nós sintéticos (MCP/skill em uso) — só informativos, não abrem nada */

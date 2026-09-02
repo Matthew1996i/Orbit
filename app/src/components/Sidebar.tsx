@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, Plug, Bot, Sparkles, Wrench, Server, Plus, X, PanelLeft, RefreshCw } from 'lucide-react';
 import { fetchCatalog, fetchLlms, fetchUsage, CatalogResponse, LlmCli, AgentFileKind } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
@@ -8,7 +7,6 @@ import AgentEditModal from './AgentEditModal';
 import './Sidebar.css';
 
 interface Props {
-  open: boolean;
   onClose: () => void;
 }
 
@@ -27,7 +25,7 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   mcps: 'MCPs conectados',
 };
 
-export default function Sidebar({ open, onClose }: Props) {
+export default function Sidebar({ onClose }: Props) {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
   // todas as secoes comecam fechadas — o usuario abre so o que interessa.
@@ -43,26 +41,6 @@ export default function Sidebar({ open, onClose }: Props) {
   const [editTarget, setEditTarget] = useState<{ name: string; subtitle?: string; kind: AgentFileKind } | null>(
     null,
   );
-
-  // mantem o painel montado durante a animacao de saida — sem isso o `if
-  // (!open) return null` desmonta na hora e a transicao de fechar nunca chega
-  // a rodar. Espelha o padrao usado no ConfirmDialog/ContextMenu.
-  const [mounted, setMounted] = useState(open);
-  const [closing, setClosing] = useState(false);
-  useEffect(() => {
-    if (open) {
-      setMounted(true);
-      setClosing(false);
-      return;
-    }
-    if (!mounted) return;
-    setClosing(true);
-    const t = setTimeout(() => {
-      setMounted(false);
-      setClosing(false);
-    }, 200);
-    return () => clearTimeout(t);
-  }, [open, mounted]);
 
   const reloadLlms = () =>
     fetchLlms()
@@ -98,14 +76,11 @@ export default function Sidebar({ open, onClose }: Props) {
   };
 
   useEffect(() => {
-    if (!open) return;
     syncAll();
     const id = setInterval(syncAll, AGENT_SYNC_MS);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  if (!mounted) return null;
+  }, []);
 
   const toggle = (key: SectionKey) => setExpanded((cur) => ({ ...cur, [key]: !cur[key] }));
 
@@ -114,11 +89,10 @@ export default function Sidebar({ open, onClose }: Props) {
   // LLM" no titulo continua sendo o unico fluxo de instalar/logar).
   const installedLlms = llms.filter((l) => l.status !== 'none');
 
-  return createPortal(
+  return (
     <>
-      <div className={`sidebar-overlay${closing ? ' closing' : ''}`} onClick={onClose} />
-      <div className={`sidebar-panel${closing ? ' closing' : ''}`}>
-        <div className="sidebar-header">
+    <div className="sidebar-panel">
+      <div className="sidebar-header">
           <span className="sidebar-header-title">
             <PanelLeft size={14} color="#ffffff" />
             Recursos disponíveis
@@ -315,7 +289,6 @@ export default function Sidebar({ open, onClose }: Props) {
         />
       )}
 
-    </>,
-    document.body,
+    </>
   );
 }

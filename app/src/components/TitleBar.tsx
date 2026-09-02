@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Menu, Minus, Square, Copy, X, RotateCw, Info, PanelLeft } from 'lucide-react';
+import { Menu, Minus, Square, Copy, X, RotateCw, Info } from 'lucide-react';
 import ContextMenu, { ContextMenuItem } from './ContextMenu';
 import ConfirmDialog from './ConfirmDialog';
-import Sidebar from './Sidebar';
 import './TitleBar.css';
 
 interface Props {
@@ -15,7 +14,6 @@ export default function TitleBar({ stats }: Props) {
   const [maximized, setMaximized] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [version, setVersion] = useState('');
-  const [showSidebar, setShowSidebar] = useState(false);
 
   const openMenu = (e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -57,14 +55,6 @@ export default function TitleBar({ stats }: Props) {
         <button className="title-bar-btn title-bar-menu-btn" onClick={openMenu} aria-label="Menu">
           <Menu size={15} />
         </button>
-        <button
-          className="title-bar-btn title-bar-menu-btn"
-          onClick={() => setShowSidebar((v) => !v)}
-          aria-label="Recursos disponíveis"
-          title="LLMs, agentes, skills, tools e MCPs"
-        >
-          <PanelLeft size={15} color="#ffffff" />
-        </button>
         <span className="title-bar-name">Orbit</span>
       </div>
 
@@ -103,8 +93,6 @@ export default function TitleBar({ stats }: Props) {
         onConfirm={() => setShowAbout(false)}
         onCancel={() => setShowAbout(false)}
       />
-
-      <Sidebar open={showSidebar} onClose={() => setShowSidebar(false)} />
     </div>,
     document.body
   );

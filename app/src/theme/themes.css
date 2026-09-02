@@ -1,0 +1,181 @@
+/* Tokens de tema do shell do Orbit (title bar, activity bar, sidebar, entorno
+   do canvas) — prefixo `--orbit-` (e não `--vscode-`) pra não confundir com as
+   variáveis reais que a API de webview do VS Code injeta, e deixar claro que é
+   paleta própria do Orbit, só inspirada em temas populares do VS Code.
+   Aplicado via atributo `data-theme` no <html> (ver theme/themes.ts e
+   main.tsx) — assim título/paineis/modais renderizados via createPortal pro
+   <body> (fora da árvore do AppShell) também herdam os tokens. */
+
+:root,
+:root[data-theme='dark-plus'] {
+  --orbit-titlebar-h: 38px;
+  --orbit-activitybar-w: 48px;
+
+  --orbit-titlebar-bg: #3c3c3c;
+  --orbit-titlebar-fg: #cccccc;
+  --orbit-titlebar-border: #2b2b2b;
+
+  --orbit-activitybar-bg: #333333;
+  --orbit-activitybar-fg: #868686;
+  --orbit-activitybar-fg-active: #ffffff;
+  --orbit-activitybar-active-border: #ffffff;
+  --orbit-activitybar-border: #2b2b2b;
+
+  --orbit-sidebar-bg: #252526;
+  --orbit-sidebar-fg: #cccccc;
+  --orbit-sidebar-border: #3c3c3c;
+  --orbit-sidebar-section-header-bg: #383838;
+  --orbit-sidebar-section-header-fg: #cccccc;
+
+  --orbit-list-hover-bg: #2a2d2e;
+  --orbit-list-active-bg: #04395e;
+  --orbit-list-active-fg: #ffffff;
+
+  --orbit-canvas-bg: #1e1e1e;
+  --orbit-canvas-grid: #2d2d2d;
+  --orbit-canvas-border: #3c3c3c;
+
+  --orbit-accent: #007fd4;
+  --orbit-accent-contrast: #ffffff;
+  --orbit-fg-muted: #9d9d9d;
+  --orbit-fg-subtle: #6e6e6e;
+  --orbit-badge-bg: #4d4d4d;
+  --orbit-badge-fg: #ffffff;
+  --orbit-sash-hover: #007fd4;
+  --orbit-danger: #e51400;
+  --orbit-status-ok: #34c759;
+  --orbit-status-warn: #f5a623;
+  --orbit-status-off: #4d4d4d;
+}
+
+:root[data-theme='monokai'] {
+  --orbit-titlebar-bg: #1e1f1c;
+  --orbit-titlebar-fg: #f8f8f2;
+  --orbit-titlebar-border: #171812;
+  --orbit-activitybar-bg: #272822;
+  --orbit-activitybar-fg: #75715e;
+  --orbit-activitybar-fg-active: #f8f8f2;
+  --orbit-activitybar-active-border: #a6e22e;
+  --orbit-activitybar-border: #171812;
+  --orbit-sidebar-bg: #1e1f1c;
+  --orbit-sidebar-fg: #f8f8f2;
+  --orbit-sidebar-border: #34352f;
+  --orbit-sidebar-section-header-bg: #2d2e28;
+  --orbit-sidebar-section-header-fg: #cfcfc2;
+  --orbit-list-hover-bg: #33342c;
+  --orbit-list-active-bg: #4a4a44;
+  --orbit-list-active-fg: #f8f8f2;
+  --orbit-canvas-bg: #272822;
+  --orbit-canvas-grid: #3b3c35;
+  --orbit-canvas-border: #34352f;
+  --orbit-accent: #a6e22e;
+  --orbit-accent-contrast: #272822;
+  --orbit-fg-muted: #90907a;
+  --orbit-fg-subtle: #75715e;
+  --orbit-badge-bg: #75715e;
+  --orbit-badge-fg: #f8f8f2;
+  --orbit-sash-hover: #a6e22e;
+  --orbit-danger: #f92672;
+  --orbit-status-ok: #a6e22e;
+  --orbit-status-warn: #e6db74;
+  --orbit-status-off: #4a4a44;
+}
+
+:root[data-theme='dracula'] {
+  --orbit-titlebar-bg: #191a21;
+  --orbit-titlebar-fg: #f8f8f2;
+  --orbit-titlebar-border: #14151b;
+  --orbit-activitybar-bg: #343746;
+  --orbit-activitybar-fg: #6272a4;
+  --orbit-activitybar-fg-active: #f8f8f2;
+  --orbit-activitybar-active-border: #bd93f9;
+  --orbit-activitybar-border: #191a21;
+  --orbit-sidebar-bg: #21222c;
+  --orbit-sidebar-fg: #f8f8f2;
+  --orbit-sidebar-border: #191a21;
+  --orbit-sidebar-section-header-bg: #2b2d3a;
+  --orbit-sidebar-section-header-fg: #f8f8f2;
+  --orbit-list-hover-bg: #313343;
+  --orbit-list-active-bg: #44475a;
+  --orbit-list-active-fg: #f8f8f2;
+  --orbit-canvas-bg: #282a36;
+  --orbit-canvas-grid: #3d4051;
+  --orbit-canvas-border: #191a21;
+  --orbit-accent: #bd93f9;
+  --orbit-accent-contrast: #282a36;
+  --orbit-fg-muted: #a3a8c3;
+  --orbit-fg-subtle: #6272a4;
+  --orbit-badge-bg: #44475a;
+  --orbit-badge-fg: #f8f8f2;
+  --orbit-sash-hover: #bd93f9;
+  --orbit-danger: #ff5555;
+  --orbit-status-ok: #50fa7b;
+  --orbit-status-warn: #f1fa8c;
+  --orbit-status-off: #44475a;
+}
+
+:root[data-theme='solarized-dark'] {
+  --orbit-titlebar-bg: #003847;
+  --orbit-titlebar-fg: #93a1a1;
+  --orbit-titlebar-border: #00212b;
+  --orbit-activitybar-bg: #003847;
+  --orbit-activitybar-fg: #657b83;
+  --orbit-activitybar-fg-active: #eee8d5;
+  --orbit-activitybar-active-border: #b58900;
+  --orbit-activitybar-border: #00212b;
+  --orbit-sidebar-bg: #00212b;
+  --orbit-sidebar-fg: #93a1a1;
+  --orbit-sidebar-border: #003847;
+  --orbit-sidebar-section-header-bg: #004052;
+  --orbit-sidebar-section-header-fg: #93a1a1;
+  --orbit-list-hover-bg: #004052;
+  --orbit-list-active-bg: #005a6f;
+  --orbit-list-active-fg: #eee8d5;
+  --orbit-canvas-bg: #002b36;
+  --orbit-canvas-grid: #073642;
+  --orbit-canvas-border: #003847;
+  --orbit-accent: #268bd2;
+  --orbit-accent-contrast: #002b36;
+  --orbit-fg-muted: #839496;
+  --orbit-fg-subtle: #586e75;
+  --orbit-badge-bg: #073642;
+  --orbit-badge-fg: #93a1a1;
+  --orbit-sash-hover: #268bd2;
+  --orbit-danger: #dc322f;
+  --orbit-status-ok: #859900;
+  --orbit-status-warn: #b58900;
+  --orbit-status-off: #073642;
+}
+
+:root[data-theme='one-dark-pro'] {
+  --orbit-titlebar-bg: #21252b;
+  --orbit-titlebar-fg: #abb2bf;
+  --orbit-titlebar-border: #181a1f;
+  --orbit-activitybar-bg: #333842;
+  --orbit-activitybar-fg: #6b727d;
+  --orbit-activitybar-fg-active: #d7dae0;
+  --orbit-activitybar-active-border: #61afef;
+  --orbit-activitybar-border: #181a1f;
+  --orbit-sidebar-bg: #21252b;
+  --orbit-sidebar-fg: #abb2bf;
+  --orbit-sidebar-border: #181a1f;
+  --orbit-sidebar-section-header-bg: #2c313a;
+  --orbit-sidebar-section-header-fg: #abb2bf;
+  --orbit-list-hover-bg: #2c313a;
+  --orbit-list-active-bg: #3a3f4b;
+  --orbit-list-active-fg: #d7dae0;
+  --orbit-canvas-bg: #282c34;
+  --orbit-canvas-grid: #3b414d;
+  --orbit-canvas-border: #181a1f;
+  --orbit-accent: #61afef;
+  --orbit-accent-contrast: #282c34;
+  --orbit-fg-muted: #8b92a0;
+  --orbit-fg-subtle: #5c6370;
+  --orbit-badge-bg: #3a3f4b;
+  --orbit-badge-fg: #d7dae0;
+  --orbit-sash-hover: #61afef;
+  --orbit-danger: #e06c75;
+  --orbit-status-ok: #98c379;
+  --orbit-status-warn: #e5c07b;
+  --orbit-status-off: #3a3f4b;
+}

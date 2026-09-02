@@ -21,6 +21,7 @@ import {
 import { SessionInfo, CostSummary, SessionCostUsage, fetchCostSummary } from '../api';
 import { shortCwd, formatModelEffort } from '../utils/format';
 import { llmLogoFor, llmLogoColorFor } from '../utils/llmLogos';
+import { resourceIconFor, resourceIconColorFor } from '../utils/resourceIcons';
 import LlmUsageWidget from './LlmUsageWidget';
 import CostUsageFooter, { formatTokens, formatBrl } from './CostUsageFooter';
 import { defaultPanelTop } from './TerminalPanel';
@@ -96,6 +97,14 @@ const SLOT_WIDTH = 240;
 const CARD_WIDTH = 200;
 const CARD_HEIGHT = 82;
 const LEVEL_HEIGHT = 170;
+// recurso/MCP/skill sao sempre folha (nunca tem filho proprio) — quando uma
+// sessao acumula muitos (visto ao vivo: uma stack docker-compose real chega
+// a 9-10), em vez de espalhar tudo numa unica fileira horizontal enorme
+// (visto ao vivo: 10 cards, tela toda), esses "nos de atividade" quebram em
+// grade de ate MAX_ACTIVITY_COLS colunas por baixo do pai — mais compacto e
+// ainda legivel sem exigir scroll horizontal absurdo.
+const MAX_ACTIVITY_COLS = 5;
+const ACTIVITY_ROW_GAP = 100;
 
 interface TreeNode {
   session: SessionInfo;
@@ -138,7 +147,8 @@ function buildForest(sessions: SessionInfo[]): TreeNode[] {
   // dar contexto ele so polui a tela; some sozinho quando a heuristica de
   // "vivo" do backend expirar.
   const roots = sessions.filter(
-    (session) => isRoot(session) && !session.isSubagent && !session.isMcp && !session.isSkill,
+    (session) =>
+      isRoot(session) && !session.isSubagent && !session.isMcp && !session.isSkill && !session.isResource,
   );
   // sessoes externas (so leitura) sempre a esquerda, agentes do app depois
   // (sort estavel — mantem a ordem por horario dentro de cada grupo)
@@ -157,6 +167,10 @@ function buildForest(sessions: SessionInfo[]): TreeNode[] {
 function layout(roots: TreeNode[]): { width: number; height: number; maxDepth: number } {
   let leafIndex = 0;
   let maxDepth = 0;
+  let maxActivityRows = 0;
+
+  const isLeafActivity = (node: TreeNode) =>
+    node.children.length === 0 && (!!node.session.isResource || !!node.session.isMcp || !!node.session.isSkill);
 
   const place = (node: TreeNode, depth: number) => {
     maxDepth = Math.max(maxDepth, depth);
@@ -169,7 +183,22 @@ function layout(roots: TreeNode[]): { width: number; height: number; maxDepth: n
       return;
     }
 
-    node.children.forEach((child) => place(child, depth + 1));
+    if (node.children.length > MAX_ACTIVITY_COLS && node.children.every(isLeafActivity)) {
+      const cols = MAX_ACTIVITY_COLS;
+      const startLeaf = leafIndex;
+      node.children.forEach((child, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        child.depth = depth + 1;
+        child.x = (startLeaf + col) * SLOT_WIDTH + SLOT_WIDTH / 2;
+        child.y = (depth + 1) * LEVEL_HEIGHT + CARD_HEIGHT / 2 + row * ACTIVITY_ROW_GAP;
+        maxActivityRows = Math.max(maxActivityRows, row);
+      });
+      leafIndex += cols;
+    } else {
+      node.children.forEach((child) => place(child, depth + 1));
+    }
+
     const xs = node.children.map((child) => child.x);
     node.x = (Math.min(...xs) + Math.max(...xs)) / 2;
   };
@@ -186,7 +215,7 @@ function layout(roots: TreeNode[]): { width: number; height: number; maxDepth: n
 
   return {
     width: Math.max(leafIndex * SLOT_WIDTH, SLOT_WIDTH),
-    height: (maxDepth + 1) * LEVEL_HEIGHT,
+    height: (maxDepth + 1) * LEVEL_HEIGHT + maxActivityRows * ACTIVITY_ROW_GAP,
     maxDepth,
   };
 }
@@ -256,18 +285,23 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
   const { session } = node;
   const status = statusOf(session);
   const name = session.name || session.sessionId.slice(0, 8);
-  // nós de MCP/skill são sintéticos (não têm PTY/transcript próprio pra
-  // abrir) — só mostram atividade recente, não são clicáveis.
-  const isActivityNode = !!session.isMcp || !!session.isSkill;
+  // nós de MCP/skill/recurso são sintéticos (não têm PTY/transcript próprio
+  // pra abrir) — só mostram atividade recente, não são clicáveis.
+  const isActivityNode = !!session.isMcp || !!session.isSkill || !!session.isResource;
   const canOpen = status !== 'dead' && !isActivityNode;
 
   const McpIcon = session.isMcp ? mcpIconFor(session.mcpServer || '') : null;
+  const ResourceIcon = session.isResource ? resourceIconFor(session.resourceKind) : null;
   const LlmLogo = isRootLevel ? llmLogoFor(session.llm || 'claude') : null;
   const llmLogoColor = isRootLevel ? llmLogoColorFor(session.llm || 'claude') : undefined;
+  const resourceIconColor = session.isResource ? resourceIconColorFor(session.resourceKind) : undefined;
+  const badgeColor = llmLogoColor || resourceIconColor;
   const badge = LlmLogo ? (
     <LlmLogo size={14} strokeWidth={2.25} />
   ) : McpIcon ? (
     <McpIcon size={13} strokeWidth={2.25} />
+  ) : ResourceIcon ? (
+    <ResourceIcon size={13} strokeWidth={2.25} />
   ) : session.isSkill ? (
     <Sparkles size={13} strokeWidth={2.25} />
   ) : (
@@ -288,7 +322,7 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
         if (canOpen) onOpen(session);
       }}
       onContextMenu={(e) => {
-        if (isActivityNode) return;
+        if (isActivityNode && (!session.isResource || session.isResourceGroup)) return;
         e.preventDefault();
         onContextMenu(session, e.clientX, e.clientY);
       }}
@@ -297,7 +331,7 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
       <div
         className="tree-card-badge"
         aria-hidden="true"
-        style={llmLogoColor ? { color: llmLogoColor } : undefined}
+        style={badgeColor ? { color: badgeColor } : undefined}
       >
         {badge}
       </div>
@@ -310,6 +344,12 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
         </IonBadge>
       ) : session.isSkill ? (
         <IonBadge className="tree-card-pill skill">skill</IonBadge>
+      ) : session.isResource ? (
+        <IonBadge className="tree-card-pill resource-idle">
+          {session.resourcePorts && session.resourcePorts.length > 0
+            ? `:${session.resourcePorts[0]}`
+            : session.resourceKind}
+        </IonBadge>
       ) : (
         <IonBadge className={`tree-card-pill ${status}`}>{status === 'dead' ? 'done' : 'run'}</IonBadge>
       )}
@@ -321,7 +361,26 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
             <span className="tree-card-remote-tag" title="Remote Control ativo nesta sessão">remoto</span>
           )}
         </div>
-        {session.isMcp ? (
+        {session.isResource ? (
+          <div
+            className="tree-card-cwd"
+            title={`${session.resourceCommand || ''}${session.resourceCwd ? ` — ${session.resourceCwd}` : ''}`}
+          >
+            {(() => {
+              if (session.isResourceGroup) {
+                const count = node.children.length;
+                return `docker compose · ${count} ${count === 1 ? 'serviço' : 'serviços'}`;
+              }
+              const target =
+                session.resourceControl === 'docker'
+                  ? `container ${(session.resourceContainerId || '').slice(0, 12)}`
+                  : `pid ${session.resourcePid}`;
+              return session.resourcePorts && session.resourcePorts.length > 0
+                ? `${session.resourcePorts.length > 1 ? 'portas' : 'porta'} ${session.resourcePorts.join(', ')} · ${target}`
+                : target;
+            })()}
+          </div>
+        ) : session.isMcp ? (
           <div className="tree-card-cwd" title={session.mcpTool}>{session.mcpTool}</div>
         ) : session.isSkill ? (
           <div className="tree-card-cwd">skill ativada</div>
@@ -716,7 +775,14 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
         <div className="session-tree" style={{ width, height }}>
           <svg className="session-tree-svg" width={width} height={height}>
             {visibleEdges.map(({ parent, child }) => {
-              const flowing = child.session.alive && child.session.status === 'busy' && !isZooming;
+              // recurso nao tem ciclo busy/idle de agente (status vem sempre
+              // "idle" do backend, ver §5.2) — vivo aqui ja significa "ativo
+              // agora" (processo rodando / container up), entao flui igual
+              // um agente busy, senao a linha ficava parada pra sempre.
+              const flowing =
+                child.session.alive &&
+                (child.session.status === 'busy' || child.session.isResource) &&
+                !isZooming;
               return (
                 <path
                   key={child.session.sessionId}

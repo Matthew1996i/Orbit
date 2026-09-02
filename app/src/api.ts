@@ -26,6 +26,16 @@ export interface SessionInfo {
   isSkill?: boolean;
   skillName?: string;
   llm?: string;
+  isResource?: boolean;
+  isResourceGroup?: boolean;
+  resourceKind?: string;
+  resourceControl?: 'process' | 'docker' | 'docker-group';
+  resourcePid?: number | null;
+  resourceContainerId?: string | null;
+  resourcePorts?: number[];
+  resourceCommand?: string;
+  resourceCwd?: string;
+  resourceFingerprint?: string | null;
 }
 
 export interface StateResponse {
@@ -220,6 +230,50 @@ export async function stopAgent(agentId: string): Promise<{ ok: boolean }> {
 export async function killSession(pid: number): Promise<{ ok: boolean }> {
   const res = await fetch(`${BACKEND_HTTP}/api/sessions/${pid}/kill`, { method: 'POST' });
   return res.json();
+}
+
+export interface ResourceStopResult {
+  ok: boolean;
+  signal?: string;
+  error?: string;
+  message?: string;
+}
+
+export async function stopResource(
+  resourcePid: number,
+  fingerprint: string,
+  ownerSessionId: string,
+): Promise<ResourceStopResult> {
+  try {
+    const res = await fetch(`${BACKEND_HTTP}/api/resources/${resourcePid}/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint, ownerSessionId }),
+    });
+    const body = await res.json();
+    if (!res.ok) return { ok: false, error: body?.error, message: body?.message };
+    return body;
+  } catch {
+    return { ok: false, error: 'network' };
+  }
+}
+
+export async function stopDockerResource(
+  containerId: string,
+  ownerSessionId: string,
+): Promise<ResourceStopResult> {
+  try {
+    const res = await fetch(`${BACKEND_HTTP}/api/resources/docker/${containerId}/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerSessionId }),
+    });
+    const body = await res.json();
+    if (!res.ok) return { ok: false, error: body?.error, message: body?.message };
+    return body;
+  } catch {
+    return { ok: false, error: 'network' };
+  }
 }
 
 export interface StepEvent {
