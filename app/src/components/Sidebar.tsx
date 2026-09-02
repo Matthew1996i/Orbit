@@ -156,12 +156,14 @@ export default function Sidebar({ onClose }: Props) {
           </section>
 
           <section className="sidebar-section">
-            <button className="sidebar-section-head" onClick={() => toggle('agents')}>
-              {expanded.agents ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-              <Bot size={13} />
-              <span>{SECTION_LABELS.agents}</span>
-              <span className="sidebar-section-count">{catalog?.agents.length ?? '…'}</span>
-            </button>
+            <div className="sidebar-section-row">
+              <button className="sidebar-section-head" onClick={() => toggle('agents')}>
+                {expanded.agents ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <Bot size={13} />
+                <span>{SECTION_LABELS.agents}</span>
+                <span className="sidebar-section-count">{catalog?.agents.length ?? '…'}</span>
+              </button>
+            </div>
             {expanded.agents && (
               <div className="sidebar-section-body">
                 {(catalog?.agents || []).map((agent) => (
@@ -193,12 +195,14 @@ export default function Sidebar({ onClose }: Props) {
           </section>
 
           <section className="sidebar-section">
-            <button className="sidebar-section-head" onClick={() => toggle('skills')}>
-              {expanded.skills ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-              <Sparkles size={13} />
-              <span>{SECTION_LABELS.skills}</span>
-              <span className="sidebar-section-count">{catalog?.skills.length ?? '…'}</span>
-            </button>
+            <div className="sidebar-section-row">
+              <button className="sidebar-section-head" onClick={() => toggle('skills')}>
+                {expanded.skills ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <Sparkles size={13} />
+                <span>{SECTION_LABELS.skills}</span>
+                <span className="sidebar-section-count">{catalog?.skills.length ?? '…'}</span>
+              </button>
+            </div>
             {expanded.skills && (
               <div className="sidebar-section-body">
                 {(catalog?.skills || []).map((skill) => (
@@ -228,12 +232,14 @@ export default function Sidebar({ onClose }: Props) {
           </section>
 
           <section className="sidebar-section">
-            <button className="sidebar-section-head" onClick={() => toggle('tools')}>
-              {expanded.tools ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-              <Wrench size={13} />
-              <span>{SECTION_LABELS.tools}</span>
-              <span className="sidebar-section-count">{catalog?.tools.length ?? '…'}</span>
-            </button>
+            <div className="sidebar-section-row">
+              <button className="sidebar-section-head" onClick={() => toggle('tools')}>
+                {expanded.tools ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <Wrench size={13} />
+                <span>{SECTION_LABELS.tools}</span>
+                <span className="sidebar-section-count">{catalog?.tools.length ?? '…'}</span>
+              </button>
+            </div>
             {expanded.tools && (
               <div className="sidebar-section-body sidebar-tools-grid">
                 {(catalog?.tools || []).map((tool) => (
@@ -244,12 +250,14 @@ export default function Sidebar({ onClose }: Props) {
           </section>
 
           <section className="sidebar-section">
-            <button className="sidebar-section-head" onClick={() => toggle('mcps')}>
-              {expanded.mcps ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-              <Server size={13} />
-              <span>{SECTION_LABELS.mcps}</span>
-              <span className="sidebar-section-count">{catalog?.mcps.length ?? '…'}</span>
-            </button>
+            <div className="sidebar-section-row">
+              <button className="sidebar-section-head" onClick={() => toggle('mcps')}>
+                {expanded.mcps ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <Server size={13} />
+                <span>{SECTION_LABELS.mcps}</span>
+                <span className="sidebar-section-count">{catalog?.mcps.length ?? '…'}</span>
+              </button>
+            </div>
             {expanded.mcps && (
               <div className="sidebar-section-body">
                 {(catalog?.mcps || []).length === 0 && (

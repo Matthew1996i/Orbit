@@ -81,6 +81,11 @@
 .sidebar-section-row {
   display: flex;
   align-items: center;
+  height: 22px;
+  background: var(--orbit-sidebar-section-header-bg);
+}
+.sidebar-section-row:hover {
+  background: var(--orbit-list-hover-bg);
 }
 
 .sidebar-section-add-btn {
@@ -90,27 +95,27 @@
   justify-content: center;
   width: 20px;
   height: 20px;
-  margin-right: 8px;
+  margin-right: 4px;
   border-radius: 4px;
-  border: 1px solid var(--orbit-sidebar-border);
+  border: none;
   background: transparent;
   color: var(--orbit-fg-muted);
   cursor: pointer;
 }
 .sidebar-section-add-btn:hover {
-  border-color: var(--orbit-accent);
   color: var(--orbit-accent);
-  background: var(--orbit-list-hover-bg);
+  background: var(--orbit-sidebar-border);
 }
 
 .sidebar-section-head {
-  width: 100%;
-  height: 22px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 8px 0 4px;
-  background: var(--orbit-sidebar-section-header-bg);
+  background: transparent;
   border: none;
   color: var(--orbit-sidebar-section-header-fg);
   font-family: inherit;
@@ -119,9 +124,6 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   cursor: pointer;
-}
-.sidebar-section-head:hover {
-  background: var(--orbit-list-hover-bg);
 }
 .sidebar-section-head svg {
   flex-shrink: 0;
