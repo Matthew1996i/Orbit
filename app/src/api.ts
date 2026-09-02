@@ -26,6 +26,16 @@ export interface SessionInfo {
   isSkill?: boolean;
   skillName?: string;
   llm?: string;
+  isResource?: boolean;
+  isResourceGroup?: boolean;
+  resourceKind?: string;
+  resourceControl?: 'process' | 'docker' | 'docker-group';
+  resourcePid?: number | null;
+  resourceContainerId?: string | null;
+  resourcePorts?: number[];
+  resourceCommand?: string;
+  resourceCwd?: string;
+  resourceFingerprint?: string | null;
 }
 
 export interface StateResponse {
@@ -53,6 +63,11 @@ export interface SkillDef {
   version: string;
 }
 
+export interface CommandDef {
+  name: string;
+  description: string;
+}
+
 export interface McpDef {
   name: string;
   type: string;
@@ -63,6 +78,7 @@ export interface McpDef {
 export interface CatalogResponse {
   agents: AgentDef[];
   skills: SkillDef[];
+  commands: CommandDef[];
   tools: string[];
   mcps: McpDef[];
 }
@@ -165,7 +181,7 @@ export async function startInstall(
   return res.json();
 }
 
-export type AgentFileKind = 'agent' | 'skill';
+export type AgentFileKind = 'agent' | 'skill' | 'command';
 
 export async function fetchAgentFile(
   name: string,
@@ -187,6 +203,101 @@ export async function saveAgentFile(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, content, kind }),
+  });
+  return res.json();
+}
+
+// grupos de tokens/chaves secretas — ver server.py secrets_as_env(): toda
+// chave cadastrada aqui e injetada como env var em todo agente novo, pra
+// nao precisar colar de novo em cada sessao.
+export interface SecretEntry {
+  key: string;
+  value: string;
+}
+
+export interface SecretGroup {
+  id: string;
+  title: string;
+  // slug unico usado em {{identificador.chave}} — permite que grupos
+  // diferentes tenham uma chave com o MESMO nome sem colidir.
+  identifier: string;
+  entries: SecretEntry[];
+}
+
+export async function fetchSecretGroups(): Promise<SecretGroup[]> {
+  const res = await fetch(`${BACKEND_HTTP}/api/secrets`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`secrets ${res.status}`);
+  const data = await res.json();
+  return data.groups as SecretGroup[];
+}
+
+export async function saveSecretGroup(
+  group: Partial<Pick<SecretGroup, 'id'>> & Omit<SecretGroup, 'id'>,
+): Promise<{ ok: true; id: string } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/secrets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(group),
+  });
+  return res.json();
+}
+
+export async function deleteSecretGroup(id: string): Promise<{ ok: true } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/secrets/${encodeURIComponent(id)}/delete`, {
+    method: 'POST',
+  });
+  return res.json();
+}
+
+// provedores de IA cadastrados pelo usuario — usados so pelo "Gerar com IA"
+// dos modais de markdown (agent/skill/command), nao pra iniciar agentes.
+export type AiProviderKind = 'anthropic' | 'openai';
+
+export interface AiProvider {
+  id: string;
+  title: string;
+  // formato da API (shape do request/response) — nao trava no vendor "dono"
+  // do formato: baseUrl aponta pra qualquer servico compativel.
+  provider: AiProviderKind;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+export async function fetchAiProviders(): Promise<AiProvider[]> {
+  const res = await fetch(`${BACKEND_HTTP}/api/ai-providers`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`ai-providers ${res.status}`);
+  const data = await res.json();
+  return data.providers as AiProvider[];
+}
+
+export async function saveAiProvider(
+  provider: Partial<Pick<AiProvider, 'id'>> & Omit<AiProvider, 'id'>,
+): Promise<{ ok: true; id: string } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/ai-providers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(provider),
+  });
+  return res.json();
+}
+
+export async function deleteAiProvider(id: string): Promise<{ ok: true } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/ai-providers/${encodeURIComponent(id)}/delete`, {
+    method: 'POST',
+  });
+  return res.json();
+}
+
+export async function generateMarkdown(
+  providerId: string,
+  kind: AgentFileKind,
+  description: string,
+): Promise<{ content: string } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/ai-providers/${encodeURIComponent(providerId)}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, description }),
   });
   return res.json();
 }
@@ -220,6 +331,50 @@ export async function stopAgent(agentId: string): Promise<{ ok: boolean }> {
 export async function killSession(pid: number): Promise<{ ok: boolean }> {
   const res = await fetch(`${BACKEND_HTTP}/api/sessions/${pid}/kill`, { method: 'POST' });
   return res.json();
+}
+
+export interface ResourceStopResult {
+  ok: boolean;
+  signal?: string;
+  error?: string;
+  message?: string;
+}
+
+export async function stopResource(
+  resourcePid: number,
+  fingerprint: string,
+  ownerSessionId: string,
+): Promise<ResourceStopResult> {
+  try {
+    const res = await fetch(`${BACKEND_HTTP}/api/resources/${resourcePid}/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint, ownerSessionId }),
+    });
+    const body = await res.json();
+    if (!res.ok) return { ok: false, error: body?.error, message: body?.message };
+    return body;
+  } catch {
+    return { ok: false, error: 'network' };
+  }
+}
+
+export async function stopDockerResource(
+  containerId: string,
+  ownerSessionId: string,
+): Promise<ResourceStopResult> {
+  try {
+    const res = await fetch(`${BACKEND_HTTP}/api/resources/docker/${containerId}/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerSessionId }),
+    });
+    const body = await res.json();
+    if (!res.ok) return { ok: false, error: body?.error, message: body?.message };
+    return body;
+  } catch {
+    return { ok: false, error: 'network' };
+  }
 }
 
 export interface StepEvent {

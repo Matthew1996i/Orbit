@@ -1,15 +1,15 @@
 .home-content {
-  --background: #0a0a0c;
-  --color: #e8e8ea;
+  --background: var(--orbit-canvas-bg);
+  --color: var(--orbit-sidebar-fg);
 }
 .home-content::part(background) {
-  background-image: radial-gradient(circle, #1c1c20 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--orbit-canvas-grid) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 
 ion-toolbar {
-  --background: #0a0a0c;
-  --border-color: #2a2a2f;
+  --background: var(--orbit-canvas-bg);
+  --border-color: var(--orbit-canvas-border);
 }
 
 .stats-bar {

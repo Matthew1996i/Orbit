@@ -20,7 +20,7 @@ const SHOW_REAL_USAGE = true;
 // que conta como "uso" de uma LLM aqui — subagentes e nodes de atividade nao
 // tem CLI/processo proprio, sempre herdam do agente raiz que ja e contado.
 function isCountableSession(session: SessionInfo): boolean {
-  return session.alive && !session.isMcp && !session.isSkill && !session.isSubagent;
+  return session.alive && !session.isMcp && !session.isSkill && !session.isSubagent && !session.isResource;
 }
 
 // sessoes fora do app (lidas de ~/.claude/sessions) nunca tem `llm` — so o

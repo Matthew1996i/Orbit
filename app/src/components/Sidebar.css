@@ -1,70 +1,16 @@
-.sidebar-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 90000;
-  animation: sidebar-overlay-in 0.2s ease-out;
-}
-
-.sidebar-overlay.closing {
-  animation: sidebar-overlay-out 0.18s ease-in forwards;
-}
-
 .sidebar-panel {
-  position: fixed;
-  top: 38px;
-  left: 0;
-  bottom: 0;
-  width: min(340px, 88vw);
-  background: #131316;
-  border-right: 1px solid #2a2a2f;
-  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.4);
-  z-index: 90001;
+  position: static;
+  width: 100%;
+  height: 100%;
+  background: var(--orbit-sidebar-bg);
+  color: var(--orbit-sidebar-fg);
+  border-right: 1px solid var(--orbit-sidebar-border);
   display: flex;
   flex-direction: column;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: #e8e8ea;
-  animation: sidebar-slide-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.sidebar-panel.closing {
-  animation: sidebar-slide-out 0.18s ease-in forwards;
-}
-
-@keyframes sidebar-slide-in {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-@keyframes sidebar-slide-out {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-100%);
-  }
-}
-
-@keyframes sidebar-overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes sidebar-overlay-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
+  /* sidebar/title bar usam a fonte de UI (nao a mono usada no resto do app) —
+     e o que o VS Code faz nesse chrome; a mono fica so nos cards da arvore,
+     terminal e term-dock. */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .sidebar-header {
@@ -72,17 +18,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid #2a2a2f;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #c9c9cf;
+  height: 38px;
+  padding: 0 8px 0 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--orbit-sidebar-fg);
+  border-bottom: 1px solid var(--orbit-sidebar-border);
 }
 
 .sidebar-header-title {
   display: flex;
   align-items: center;
   gap: 7px;
+}
+
+.sidebar-header-count {
+  font-size: 10.5px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--orbit-fg-subtle);
 }
 
 .sidebar-header-actions {
@@ -99,13 +56,13 @@
   height: 24px;
   background: transparent;
   border: none;
-  border-radius: 6px;
-  color: #9a9aa2;
+  border-radius: 4px;
+  color: var(--orbit-fg-muted);
   cursor: pointer;
 }
 .sidebar-close-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e8e8ea;
+  background: var(--orbit-list-hover-bg);
+  color: var(--orbit-sidebar-fg);
 }
 .sidebar-close-btn:disabled {
   cursor: default;
@@ -123,95 +80,43 @@
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0 16px;
-}
-
-.sidebar-section {
-  border-bottom: 1px solid #202024;
-}
-
-.sidebar-section-row {
-  display: flex;
-  align-items: center;
-}
-
-.sidebar-section-add-btn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  margin-right: 10px;
-  border-radius: 6px;
-  border: 1px solid #2a2a2f;
-  background: transparent;
-  color: #7a7a82;
-  cursor: pointer;
-}
-.sidebar-section-add-btn:hover {
-  border-color: #f5a623;
-  color: #f5a623;
-  background: rgba(245, 166, 35, 0.08);
-}
-
-.sidebar-section-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 14px;
-  background: transparent;
-  border: none;
-  color: #c9c9cf;
-  font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  cursor: pointer;
-}
-.sidebar-section-head:hover {
-  color: #e8e8ea;
-}
-
-.sidebar-section-count {
-  margin-left: auto;
-  font-size: 10px;
-  color: #6a6a72;
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.sidebar-section-body {
-  padding: 2px 8px 10px;
+  padding: 4px 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
 .sidebar-empty {
-  padding: 6px 8px;
+  padding: 4px 8px 4px 14px;
   font-size: 11.5px;
-  color: #5c5c64;
+  color: var(--orbit-fg-subtle);
 }
 
+/* hover/selecao de LINHA INTEIRA (requisito do Explorer do VS Code) — sem
+   padding lateral no body da secao, o hover sangra de borda a borda. */
 .sidebar-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 8px;
-  border-radius: 6px;
+  min-height: 22px;
+  padding: 2px 8px 2px 14px;
+  border-radius: 0;
+  /* .sidebar-content virou um flex column (pra caber a lista inteira sem
+     acordeao) — sem flex-shrink:0 aqui, uma lista comprida (skills com 70+
+     itens) faz o Chromium ESPREMER cada linha abaixo da altura de verdade
+     do conteudo em vez de deixar o scroll (proprio do container pai)
+     resolver, e o texto de linhas vizinhas passa a se sobrepor. */
+  flex-shrink: 0;
 }
 .sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--orbit-list-hover-bg);
 }
 
 .sidebar-item-stack {
   flex-direction: column;
   align-items: stretch;
-  gap: 3px;
+  gap: 1px;
+  padding-top: 3px;
+  padding-bottom: 3px;
 }
 
 .sidebar-item-clickable {
@@ -223,7 +128,7 @@
   cursor: pointer;
 }
 .sidebar-item-clickable:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--orbit-list-hover-bg);
 }
 
 .sidebar-dot {
@@ -231,18 +136,18 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #555;
+  background: var(--orbit-status-off);
 }
 .sidebar-dot.on {
-  background: #34c759;
-  box-shadow: 0 0 5px rgba(52, 199, 89, 0.6);
+  background: var(--orbit-status-ok);
+  box-shadow: 0 0 5px var(--orbit-status-ok);
 }
 .sidebar-dot.warn {
-  background: #f5a623;
-  box-shadow: 0 0 5px rgba(245, 166, 35, 0.6);
+  background: var(--orbit-status-warn);
+  box-shadow: 0 0 5px var(--orbit-status-warn);
 }
 .sidebar-dot.off {
-  background: #444;
+  background: var(--orbit-status-off);
 }
 
 .sidebar-item-logo {
@@ -250,8 +155,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
 .sidebar-item-body {
@@ -260,8 +165,8 @@
 }
 
 .sidebar-item-name {
-  font-size: 12px;
-  color: #e8e8ea;
+  font-size: 13px;
+  color: var(--orbit-sidebar-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -274,20 +179,20 @@
   font-size: 9px;
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #9a9aa2;
+  background: var(--orbit-badge-bg);
+  color: var(--orbit-badge-fg);
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
 
 .sidebar-item-sub {
-  font-size: 10.5px;
-  color: #6a6a72;
+  font-size: 11px;
+  color: var(--orbit-fg-muted);
 }
 
 .sidebar-item-desc {
-  font-size: 10.5px;
-  color: #8a8a92;
+  font-size: 11px;
+  color: var(--orbit-fg-muted);
   line-height: 1.4;
   overflow: hidden;
   display: -webkit-box;
@@ -296,17 +201,18 @@
 }
 
 .sidebar-tools-grid {
+  display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 4px 8px 10px;
+  padding: 6px 8px 10px 14px;
 }
 
 .sidebar-tool-pill {
   font-size: 10.5px;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid #2a2a2f;
-  color: #b8b8bc;
+  background: var(--orbit-badge-bg);
+  border: 1px solid var(--orbit-sidebar-border);
+  color: var(--orbit-badge-fg);
 }

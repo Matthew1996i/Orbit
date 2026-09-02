@@ -8,8 +8,18 @@ import TerminalPanel from '../components/TerminalPanel';
 import NewAgentDialog from '../components/NewAgentDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ContextMenu, { ContextMenuItem } from '../components/ContextMenu';
-import TitleBar from '../components/TitleBar';
-import { SessionInfo, StepEvent, connectStepStream, fetchState, startAgent, stopAgent, killSession } from '../api';
+import AppShell from '../components/AppShell';
+import {
+  SessionInfo,
+  StepEvent,
+  connectStepStream,
+  fetchState,
+  startAgent,
+  stopAgent,
+  killSession,
+  stopResource,
+  stopDockerResource,
+} from '../api';
 import './Home.css';
 
 const MAX_BUFFER_STEPS = 300;
@@ -31,6 +41,7 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ session: SessionInfo; x: number; y: number } | null>(null);
   const [confirmKill, setConfirmKill] = useState<SessionInfo | null>(null);
+  const [confirmKillResource, setConfirmKillResource] = useState<SessionInfo | null>(null);
 
   const buffersRef = useRef<Map<string, StepEvent[]>>(new Map());
   const sessionCacheRef = useRef<Map<string, SessionInfo>>(new Map());
@@ -131,9 +142,9 @@ export default function Home() {
     return disconnect;
   }, []);
 
-  const busy = sessions.filter((s) => s.alive && s.status === 'busy').length;
-  const idle = sessions.filter((s) => s.alive && s.status !== 'busy').length;
-  const dead = sessions.filter((s) => !s.alive).length;
+  const busy = sessions.filter((s) => !s.isResource && s.alive && s.status === 'busy').length;
+  const idle = sessions.filter((s) => !s.isResource && s.alive && s.status !== 'busy').length;
+  const dead = sessions.filter((s) => !s.isResource && !s.alive).length;
 
   const bringToFront = (id: string) => {
     topZRef.current += 1;
@@ -210,6 +221,23 @@ export default function Home() {
 
   const buildContextMenuItems = (session: SessionInfo): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
+    // grupo Docker (um projeto compose) é só organização visual — não é um
+    // processo de verdade, não tem o que "parar" nele (o usuário para
+    // container por container, nunca o stack inteiro por aqui).
+    if (session.isResourceGroup) {
+      return items;
+    }
+    // recurso listado é sempre vivo e nunca tem painel proprio pra abrir —
+    // so oferece "parar", nada de "Abrir".
+    if (session.isResource) {
+      items.push({
+        label: 'Parar este processo',
+        icon: <Skull size={14} />,
+        danger: true,
+        onClick: () => setConfirmKillResource(session),
+      });
+      return items;
+    }
     // matar processo é sempre a PRIMEIRA opção, quando disponível — subagentes
     // (isSubagent) não têm processo próprio pra matar (rodam dentro da sessão
     // orquestradora), então não oferece essa opção pra eles.
@@ -240,6 +268,16 @@ export default function Home() {
     await refresh();
   };
 
+  const doKillResource = async (session: SessionInfo) => {
+    setConfirmKillResource(null);
+    if (session.resourceControl === 'docker' && session.resourceContainerId) {
+      await stopDockerResource(session.resourceContainerId, session.parentSessionId || '');
+    } else {
+      await stopResource(session.resourcePid || 0, session.resourceFingerprint || '', session.parentSessionId || '');
+    }
+    await refresh();
+  };
+
   const minimizedPanels = [...openIds]
     .filter((id) => minimizedIds.has(id))
     .map((id) => sessionCacheRef.current.get(id))
@@ -247,7 +285,7 @@ export default function Home() {
 
   return (
     <IonPage>
-      <TitleBar
+      <AppShell
         stats={
           <div className="stats-bar">
             <span className="stat"><span className="dot busy" />{busy} busy</span>
@@ -256,29 +294,29 @@ export default function Home() {
             <span className="stats-title">sessões do Claude Code nesta máquina</span>
           </div>
         }
-      />
+      >
+        <IonContent className="home-content">
+          {sessions.length === 0 ? (
+            <div className="empty-state">
+              Nenhuma sessão encontrada.
+              <br />
+              Toque em + para iniciar um agente.
+            </div>
+          ) : (
+            <SessionTree
+              sessions={[...sessions].sort((a, b) => a.startedAt - b.startedAt)}
+              onOpen={openPanel}
+              onContextMenu={handleCardContextMenu}
+            />
+          )}
 
-      <IonContent className="home-content">
-        {sessions.length === 0 ? (
-          <div className="empty-state">
-            Nenhuma sessão encontrada.
-            <br />
-            Toque em + para iniciar um agente.
-          </div>
-        ) : (
-          <SessionTree
-            sessions={[...sessions].sort((a, b) => a.startedAt - b.startedAt)}
-            onOpen={openPanel}
-            onContextMenu={handleCardContextMenu}
-          />
-        )}
-
-        <IonFab vertical="bottom" horizontal="end" slot="fixed">
-          <IonFabButton onClick={() => setShowNewAgent(true)}>
-            <Plus size={22} />
-          </IonFabButton>
-        </IonFab>
-      </IonContent>
+          <IonFab vertical="bottom" horizontal="end" slot="fixed">
+            <IonFabButton onClick={() => setShowNewAgent(true)}>
+              <Plus size={22} />
+            </IonFabButton>
+          </IonFab>
+        </IonContent>
+      </AppShell>
 
       {createPortal(
         <>
@@ -322,6 +360,16 @@ export default function Home() {
             confirmText="Encerrar"
             onConfirm={() => confirmKill && doKillSession(confirmKill)}
             onCancel={() => setConfirmKill(null)}
+          />
+
+          <ConfirmDialog
+            open={!!confirmKillResource}
+            title={confirmKillResource?.resourceControl === 'docker' ? 'Parar container' : 'Parar processo'}
+            message={`Isso ${confirmKillResource?.resourceControl === 'docker' ? 'para de verdade o container' : 'mata de verdade o processo'} "${confirmKillResource?.name || confirmKillResource?.sessionId.slice(0, 8)}" (${confirmKillResource?.resourceControl === 'docker' ? `container ${confirmKillResource?.resourceContainerId?.slice(0, 12)}` : `pid ${confirmKillResource?.resourcePid}`}${confirmKillResource?.resourcePorts && confirmKillResource.resourcePorts.length > 0 ? `, porta ${confirmKillResource.resourcePorts[0]}` : ''}) iniciado por esta sessão. Serviços dependentes vão cair. Essa ação não pode ser desfeita.`}
+            danger
+            confirmText="Parar"
+            onConfirm={() => confirmKillResource && doKillResource(confirmKillResource)}
+            onCancel={() => setConfirmKillResource(null)}
           />
 
           {openIds.map((id) => {

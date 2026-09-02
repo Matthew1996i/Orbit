@@ -1,0 +1,46 @@
+.orbit-activitybar {
+  width: var(--orbit-activitybar-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--orbit-activitybar-bg);
+  border-right: 1px solid var(--orbit-activitybar-border);
+  padding: 0;
+}
+
+.orbit-activitybar-btn {
+  position: relative;
+  width: 48px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--orbit-activitybar-fg);
+  cursor: pointer;
+  /* a janela e frameless (arrastavel pela title bar) — sem isso, alguns
+     cliques nesta faixa podem virar arraste de janela em vez de clique. */
+  -webkit-app-region: no-drag;
+}
+.orbit-activitybar-btn:hover {
+  color: var(--orbit-activitybar-fg-active);
+}
+.orbit-activitybar-btn.active {
+  color: var(--orbit-activitybar-fg-active);
+}
+.orbit-activitybar-btn.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--orbit-activitybar-active-border);
+}
+
+.orbit-activitybar-btn-footer {
+  margin-top: auto;
+}
