@@ -1,6 +1,26 @@
-.orbit-activitybar {
-  width: var(--orbit-activitybar-w);
+/* "slot" reserva o espaco REAL no flex do orbit-shell — so muda de largura
+   quando a sidebar esta FIXADA (ver activityBarRealWidth no AppShell), nunca
+   no hover, entao o orbit-content nunca e empurrado so por passar o mouse. */
+.orbit-activitybar-slot {
   flex-shrink: 0;
+  position: relative;
+  height: 100%;
+  transition: width 0.15s ease;
+}
+
+/* a barra em si fica POR CIMA do slot (position:absolute), podendo crescer
+   visualmente alem da largura reservada (--orbit-activitybar-w, que reflete
+   fixado OU hover) sem afetar o layout — mesmo truque que o preview da
+   Sidebar (.orbit-sidebar-preview) ja usa. z-index alto pra ficar por cima
+   da Sidebar/conteudo quando so em hover (a mesma altura da fixada nao muda
+   nada visualmente, ja que ai a largura do slot bate com a da barra). */
+.orbit-activitybar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--orbit-activitybar-w);
+  z-index: 25;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -8,6 +28,7 @@
   background: var(--orbit-activitybar-bg);
   border-right: 1px solid var(--orbit-activitybar-border);
   padding: 0;
+  transition: width 0.15s ease;
 }
 
 .orbit-activitybar-btn {
@@ -17,6 +38,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   background: transparent;
   border: none;
   color: var(--orbit-activitybar-fg);
@@ -24,6 +46,23 @@
   /* a janela e frameless (arrastavel pela title bar) — sem isso, alguns
      cliques nesta faixa podem virar arraste de janela em vez de clique. */
   -webkit-app-region: no-drag;
+}
+
+/* com o side aberto (fixado ou so em preview de hover) todo botao vira uma
+   linha larga com icone + nome, config incluso — largura real vem da propria
+   .orbit-activitybar, que a AppShell alarga via --orbit-activitybar-w. */
+.orbit-activitybar.expanded .orbit-activitybar-btn {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0 14px;
+}
+
+.orbit-activitybar-label {
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .orbit-activitybar-btn:hover {
   color: var(--orbit-activitybar-fg-active);

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, X, RefreshCw } from 'lucide-react';
-import { fetchCatalog, fetchLlms, fetchUsage, fetchSecretGroups, fetchAiProviders, CatalogResponse, LlmCli, AgentFileKind, SecretGroup, AiProvider } from '../api';
+import { Plus, X, RefreshCw, LayoutGrid } from 'lucide-react';
+import { fetchCatalog, fetchSecretGroups, fetchAiProviders, CatalogResponse, LlmCli, AgentFileKind, SecretGroup, AiProvider } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
+import { fetchAllLlms } from '../utils/llmCatalog';
 import { SectionKey, SECTION_ICONS, SECTION_LABELS } from '../utils/sidebarSections';
-import ConnectLlmModal from './ConnectLlmModal';
 import AgentEditModal from './AgentEditModal';
 import SecretsModal from './SecretsModal';
 import AiProviderModal from './AiProviderModal';
@@ -14,6 +14,18 @@ interface Props {
   // secao escolhida na Activity Bar — a sidebar mostra SO o conteudo dessa
   // secao (como uma view do VS Code), nao um acordeao com todas juntas.
   activeSection?: SectionKey | null;
+  // LLMs sao o primeiro caso do padrao "tela cheia" (ver LlmCatalogScreen /
+  // LlmDetailScreen) — o "+" e o clique num item ja instalado nao abrem mais
+  // modal, pedem pro AppShell trocar o conteudo principal.
+  onOpenLlmCatalog?: () => void;
+  onOpenLlmDetail?: (id: string) => void;
+  // segundo caso do padrao "tela cheia" — so a secao Agentes por enquanto
+  // (skills/commands continuam no AgentEditModal por enquanto). O "+" abre
+  // o CATALOGO (lista todos os agentes, com o botao de criar LA DENTRO) em
+  // vez de pular direto pro formulario de criacao — mesmo padrao do "+" de
+  // LLMs (onOpenLlmCatalog).
+  onOpenAgentCatalog?: () => void;
+  onOpenAgentEdit?: (name: string, kind: AgentFileKind, subtitle?: string, isNew?: boolean) => void;
 }
 
 // sync automatico do status dos agentes/LLMs instalados na maquina — mesmo
@@ -21,10 +33,16 @@ interface Props {
 // dessa correcao), pra nao ficar defasado em relacao ao resto da tela.
 const AGENT_SYNC_MS = 4000;
 
-export default function Sidebar({ onClose, activeSection }: Props) {
+export default function Sidebar({
+  onClose,
+  activeSection,
+  onOpenLlmCatalog,
+  onOpenLlmDetail,
+  onOpenAgentCatalog,
+  onOpenAgentEdit,
+}: Props) {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
-  const [showConnect, setShowConnect] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [editTarget, setEditTarget] = useState<
     { name: string; subtitle?: string; kind: AgentFileKind; isNew?: boolean } | null
@@ -37,26 +55,7 @@ export default function Sidebar({ onClose, activeSection }: Props) {
   const reloadSecrets = () => fetchSecretGroups().then(setSecretGroups).catch(() => setSecretGroups([]));
   const reloadAiProviders = () => fetchAiProviders().then(setAiProviders).catch(() => setAiProviders([]));
 
-  const reloadLlms = () =>
-    fetchLlms()
-      .then((r) => {
-        setLlms([CLAUDE_LLM_OPTION, ...r.llms]);
-        // status do Claude nao vem do /api/llms (essa CLI e o proprio app),
-        // entao busca o status real de autenticacao a parte e sobrescreve
-        // o placeholder hardcoded assim que resolver.
-        return fetchUsage()
-          .then(({ claudeAuthenticated }) => {
-            setLlms((cur) =>
-              cur.map((llm) =>
-                llm.id === 'claude'
-                  ? { ...llm, connected: claudeAuthenticated, status: claudeAuthenticated ? 'connected' : 'installed' }
-                  : llm,
-              ),
-            );
-          })
-          .catch(() => {});
-      })
-      .catch(() => setLlms([CLAUDE_LLM_OPTION]));
+  const reloadLlms = () => fetchAllLlms().then(setLlms);
 
   // sync manual (botao) e automatico (polling) fazem a MESMA coisa: releem
   // tanto o catalogo (agentes/skills/tools/mcps) quanto o status das LLMs
@@ -98,39 +97,52 @@ export default function Sidebar({ onClose, activeSection }: Props) {
     aiProviders: aiProviders.length,
   };
 
-  // botao "+" do cabecalho e especifico de cada secao (algumas nem tem, ex:
-  // Tools/MCPs sao so leitura) — undefined esconde o botao.
-  const onAdd: Partial<Record<SectionKey, { label: string; onClick: () => void }>> = {
-    llms: { label: 'Conectar LLM', onClick: () => setShowConnect(true) },
-    agents: { label: 'Criar agente', onClick: () => setEditTarget({ name: '', kind: 'agent', isNew: true }) },
-    skills: { label: 'Criar skill', onClick: () => setEditTarget({ name: '', kind: 'skill', isNew: true }) },
-    commands: { label: 'Criar comando', onClick: () => setEditTarget({ name: '', kind: 'command', isNew: true }) },
-    secrets: { label: 'Novo grupo de chaves', onClick: () => setSecretsTarget({}) },
-    aiProviders: { label: 'Novo provedor de IA', onClick: () => setAiProviderTarget({}) },
+  // botao do cabecalho e especifico de cada secao (algumas nem tem, ex:
+  // Tools/MCPs sao so leitura) — undefined esconde o botao. Icone varia por
+  // INTENCAO: "+" so pras acoes que criam algo na hora (skill/comando/grupo/
+  // provedor); LLMs e Agentes na verdade abrem uma tela de catalogo pra
+  // navegar/escolher, entao usam o mesmo icone de grade da lista — um "+"
+  // ali sugeria "criar" e confundia quem esperava um item novo aparecer.
+  const onAdd: Partial<Record<SectionKey, { label: string; icon: typeof Plus; onClick: () => void }>> = {
+    llms: { label: 'Ver catálogo de LLMs', icon: LayoutGrid, onClick: () => onOpenLlmCatalog?.() },
+    agents: { label: 'Ver catálogo de agentes', icon: LayoutGrid, onClick: () => onOpenAgentCatalog?.() },
+    skills: { label: 'Criar skill', icon: Plus, onClick: () => setEditTarget({ name: '', kind: 'skill', isNew: true }) },
+    commands: { label: 'Criar comando', icon: Plus, onClick: () => setEditTarget({ name: '', kind: 'command', isNew: true }) },
+    secrets: { label: 'Novo grupo de chaves', icon: Plus, onClick: () => setSecretsTarget({}) },
+    aiProviders: { label: 'Novo provedor de IA', icon: Plus, onClick: () => setAiProviderTarget({}) },
   };
   const addAction = onAdd[section];
 
   const renderBody = () => {
     switch (section) {
       case 'llms':
-        return installedLlms.length === 0 ? (
-          <div className="sidebar-empty">Nenhuma LLM instalada</div>
-        ) : (
-          installedLlms.map((llm) => {
-            const Logo = llmLogoFor(llm.id);
-            return (
-              <div key={llm.id} className="sidebar-item">
-                <span className="sidebar-item-logo">
-                  <Logo size={15} />
-                </span>
-                <div className="sidebar-item-body">
-                  <div className="sidebar-item-name">{llm.name}</div>
-                  <div className="sidebar-item-sub">{llm.vendor}</div>
-                </div>
-                <span className={`sidebar-dot ${llm.status === 'connected' ? 'on' : 'warn'}`} />
-              </div>
-            );
-          })
+        return (
+          <>
+            {installedLlms.length === 0 ? (
+              <div className="sidebar-empty">Nenhuma LLM instalada</div>
+            ) : (
+              installedLlms.map((llm) => {
+                const Logo = llmLogoFor(llm.id);
+                return (
+                  <button
+                    key={llm.id}
+                    className="sidebar-item sidebar-item-clickable"
+                    onClick={() => onOpenLlmDetail?.(llm.id)}
+                    type="button"
+                  >
+                    <span className="sidebar-item-logo">
+                      <Logo size={15} />
+                    </span>
+                    <div className="sidebar-item-body">
+                      <div className="sidebar-item-name">{llm.name}</div>
+                      <div className="sidebar-item-sub">{llm.vendor}</div>
+                    </div>
+                    <span className={`sidebar-dot ${llm.status === 'connected' ? 'on' : 'warn'}`} />
+                  </button>
+                );
+              })
+            )}
+          </>
         );
 
       case 'agents':
@@ -139,13 +151,13 @@ export default function Sidebar({ onClose, activeSection }: Props) {
             key={agent.name}
             className="sidebar-item sidebar-item-stack sidebar-item-clickable"
             onClick={() =>
-              setEditTarget({
-                name: agent.name,
-                kind: 'agent',
-                subtitle: [agent.model && `modelo: ${agent.model}`, agent.tools && `tools: ${agent.tools}`]
+              onOpenAgentEdit?.(
+                agent.name,
+                'agent',
+                [agent.model && `modelo: ${agent.model}`, agent.tools && `tools: ${agent.tools}`]
                   .filter(Boolean)
                   .join(' · '),
-              })
+              )
             }
             type="button"
           >
@@ -290,7 +302,7 @@ export default function Sidebar({ onClose, activeSection }: Props) {
                 aria-label={addAction.label}
                 title={addAction.label}
               >
-                <Plus size={14} />
+                <addAction.icon size={14} />
               </button>
             )}
             <button
@@ -310,14 +322,6 @@ export default function Sidebar({ onClose, activeSection }: Props) {
 
         <div className="sidebar-content">{renderBody()}</div>
       </div>
-
-      {showConnect && (
-        <ConnectLlmModal
-          llms={llms}
-          onClose={() => setShowConnect(false)}
-          onInstalled={reloadLlms}
-        />
-      )}
 
       {editTarget && (
         <AgentEditModal

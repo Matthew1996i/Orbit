@@ -1,0 +1,428 @@
+.agent-screen {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: #ffffff;
+  color: #111114;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+}
+.agent-screen-inner {
+  /* segue a largura toda da janela, igual as outras telas (catalogo de
+     LLM/Agentes) — sem max-width/margin:auto centralizando um miolo
+     estreito com sobra de espaco vazio nas laterais em janelas largas. */
+  width: 100%;
+  height: 100%;
+  padding: 24px 40px 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* fixo no topo ao rolar. Dois niveis empilhados: a secao ("Agentes", com o
+   botao de voltar — mesmo cabecalho/tamanho da tela de catalogo) e, abaixo,
+   o agente especifico (sem botao de voltar proprio, ja coberto pelo nivel
+   acima). Nao pode sumir enquanto o usuario rola um markdown longo. */
+/* SEM padding horizontal aqui (diferente de antes) — o padding lateral fica
+   por conta de cada filho (.agent-screen-header-section/.agent-screen-title-row)
+   individualmente, senao a borda entre os dois niveis (aplicada no filho)
+   ficava PRESA dentro do padding do pai, parando 40px antes da borda real
+   da janela em vez de tocar as duas bordas (era exatamente esse o bug —
+   comparar com .agent-catalog-toolbar em AgentCatalogScreen.css, onde a
+   borda vive no MESMO elemento que tem a margem negativa, nao num filho). */
+.agent-screen-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  margin: -24px -40px 0;
+  background: #ffffff;
+}
+.agent-screen-header-section.llm-screen-header {
+  margin: 0;
+  padding: 24px 40px 16px;
+  border-bottom: 1px solid #ececef;
+}
+
+/* titulo do agente e os botoes (Gerar com IA/Salvar) no MESMO nivel/linha —
+   nao mais empilhados em linhas separadas. */
+.agent-screen-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 16px 40px;
+}
+.agent-screen-title-block {
+  flex: 1;
+  min-width: 200px;
+}
+
+.agent-screen-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.agent-screen-saved {
+  font-size: 11.5px;
+  color: #15803d;
+}
+
+/* rodape do drawer "Gerar com IA": provedor a esquerda, acoes a direita. */
+.agent-screen-generate-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.agent-screen-generate-footer-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+/* AntD Select (nao mais um <select> nativo) — so largura/tamanho de fonte
+   aqui, o resto (borda, altura, cor de foco) ja vem do tema escopado
+   (useLlmScreenTheme), igual aos outros inputs AntD dessas telas. */
+.agent-screen-generate-select.agent-screen-generate-select {
+  width: 180px;
+  font-size: 12.5px;
+}
+
+/* corpo do drawer "Gerar com IA" — conversa (mensagens do usuario + rascunho
+   atual em preview/codigo) empilhados, com o campo de mensagem fixo embaixo.
+   AppDrawer ja da o body com padding:0 e display:flex column, entao esse
+   wrapper so precisa ocupar 100% da altura disponivel. */
+.agent-chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* historico da conversa — pedido do usuario E resposta da IA (o markdown
+   completo que ela gerou), como um chat normal. Cresce pra preencher o
+   espaco acima do campo de mensagem (fixo embaixo, ver
+   .agent-chat-input-row) — sem isso sobrava um vao vazio enorme entre as
+   mensagens e o campo. Quando o rascunho aparece abaixo (.agent-chat-draft)
+   os dois dividem o espaco (flex:1 nos dois), cada um rolando por conta
+   propria. */
+.agent-chat-messages {
+  flex: 1;
+  min-height: 80px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px;
+}
+.agent-chat-empty {
+  color: #a1a1aa;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+/* entrada suave — tanto as bolhas quanto o cartao de arquivo (mesma
+   animacao, ver .agent-chat-file-card abaixo) usam isso, pra cada rodada
+   nova da conversa "chegar" em vez de so aparecer travado. */
+@keyframes agent-chat-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.agent-chat-bubble {
+  max-width: 90%;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  animation: agent-chat-msg-in 0.2s ease-out both;
+}
+.agent-chat-bubble-user {
+  align-self: flex-end;
+  background: var(--orbit-accent, #18181b);
+  color: #fff;
+  border-radius: 12px 12px 2px 12px;
+}
+
+/* resposta da IA = o arquivo COMPLETO gerado nessa rodada, como um "cartao
+   de arquivo" (rotulo + bloco de codigo) em vez de bolha de chat comum —
+   fica claro que aquilo e o resultado, nao prosa. SEM limite de altura de
+   proposito (so a lista inteira de mensagens rola, ver .agent-chat-messages)
+   — cortar aqui "perderia" informacao que devia estar visivel. */
+.agent-chat-file-card {
+  align-self: stretch;
+  max-width: 92%;
+  border: 1px solid #ececef;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+  animation: agent-chat-msg-in 0.2s ease-out both;
+}
+.agent-chat-file-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #f4f4f5;
+  border-bottom: 1px solid #ececef;
+  color: #52525b;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.agent-chat-file-card-code {
+  margin: 0;
+  padding: 12px 14px;
+  color: #27272a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* indicador "gerando" com 3 pontinhos pulsando, em vez de texto piscando —
+   mais discreto, linguagem visual comum de chat. */
+.agent-chat-typing {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  animation: agent-chat-msg-in 0.2s ease-out both;
+}
+.agent-chat-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c1c1c8;
+  animation: agent-chat-typing-bounce 1.1s ease-in-out infinite;
+}
+.agent-chat-typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.agent-chat-typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes agent-chat-typing-bounce {
+  0%, 60%, 100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* campo de mensagem — fixo embaixo do drawer, sempre visivel. */
+.agent-chat-input-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #ececef;
+  background: #ffffff;
+}
+.agent-chat-input {
+  flex: 1;
+  resize: none;
+  max-height: 96px;
+  min-height: 38px;
+  background: #fafafb;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #111114;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+/* foco discreto — antes usava a mesma borda escura/grossa (#18181b) do
+   texto normal, ficando gritante demais pra um simples campo de mensagem;
+   agora e so um leve realce na mesma cor de destaque do tema. */
+.agent-chat-input:focus {
+  outline: none;
+  border-color: var(--orbit-accent, #a1a1aa);
+}
+.agent-chat-send {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: none;
+  background: var(--orbit-accent, #18181b);
+  color: #fff;
+  cursor: pointer;
+}
+.agent-chat-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* editar/preview lado a lado — grid de 2 colunas iguais, cada uma cresce
+   pra ocupar a altura toda disponivel na pagina. Em telas estreitas (a
+   janela do session/detached, por ex) cai pra empilhado. */
+.agent-screen-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 720px) {
+  .agent-screen-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.agent-screen-pane {
+  min-width: 0;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-screen-pane-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a1a1aa;
+  margin-bottom: 8px;
+}
+
+.agent-screen-textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  background: #fafafb;
+  border: 1px solid #ececef;
+  border-radius: 10px;
+  padding: 16px;
+  color: #111114;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.agent-screen-textarea:focus {
+  outline: none;
+  border-color: var(--orbit-accent, #a1a1aa);
+}
+
+.agent-screen-preview {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: #fafafb;
+  border: 1px solid #ececef;
+  border-radius: 10px;
+  padding: 18px 22px;
+  color: #27272a;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.agent-screen-preview h1,
+.agent-screen-preview h2,
+.agent-screen-preview h3 {
+  color: #111114;
+  margin: 0.8em 0 0.4em;
+}
+.agent-screen-preview p {
+  margin: 0.5em 0;
+}
+.agent-screen-preview code {
+  background: #f0f0f2;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.agent-screen-preview pre {
+  background: #f0f0f2;
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.agent-screen-preview ul,
+.agent-screen-preview ol {
+  padding-left: 1.4em;
+}
+
+/* botoes customizados (sobrescreve o AntD Button padrao) — definicoes
+   espelhadas em LlmDrawer.css/LlmDetailScreen.css (mesmo padrao visual,
+   arquivos autocontidos). */
+.llm-btn.llm-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: none;
+}
+.llm-btn-primary.llm-btn-primary {
+  background: var(--orbit-accent, #18181b);
+  border-color: var(--orbit-accent, #18181b);
+  color: #fff;
+}
+.llm-btn-primary.llm-btn-primary:hover {
+  background: var(--orbit-accent, #27272a);
+  border-color: var(--orbit-accent, #27272a);
+  filter: brightness(0.88);
+  color: #fff;
+}
+.llm-btn-secondary.llm-btn-secondary {
+  background: #fff;
+  border-color: #e4e4e7;
+  color: #3f3f46;
+}
+.llm-btn-secondary.llm-btn-secondary:hover {
+  background: #fafafa;
+  border-color: #d4d4d8;
+  color: #18181b;
+}
+
+/* feedback visual claro de desabilitado — sem isso os botoes customizados
+   (que sobrescrevem cor/fundo do AntD acima) ficavam com a MESMA aparencia
+   ativa mesmo com o atributo disabled, so o cursor mudava. */
+.llm-btn.llm-btn:disabled,
+.llm-btn.llm-btn.ant-btn-disabled {
+  opacity: 0.45;
+  filter: none;
+  cursor: not-allowed;
+}
+.llm-btn.llm-btn:disabled:hover,
+.llm-btn.llm-btn.ant-btn-disabled:hover {
+  filter: none;
+}
+
+.agent-screen-loading,
+.agent-screen-error {
+  flex: 1;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #a1a1aa;
+  font-size: 12.5px;
+  margin-top: 20px;
+}
+.agent-screen-error {
+  color: #c0272d;
+}

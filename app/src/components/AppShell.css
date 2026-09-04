@@ -10,9 +10,38 @@
   overflow: hidden;
 }
 
+/* a Activity Bar (esquerda) anima a propria largura sozinha (ver
+   ActivityBar.css, 0.15s); o painel (direita) so deve entrar DEPOIS dela
+   terminar — animation-delay igual aquela duracao, em vez de aparecer junto,
+   que e o que fazia as duas parecerem duas animacoes desencontradas. */
+.orbit-sidebar,
+.orbit-sidebar-preview {
+  animation: orbit-sidebar-enter 0.15s ease-out both;
+  animation-delay: 0.15s;
+}
+
+@keyframes orbit-sidebar-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* z-index explicito (nao so position:relative) — sem isso ela pinta na
+   camada "auto" (abaixo de qualquer elemento com z-index POSITIVO, mesmo
+   fora dessa arvore), entao o subheader de terminais minimizados (portado
+   pro <body>, z-index proprio) desenhava por cima dela quando os dois
+   ocupavam a mesma faixa (ex: hover num icone diferente com essa aqui
+   fixada). Precisa ficar ACIMA do subheader (--orbit-term-dock-h no
+   Home.css). */
 .orbit-sidebar {
   flex-shrink: 0;
   position: relative;
+  z-index: 16;
   height: 100%;
 }
 
@@ -39,11 +68,31 @@ body.orbit-resizing {
   user-select: none;
 }
 
+/* preview de hover: mesma posicao/largura da sidebar fixada, mas sobreposto
+   (absolute) por cima do conteudo em vez de empurra-lo — some ao tirar o
+   mouse sem alterar orbit-sidebar/orbit-shell, que continuam refletindo so
+   o estado FIXADO (clique). */
+.orbit-sidebar-preview {
+  position: absolute;
+  left: var(--orbit-activitybar-w);
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+}
+
+/* padding-top reserva o espaco do subheader de terminais minimizados
+   (--orbit-term-dock-h, ver Home.css .term-dock) — ele e position:fixed e
+   vive fora da arvore do AppShell (portado pro <body>, ver comentario em
+   Home.tsx), entao sem essa reserva ficava desenhando por cima do cabecalho
+   de QUALQUER tela renderizada aqui dentro (Home, catalogo de LLM/Agentes,
+   edicao de agente) em vez de ficar acima delas como parte do layout. */
 .orbit-content {
   flex: 1;
   min-width: 0;
   position: relative;
   overflow: hidden;
+  padding-top: var(--orbit-term-dock-h);
   background-color: var(--orbit-canvas-bg);
   background-image: radial-gradient(circle, var(--orbit-canvas-grid) 1px, transparent 1px);
   background-size: 22px 22px;

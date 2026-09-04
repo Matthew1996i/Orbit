@@ -1,0 +1,7 @@
+.install-log-body {
+  height: 300px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0d0d0f;
+  padding: 6px;
+}

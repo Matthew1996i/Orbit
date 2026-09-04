@@ -139,6 +139,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 2px;
 }
 
 .term-popout-btn {
@@ -157,6 +158,35 @@
 .term-popout-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #e8e8ea;
+}
+
+/* fora do mac, fechar/minimizar viram botoes de icone no canto direito (em
+   vez dos semaforos a esquerda) — quadrados por padrao (Windows); o
+   modificador term-header-linux (GNOME/Adwaita) deixa eles circulares. */
+.term-win-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #7a7a82;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+}
+.term-win-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8e8ea;
+}
+.term-win-btn-close:hover {
+  background: #ff5c57;
+  color: #fff;
+}
+.term-header-linux .term-win-btn {
+  border-radius: 50%;
 }
 
 .term-title-remote-tag {

@@ -1,0 +1,54 @@
+.app-drawer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.app-drawer-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.app-drawer-title-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-drawer-title {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: #111114;
+  line-height: 1.3;
+}
+
+.app-drawer-subtitle {
+  font-size: 12px;
+  color: #71717a;
+  margin-top: 1px;
+}
+
+.app-drawer-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+.app-drawer-close-btn:hover {
+  background: #f4f4f5;
+}
+.app-drawer-close-btn:active {
+  transform: scale(0.94);
+}

@@ -107,6 +107,15 @@ export class ElectronCapacitorApp {
     });
     // Setup preload script path and construct our main window.
     const preloadPath = join(app.getAppPath(), 'build', 'src', 'preload.js');
+    // cada SO usa os proprios botoes de janela: no macOS os semaforos
+    // nativos (fechar/minimizar/maximizar, canto superior esquerdo) via
+    // titleBarStyle 'hiddenInset' — a UI web so desenha os SEUS controles
+    // custom (canto direito) nos demais SOs, onde a janela continua sem
+    // frame nenhum do SO.
+    const macTitleBarOptions =
+      process.platform === 'darwin'
+        ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 12, y: 12 } }
+        : { frame: false };
     this.MainWindow = new BrowserWindow({
       icon,
       show: false,
@@ -114,9 +123,7 @@ export class ElectronCapacitorApp {
       y: this.mainWindowState.y,
       width: this.mainWindowState.width,
       height: this.mainWindowState.height,
-      // sem barra de titulo nativa do SO — a UI desenha sua propria barra
-      // customizada (com os controles de minimizar/maximizar/fechar embutidos)
-      frame: false,
+      ...macTitleBarOptions,
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: true,

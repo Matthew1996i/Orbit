@@ -1,0 +1,248 @@
+.llm-catalog-screen {
+  height: 100%;
+  overflow-y: auto;
+  padding: 0 36px 48px;
+  background: #ffffff;
+  color: #111114;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+}
+
+/* toolbar: so o cabecalho (voltar + titulo), fixo no topo ao rolar. A busca
+   NAO mora aqui dentro — e conteudo da tela, nao cabecalho (ver
+   .llm-catalog-search-row abaixo), so fica visualmente logo abaixo. */
+.llm-catalog-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 24px 0 16px;
+  margin: 0 -36px 0;
+  padding-left: 36px;
+  padding-right: 36px;
+  background: #ffffff;
+  border-bottom: 1px solid #ececef;
+}
+
+.llm-catalog-toolbar .llm-screen-header {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* mesma divisao 1fr 1fr do AgentCatalogScreen (busca + coluna de acao) —
+   aqui a segunda coluna fica vazia (nao tem botao nessa tela), so pra
+   manter a proporcao/alinhamento identico entre as duas telas de catalogo. */
+.llm-catalog-search-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 20px 0 24px;
+}
+
+.llm-screen-title.llm-screen-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: #111114;
+}
+.llm-screen-subtitle.llm-screen-subtitle {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #8a8a92;
+}
+
+.llm-catalog-search.llm-catalog-search {
+  width: 100%;
+}
+.llm-catalog-search.llm-catalog-search .ant-input {
+  font-size: 13px;
+}
+
+.llm-group {
+  margin-bottom: 32px;
+}
+.llm-group:last-child {
+  margin-bottom: 0;
+}
+
+.llm-group-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.llm-group-title {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #52525b;
+}
+.llm-group-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: #c1c1c8;
+  font-variant-numeric: tabular-nums;
+}
+
+.llm-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.llm-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #ececef;
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.llm-card:hover {
+  border-color: #d4d4d8;
+  box-shadow: 0 4px 16px rgba(17, 17, 20, 0.06);
+  transform: translateY(-1px);
+}
+.llm-card:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(17, 17, 20, 0.06);
+}
+.llm-card:focus-visible {
+  outline: 2px solid #18181b;
+  outline-offset: 2px;
+}
+
+.llm-card-logo {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.llm-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.llm-card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.llm-card-name {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: #111114;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pricing-chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 1.5;
+}
+.pricing-chip-free {
+  color: #0f7a3d;
+  background: #ecfdf3;
+}
+.pricing-chip-paid {
+  color: #71717a;
+  background: #f4f4f5;
+}
+
+.llm-card-vendor {
+  margin-top: 1px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #a1a1aa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llm-card-tag.llm-card-tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  border-radius: 999px;
+  margin-right: 0;
+  line-height: 1.4;
+}
+.llm-card-tag-connected.llm-card-tag-connected {
+  color: #0f7a3d;
+  background: #ecfdf3;
+}
+.llm-card-tag-installed.llm-card-tag-installed {
+  color: #63636b;
+  background: #f4f4f5;
+}
+.llm-card-tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #a1a1aa;
+}
+
+.llm-card-chevron {
+  flex-shrink: 0;
+  color: #d4d4d8;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.llm-card:hover .llm-card-chevron {
+  color: #a1a1aa;
+  transform: translateX(2px);
+}
+
+.llm-catalog-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 64px 20px;
+  text-align: center;
+}
+.llm-catalog-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: #f4f4f5;
+  color: #a1a1aa;
+}
+.llm-catalog-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111114;
+}
+.llm-catalog-empty-text {
+  max-width: 320px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #a1a1aa;
+}

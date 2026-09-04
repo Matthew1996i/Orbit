@@ -1,0 +1,53 @@
+/* telas cheias de LLM tem fundo branco por pedido explicito — NAO seguem os
+   tokens --orbit-* (escuros) do resto do shell, cor fixa em vez de tema.
+   Paleta AntD escopada (ver utils/llmScreenTheme.ts) cuida dos componentes
+   AntD usados aqui dentro; isto aqui e so o cabecalho compartilhado, que
+   usa <h1> puro nos estados transitorios (carregando/rodando comando) em
+   vez do Typography do AntD. */
+.llm-screen-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.llm-screen-header h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #111114;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+}
+
+.llm-screen-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid #e4e4e7;
+  background: #ffffff;
+  color: #111114;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.llm-screen-back:hover {
+  background: #f4f4f5;
+  border-color: #d4d4d8;
+}
+
+/* caixa de centralizacao pro logo puro (sem chip de fundo) — cada marca do
+   @lobehub/icons tem proporcao/padding interno diferente (o hexagono da
+   Claude preenche o viewBox, o llama da Ollama tem margem enorme em cima),
+   sem essa caixa fixa elas ficam com tamanho/alinhamento vertical
+   aleatorios entre si. */
+.llm-logo {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.llm-logo svg {
+  display: block;
+}

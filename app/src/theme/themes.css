@@ -10,6 +10,10 @@
 :root[data-theme='dark-plus'] {
   --orbit-titlebar-h: 38px;
   --orbit-activitybar-w: 48px;
+  /* altura do subheader de terminais minimizados (ver Home.css .term-dock)
+     — nao muda por tema, so existe aqui pra AppShell.css reservar o mesmo
+     espaco (.orbit-content) sem duplicar o numero magico nos dois arquivos. */
+  --orbit-term-dock-h: 40px;
 
   --orbit-titlebar-bg: #3c3c3c;
   --orbit-titlebar-fg: #cccccc;
@@ -18,7 +22,10 @@
   --orbit-activitybar-bg: #333333;
   --orbit-activitybar-fg: #868686;
   --orbit-activitybar-fg-active: #ffffff;
-  --orbit-activitybar-active-border: #ffffff;
+  /* igual a --orbit-accent (nao branco, como o VS Code Dark+ real) — pedido
+     explicito: os botoes de CTA (que seguem --orbit-accent) devem combinar
+     com o indicador de secao ativa da Sidebar, nao destoar dele. */
+  --orbit-activitybar-active-border: #007fd4;
   --orbit-activitybar-border: #2b2b2b;
 
   --orbit-sidebar-bg: #252526;
@@ -121,7 +128,9 @@
   --orbit-activitybar-bg: #003847;
   --orbit-activitybar-fg: #657b83;
   --orbit-activitybar-fg-active: #eee8d5;
-  --orbit-activitybar-active-border: #b58900;
+  /* igual a --orbit-accent (era amber, destoando do azul usado nos botoes
+     de CTA) — mesma consistencia aplicada no tema dark-plus acima. */
+  --orbit-activitybar-active-border: #268bd2;
   --orbit-activitybar-border: #00212b;
   --orbit-sidebar-bg: #00212b;
   --orbit-sidebar-fg: #93a1a1;
@@ -178,4 +187,35 @@
   --orbit-status-ok: #98c379;
   --orbit-status-warn: #e5c07b;
   --orbit-status-off: #3a3f4b;
+}
+
+/* barra de rolagem do app inteiro — reaproveita tokens ja themed (nao cria
+   paleta propria) pra acompanhar automaticamente o tema escolhido em
+   theme/themes.ts, em vez do cinza fixo que so alguns componentes tinham
+   (TranscriptView/TerminalPanel/etc, mantidos como estao). So se aplica onde
+   ninguem mais especifico ja definiu (as regras desses componentes, sendo
+   mais especificas, continuam vencendo). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--orbit-badge-bg) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--orbit-badge-bg);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--orbit-accent);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }

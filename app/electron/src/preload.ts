@@ -6,10 +6,12 @@ console.log('User Preload!');
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('dashboardAPI', {
+  platform: process.platform,
   pickDirectory: () => ipcRenderer.invoke('pick-directory'),
   quitApp: () => ipcRenderer.invoke('quit-app'),
   reloadApp: () => ipcRenderer.invoke('reload-app'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowToggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),

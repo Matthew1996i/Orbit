@@ -1,7 +1,7 @@
 import type { CapacitorElectronConfig } from '@capacitor-community/electron';
 import { getCapacitorElectronConfig, setupElectronDeepLinking } from '@capacitor-community/electron';
 import type { MenuItemConstructorOptions } from 'electron';
-import { app, BrowserWindow, dialog, ipcMain, MenuItem } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, MenuItem, shell } from 'electron';
 import electronIsDev from 'electron-is-dev';
 import unhandled from 'electron-unhandled';
 import { join } from 'path';
@@ -151,6 +151,14 @@ ipcMain.handle('pick-directory', async () => {
 ipcMain.handle('quit-app', () => app.quit());
 ipcMain.handle('reload-app', () => myCapacitorApp.getMainWindow().reload());
 ipcMain.handle('get-app-version', () => app.getVersion());
+// links de documentacao (ex: telas de LLM com passo a passo de instalar)
+// precisam disso — o setWindowOpenHandler em setup.ts NEGA qualquer URL fora
+// do esquema custom do app, entao um <a target="_blank"> comum nao abre
+// nada; abrir explicitamente no navegador padrao do SO em vez da janela do
+// proprio Electron.
+ipcMain.handle('open-external', (_event, url: string) => {
+  if (/^https?:\/\//.test(url)) shell.openExternal(url);
+});
 
 // controles de janela pra barra de titulo customizada (frame: false = sem
 // chrome nativo do SO, entao min/max/close precisam ser reimplementados
@@ -190,6 +198,13 @@ ipcMain.handle('open-session-window', (_event, sessionId: string) => {
     return;
   }
   const preloadPath = join(app.getAppPath(), 'build', 'src', 'preload.js');
+  // mesma logica de botoes nativos por SO da janela principal (ver setup.ts)
+  // — no macOS os semaforos ficam com o SO; o zoom (verde) e desabilitado
+  // sozinho pelo proprio SO por causa de resizable:false abaixo.
+  const macTitleBarOptions =
+    process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 12, y: 12 } }
+      : { frame: false };
   const win = new BrowserWindow({
     width: 920,
     height: 619,
@@ -200,7 +215,7 @@ ipcMain.handle('open-session-window', (_event, sessionId: string) => {
     // esquisitos da TUI da CLI em proporcoes fora do validado).
     resizable: false,
     title: 'Orbit',
-    frame: false,
+    ...macTitleBarOptions,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: true,

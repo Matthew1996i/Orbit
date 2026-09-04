@@ -4,6 +4,7 @@ import { IonPage } from '@ionic/react';
 import { Minus, X } from 'lucide-react';
 import TerminalPanel from '../components/TerminalPanel';
 import { SessionInfo, StepEvent, connectStepStream, fetchState } from '../api';
+import { getOsPlatform } from '../utils/platform';
 import '../components/TitleBar.css';
 import './SessionWindow.css';
 
@@ -20,27 +21,34 @@ function PopoutTitleBar({ title }: { title: string }) {
   // sem botao de maximizar: a janela destacada nasce com resizable:false
   // (tamanho fixo 920x619, ver open-session-window no processo principal) —
   // maximizar nao faz sentido pra uma janela que nao redimensiona.
+  // no macOS a janela usa titleBarStyle:'hiddenInset' (ver index.ts) — os
+  // semaforos nativos ja aparecem sozinhos, entao os nossos ficam de fora
+  // pra nao duplicar; no Linux/Windows continuam simulados (so muda o
+  // estilo circular vs quadrado, ver TitleBar.css).
+  const platform = getOsPlatform();
+  const isMac = platform === 'mac';
   return (
-    <div className="title-bar">
-      <div className="title-bar-drag">
-        <span className="title-bar-name">externo — {title}</span>
-      </div>
-      <div className="title-bar-window-controls">
-        <button
-          className="title-bar-btn"
-          onClick={() => window.dashboardAPI?.windowMinimize()}
-          aria-label="Minimizar"
-        >
-          <Minus size={14} />
-        </button>
-        <button
-          className="title-bar-btn title-bar-btn-close"
-          onClick={() => window.dashboardAPI?.windowClose()}
-          aria-label="Fechar"
-        >
-          <X size={14} />
-        </button>
-      </div>
+    <div className={`title-bar ${platform}`}>
+      <span className="title-bar-name">externo — {title}</span>
+
+      {!isMac && (
+        <div className="title-bar-window-controls">
+          <button
+            className="title-bar-btn"
+            onClick={() => window.dashboardAPI?.windowMinimize()}
+            aria-label="Minimizar"
+          >
+            <Minus size={14} />
+          </button>
+          <button
+            className="title-bar-btn title-bar-btn-close"
+            onClick={() => window.dashboardAPI?.windowClose()}
+            aria-label="Fechar"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

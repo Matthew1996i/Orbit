@@ -166,6 +166,7 @@
 
 .sidebar-item-name {
   font-size: 13px;
+  line-height: 1.5;
   color: var(--orbit-sidebar-fg);
   white-space: nowrap;
   overflow: hidden;

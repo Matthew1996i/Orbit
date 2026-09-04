@@ -1,0 +1,303 @@
+.llm-drawer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.llm-drawer-logo {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.llm-drawer-title-text {
+  min-width: 0;
+}
+.llm-drawer-name {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: #111114;
+}
+.llm-drawer-vendor {
+  font-size: 12px;
+  color: #a1a1aa;
+  margin-top: 1px;
+}
+
+/* pill de status neutro (mesma linguagem visual do LlmDetailScreen — regras
+   espelhadas, ver comentario la). */
+.status-pill {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.status-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-pill-connected {
+  color: #3f6212;
+  background: #fafdf7;
+  border-color: #eaf3e1;
+}
+.status-pill-connected .status-pill-dot {
+  background: #65a30d;
+}
+.status-pill-installed {
+  color: #71717a;
+  background: #fafafa;
+  border-color: #ececef;
+}
+.status-pill-installed .status-pill-dot {
+  background: #a1a1aa;
+}
+
+/* grid de 2 colunas, botoes full-width lado a lado — mesmo padrao do
+   ReservaModal do backoffice (footer com 2 CTAs ocupando a largura toda,
+   nao botoes compactos alinhados a direita). */
+.llm-drawer-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.llm-drawer-footer .llm-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.llm-drawer-body {
+  padding: 20px;
+}
+
+.llm-drawer-section {
+  margin-bottom: 28px;
+}
+.llm-drawer-section:last-child {
+  margin-bottom: 0;
+}
+
+.llm-drawer-section-title {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #71717a;
+  margin-bottom: 8px;
+}
+.llm-drawer-section-title-danger {
+  color: #c0272d;
+}
+
+.llm-drawer-section-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #a1a1aa;
+  line-height: 1.5;
+}
+
+/* --- passos em timeline: numero circular + linha conectando, comandos em
+   bloco monoespacado destacado com botao de copiar. Definicoes espelhadas em
+   LlmDetailScreen.css (mesmo padrao visual, arquivos autocontidos). --- */
+.guide-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.guide-step {
+  display: flex;
+  gap: 12px;
+  position: relative;
+  padding-bottom: 16px;
+}
+.guide-step:last-child {
+  padding-bottom: 0;
+}
+.guide-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 20px;
+  bottom: -4px;
+  width: 1px;
+  background: #ececef;
+}
+.guide-step-index {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f4f4f5;
+  color: #71717a;
+  font-size: 11px;
+  font-weight: 650;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.guide-step-body {
+  min-width: 0;
+  flex: 1;
+  padding-top: 1px;
+}
+.guide-step-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #52525b;
+}
+.guide-step-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #a1a1aa;
+}
+
+.cmd-chip-wrap {
+  min-width: 0;
+}
+.cmd-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  padding: 8px 8px 8px 12px;
+}
+.cmd-chip-text {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: #27272a;
+}
+.cmd-chip-copy {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #71717a;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.cmd-chip-copy:hover {
+  background: #e4e4e7;
+  color: #18181b;
+}
+.cmd-chip-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #a1a1aa;
+}
+
+.llm-drawer-docs-link.llm-drawer-docs-link {
+  padding-left: 0;
+  font-size: 12px;
+}
+
+/* login/logout NAO troca o conteudo do drawer nem mostra log/terminal
+   nenhum — o botao do rodape vira loading (ver AppDrawer footer acima) e
+   so isso. O InstallLogView continua montado por baixo (o comando so
+   COMECA a rodar quando o WS conecta) mas sem nenhum espaco visual —
+   generico pra qualquer LLM, nao especifico de uma marca.
+   IMPORTANTE: precisa de dimensao REAL (nao 0/1px) — o addon-fit do xterm
+   calcula linhas/colunas a partir do tamanho renderizado do container, e
+   com 1x1px o `fit()` (chamado ANTES de abrir o WebSocket, ver
+   InstallLogView.tsx) lanca excecao e aborta o effect inteiro — o comando
+   de verdade (login/logout) nunca chega a rodar. `position:fixed` +
+   deslocado pra fora da tela mantem tamanho real sem aparecer nem afetar
+   o layout. */
+.llm-drawer-hidden-log {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+  width: 480px;
+  height: 300px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- botoes customizados (sobrescreve o AntD Button padrao). Definicoes
+   espelhadas em LlmDetailScreen.css. --- */
+.llm-btn.llm-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: none;
+}
+.llm-btn-primary.llm-btn-primary {
+  background: var(--orbit-accent, #18181b);
+  border-color: var(--orbit-accent, #18181b);
+  color: #fff;
+}
+.llm-btn-primary.llm-btn-primary:hover {
+  background: var(--orbit-accent, #27272a);
+  border-color: var(--orbit-accent, #27272a);
+  filter: brightness(0.88);
+  color: #fff;
+}
+/* CTA solido (mesmo peso visual do primary) — desconectar tambem e uma acao
+   deliberada, nao um estado secundario/passivo, entao segue o padrao de cor
+   solida em vez de outline. */
+.llm-btn-danger.llm-btn-danger {
+  background: #c0272d;
+  border-color: #c0272d;
+  color: #fff;
+}
+.llm-btn-danger.llm-btn-danger:hover {
+  background: #a3181e;
+  border-color: #a3181e;
+  color: #fff;
+}
+.llm-btn-secondary.llm-btn-secondary {
+  background: #fff;
+  border-color: #e4e4e7;
+  color: #3f3f46;
+}
+.llm-btn-secondary.llm-btn-secondary:hover {
+  background: #fafafa;
+  border-color: #d4d4d8;
+  color: #18181b;
+}
+
+/* feedback visual claro de desabilitado — sem isso os botoes customizados
+   (que sobrescrevem cor/fundo do AntD acima) ficavam com a MESMA aparencia
+   ativa mesmo com o atributo disabled, so o cursor mudava. */
+.llm-btn.llm-btn:disabled,
+.llm-btn.llm-btn.ant-btn-disabled {
+  opacity: 0.45;
+  filter: none;
+  cursor: not-allowed;
+}
+.llm-btn.llm-btn:disabled:hover,
+.llm-btn.llm-btn.ant-btn-disabled:hover {
+  filter: none;
+}

@@ -6,7 +6,14 @@ import '@xterm/xterm/css/xterm.css';
 import { X, Minus, ExternalLink } from 'lucide-react';
 import { BACKEND_WS, SessionInfo, StepEvent } from '../api';
 import TranscriptView from './TranscriptView';
+import { getOsPlatform } from '../utils/platform';
 import './TerminalPanel.css';
+
+// so no mac os controles viram semaforos coloridos a esquerda (padrao do
+// SO); Linux/Windows usam botoes de icone a direita, como o resto do app —
+// ver term-header no JSX abaixo e as classes term-win-* no CSS.
+const IS_MAC_STYLE = getOsPlatform() === 'mac';
+const IS_LINUX_STYLE = getOsPlatform() === 'linux';
 
 // tamanho/posicao default de um painel recem-aberto — exportado pra o
 // SessionTree saber, ao focar o card clicado, em que altura o painel vai
@@ -339,10 +346,12 @@ export default function TerminalPanel({
 
     const onPointerDown = (e: PointerEvent) => {
       // o botao de destacar (.term-popout-btn) mora dentro do header
-      // arrastavel, igual aos semaforos (.term-dot) — sem excluir os dois, o
-      // preventDefault() do drag abaixo engolia o click antes dele chegar no
-      // botao, e "abrir em janela separada" nunca disparava.
-      if ((e.target as HTMLElement).closest('.term-dot, .term-popout-btn')) return;
+      // arrastavel, igual aos semaforos (.term-dot, so no mac) e aos botoes
+      // de fechar/minimizar no estilo Windows/Linux (.term-win-btn, ver
+      // IS_MAC_STYLE acima) — sem excluir os tres, o preventDefault() do
+      // drag abaixo engolia o click antes dele chegar no botao, e
+      // fechar/minimizar/destacar nunca disparavam fora do mac.
+      if ((e.target as HTMLElement).closest('.term-dot, .term-popout-btn, .term-win-btn')) return;
       // sem isso o Chromium inicia selecao de texto/drag nativo (o "fantasma"
       // de captura da tela acompanhando o cursor) ao arrastar pelo cabecalho —
       // mesmo motivo do onPointerDown do TreeCard em SessionTree.tsx.
@@ -438,11 +447,12 @@ export default function TerminalPanel({
       data-session-id={session.sessionId}
       onMouseDownCapture={onFocus}
     >
-      <div className="term-header" ref={headerRef}>
-        {popout ? (
-          // janela destacada: o proprio SO ja da fechar/minimizar/maximizar
-          // (frame nativo, ver openSessionWindow no processo principal) —
-          // repetir os semaforos aqui so duplicaria os controles.
+      <div className={`term-header${IS_LINUX_STYLE ? ' term-header-linux' : ''}`} ref={headerRef}>
+        {popout || !IS_MAC_STYLE ? (
+          // janela destacada (popout): o proprio SO ja da fechar/minimizar
+          // (via PopoutTitleBar em SessionWindow.tsx) — repetir aqui so
+          // duplicaria. Fora do mac: fechar/minimizar vao pro lado direito
+          // junto do resto dos controles simulados de janela (ver abaixo).
           <div className="term-header-spacer" />
         ) : (
           <div className="term-traffic-lights">
@@ -473,6 +483,16 @@ export default function TerminalPanel({
               >
                 <ExternalLink size={12} strokeWidth={2.25} />
               </button>
+            )}
+            {!IS_MAC_STYLE && (
+              <>
+                <button className="term-win-btn" onClick={onMinimize} aria-label="Minimizar">
+                  <Minus size={11} strokeWidth={2.25} />
+                </button>
+                <button className="term-win-btn term-win-btn-close" onClick={onClose} aria-label="Fechar">
+                  <X size={11} strokeWidth={2.25} />
+                </button>
+              </>
             )}
           </div>
         )}

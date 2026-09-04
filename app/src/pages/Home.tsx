@@ -142,10 +142,6 @@ export default function Home() {
     return disconnect;
   }, []);
 
-  const busy = sessions.filter((s) => !s.isResource && s.alive && s.status === 'busy').length;
-  const idle = sessions.filter((s) => !s.isResource && s.alive && s.status !== 'busy').length;
-  const dead = sessions.filter((s) => !s.isResource && !s.alive).length;
-
   const bringToFront = (id: string) => {
     topZRef.current += 1;
     setZIndexById((cur) => ({ ...cur, [id]: topZRef.current }));
@@ -285,16 +281,7 @@ export default function Home() {
 
   return (
     <IonPage>
-      <AppShell
-        stats={
-          <div className="stats-bar">
-            <span className="stat"><span className="dot busy" />{busy} busy</span>
-            <span className="stat"><span className="dot idle" />{idle} idle</span>
-            <span className="stat"><span className="dot dead" />{dead} dead</span>
-            <span className="stats-title">sessões do Claude Code nesta máquina</span>
-          </div>
-        }
-      >
+      <AppShell>
         <IonContent className="home-content">
           {sessions.length === 0 ? (
             <div className="empty-state">
@@ -317,6 +304,42 @@ export default function Home() {
           </IonFab>
         </IonContent>
       </AppShell>
+
+      {/* NAO portado pro <body> (diferente do resto abaixo) — de proposito:
+          o IonPage (contain:layout) cria seu proprio contexto de
+          empilhamento, entao um z-index alto aqui dentro so compete contra
+          outros elementos TAMBEM dentro do IonPage (como o preview de hover
+          da Sidebar, .orbit-sidebar-preview). Portado pro <body> ele escapa
+          desse contexto e sempre teria ficado ACIMA de tudo dentro do
+          IonPage, nao importa o z-index — inclusive por cima da Sidebar
+          quando ela deveria cobri-lo. Fica no MESMO contexto de
+          empilhamento do resto do AppShell assim. */}
+      <div className="term-dock">
+        {minimizedPanels.length === 0 ? (
+          <span className="term-dock-empty">Nenhum agente minimizado</span>
+        ) : (
+          minimizedPanels.map((s) => {
+            const Logo = llmLogoFor(s.llm || 'claude');
+            const needsAction = needsActionIds.has(s.sessionId);
+            const busy = !needsAction && s.alive && s.status === 'busy';
+            return (
+              <button
+                key={s.sessionId}
+                className={`term-dock-chip${needsAction ? ' needs-action' : ''}`}
+                onClick={() => restorePanel(s.sessionId)}
+                title={needsAction ? 'Esperando uma resposta sua' : undefined}
+              >
+                <Logo size={13} />
+                <span>{s.name || s.sessionId.slice(0, 8)}</span>
+                <span
+                  className={`term-dock-status-dot${busy ? ' busy' : ''}${needsAction ? ' needs-action' : ''}`}
+                  aria-hidden="true"
+                />
+              </button>
+            );
+          })
+        )}
+      </div>
 
       {createPortal(
         <>
@@ -425,31 +448,6 @@ export default function Home() {
               />
             );
           })}
-
-          {minimizedPanels.length > 0 && (
-            <div className="term-dock">
-              {minimizedPanels.map((s) => {
-                const Logo = llmLogoFor(s.llm || 'claude');
-                const needsAction = needsActionIds.has(s.sessionId);
-                const busy = !needsAction && s.alive && s.status === 'busy';
-                return (
-                  <button
-                    key={s.sessionId}
-                    className={`term-dock-chip${needsAction ? ' needs-action' : ''}`}
-                    onClick={() => restorePanel(s.sessionId)}
-                    title={needsAction ? 'Esperando uma resposta sua' : undefined}
-                  >
-                    <Logo size={13} />
-                    <span>{s.name || s.sessionId.slice(0, 8)}</span>
-                    <span
-                      className={`term-dock-status-dot${busy ? ' busy' : ''}${needsAction ? ' needs-action' : ''}`}
-                      aria-hidden="true"
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </>,
         document.body
       )}

@@ -139,7 +139,12 @@ export interface CodexUsage {
 
 export async function fetchUsage(
   force = false,
-): Promise<{ claude: ClaudeUsage | null; claudeAuthenticated: boolean; codex: CodexUsage | null }> {
+): Promise<{
+  claude: ClaudeUsage | null;
+  claudeAuthenticated: boolean;
+  claudePath: string | null;
+  codex: CodexUsage | null;
+}> {
   const suffix = force ? '?force=1' : '';
   const res = await fetch(`${BACKEND_HTTP}/api/usage${suffix}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`usage ${res.status}`);
@@ -298,6 +303,28 @@ export async function generateMarkdown(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind, description }),
+  });
+  return res.json();
+}
+
+export interface AiChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+// variante "conversa" do gerar-com-IA — manda o historico inteiro (o backend
+// nao guarda estado entre chamadas) mais o rascunho atual, recebe de volta o
+// markdown COMPLETO ja ajustado (nunca so um diff).
+export async function generateMarkdownChat(
+  providerId: string,
+  kind: AgentFileKind,
+  currentContent: string,
+  messages: AiChatMessage[],
+): Promise<{ content: string } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/ai-providers/${encodeURIComponent(providerId)}/generate-chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, currentContent, messages }),
   });
   return res.json();
 }

@@ -12,76 +12,55 @@ ion-toolbar {
   --border-color: var(--orbit-canvas-border);
 }
 
-.stats-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  padding: 6px 16px;
-  font-size: 13px;
-  color: #7a7a82;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  flex-wrap: wrap;
-  width: 100%;
-}
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.dot.busy {
-  background: #34c759;
-  box-shadow: 0 0 6px #34c759;
-}
-.dot.idle {
-  background: #f5a623;
-  box-shadow: 0 0 5px rgba(245, 166, 35, 0.5);
-}
-.dot.dead {
-  background: #ff5c57;
-  box-shadow: 0 0 5px rgba(255, 92, 87, 0.4);
-}
-.stats-title {
-  font-size: 12px;
-  color: #55555c;
-  --color: #55555c;
-  text-transform: none;
-  font-weight: 400;
-}
-
+/* subheader (nao mais um footer flutuante no canto) — faixa fixa logo
+   abaixo da TitleBar, com os terminais minimizados em fila horizontal (com
+   scroll se nao couberem) em vez de empilhar/quebrar linha por cima do
+   canvas. `left` usa --orbit-content-left (ver AppShell.tsx), que reflete a
+   largura REAL (so fixada, nunca hover) de Activity Bar + Sidebar — fica
+   PARADO ao passar o mouse na Sidebar (preview de hover), nao "empurra"/
+   pula de posicao; o preview e a Activity Bar tem z-index MAIOR (ver
+   AppShell.css) e cobrem visualmente o pedaco do subheader por baixo deles
+   quando abertos, em vez do subheader precisar se mover. Continua
+   position:fixed (precisa ficar por cima do IonContent, ver comentario do
+   portal em Home.tsx), mas `.orbit-content` (AppShell.css) reserva a MESMA
+   altura (--orbit-term-dock-h) como padding-top em toda tela — assim ele
+   nunca cobre o cabecalho de nenhuma tela (LLMs, Agentes, etc), "faz parte
+   do layout" mesmo sendo um elemento fixed por fora da arvore delas. */
 .term-dock {
   position: fixed;
-  left: 16px;
-  /* 44px (nao 16px) pra nao sobrepor o CostUsageFooter, que fica fixado no
-     mesmo canto inferior esquerdo (dentro do canvas da arvore, mas visualmente
-     no mesmo lugar) — sem essa folga os dois ficavam um em cima do outro. */
-  bottom: 44px;
+  top: var(--orbit-titlebar-h);
+  left: var(--orbit-content-left, 48px);
+  right: 0;
+  height: var(--orbit-term-dock-h);
   display: flex;
+  align-items: center;
   gap: 8px;
-  z-index: 2000;
-  flex-wrap: wrap;
-  max-width: calc(100vw - 100px);
+  padding: 0 14px;
+  background: #18181b;
+  border-bottom: 1px solid #2a2a2f;
+  overflow-x: auto;
+  z-index: 15;
+}
+
+.term-dock-empty {
+  color: #5c5c64;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .term-dock-chip {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #1a1a1e;
+  background: #232327;
   border: 1px solid #2a2a2f;
-  border-radius: 8px;
-  padding: 7px 12px;
+  border-radius: 7px;
+  padding: 5px 10px;
   color: #d8d8da;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
   max-width: 200px;
 }
 .term-dock-chip:hover {
@@ -107,6 +86,7 @@ ion-toolbar {
   }
 }
 .term-dock-chip span {
+  line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

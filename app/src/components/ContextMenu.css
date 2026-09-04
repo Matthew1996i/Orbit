@@ -34,3 +34,16 @@
 .context-menu-item.danger:hover {
   background: rgba(255, 92, 87, 0.12);
 }
+
+.context-menu-row {
+  position: relative;
+}
+
+.context-menu-caret {
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.context-menu-submenu {
+  position: fixed;
+}
