@@ -19,13 +19,15 @@ interface Props {
   // modal, pedem pro AppShell trocar o conteudo principal.
   onOpenLlmCatalog?: () => void;
   onOpenLlmDetail?: (id: string) => void;
-  // segundo caso do padrao "tela cheia" — so a secao Agentes por enquanto
-  // (skills/commands continuam no AgentEditModal por enquanto). O "+" abre
-  // o CATALOGO (lista todos os agentes, com o botao de criar LA DENTRO) em
-  // vez de pular direto pro formulario de criacao — mesmo padrao do "+" de
-  // LLMs (onOpenLlmCatalog).
+  // segundo caso do padrao "tela cheia" — Agentes e Skills (commands
+  // continua no AgentEditModal, ver editTarget abaixo). O "+"/grade abre
+  // o CATALOGO (lista tudo, com o botao de criar LA DENTRO) em vez de pular
+  // direto pro formulario de criacao — mesmo padrao do "+" de LLMs
+  // (onOpenLlmCatalog).
   onOpenAgentCatalog?: () => void;
   onOpenAgentEdit?: (name: string, kind: AgentFileKind, subtitle?: string, isNew?: boolean) => void;
+  onOpenSkillCatalog?: () => void;
+  onOpenSkillEdit?: (name: string, subtitle?: string, isNew?: boolean) => void;
 }
 
 // sync automatico do status dos agentes/LLMs instalados na maquina — mesmo
@@ -40,6 +42,8 @@ export default function Sidebar({
   onOpenLlmDetail,
   onOpenAgentCatalog,
   onOpenAgentEdit,
+  onOpenSkillCatalog,
+  onOpenSkillEdit,
 }: Props) {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
@@ -106,7 +110,7 @@ export default function Sidebar({
   const onAdd: Partial<Record<SectionKey, { label: string; icon: typeof Plus; onClick: () => void }>> = {
     llms: { label: 'Ver catálogo de LLMs', icon: LayoutGrid, onClick: () => onOpenLlmCatalog?.() },
     agents: { label: 'Ver catálogo de agentes', icon: LayoutGrid, onClick: () => onOpenAgentCatalog?.() },
-    skills: { label: 'Criar skill', icon: Plus, onClick: () => setEditTarget({ name: '', kind: 'skill', isNew: true }) },
+    skills: { label: 'Ver catálogo de skills', icon: LayoutGrid, onClick: () => onOpenSkillCatalog?.() },
     commands: { label: 'Criar comando', icon: Plus, onClick: () => setEditTarget({ name: '', kind: 'command', isNew: true }) },
     secrets: { label: 'Novo grupo de chaves', icon: Plus, onClick: () => setSecretsTarget({}) },
     aiProviders: { label: 'Novo provedor de IA', icon: Plus, onClick: () => setAiProviderTarget({}) },
@@ -172,28 +176,28 @@ export default function Sidebar({
         ));
 
       case 'skills':
-        return (catalog?.skills || []).map((skill) => (
-          <button
-            key={skill.name}
-            className="sidebar-item sidebar-item-stack sidebar-item-clickable"
-            onClick={() =>
-              setEditTarget({
-                name: skill.name,
-                kind: 'skill',
-                subtitle: skill.version ? `versão: ${skill.version}` : undefined,
-              })
-            }
-            type="button"
-          >
-            <div className="sidebar-item-name">
-              {skill.name}
-              {skill.version && <span className="sidebar-item-badge">v{skill.version}</span>}
-            </div>
-            <div className="sidebar-item-desc" title={skill.description}>
-              {skill.description}
-            </div>
-          </button>
-        ));
+        return (catalog?.skills || []).length === 0 ? (
+          <div className="sidebar-empty">Nenhuma skill configurada</div>
+        ) : (
+          (catalog?.skills || []).map((skill) => (
+            <button
+              key={skill.name}
+              className="sidebar-item sidebar-item-stack sidebar-item-clickable"
+              onClick={() =>
+                onOpenSkillEdit?.(skill.name, skill.version ? `versão: ${skill.version}` : undefined)
+              }
+              type="button"
+            >
+              <div className="sidebar-item-name">
+                {skill.name}
+                {skill.version && <span className="sidebar-item-badge">v{skill.version}</span>}
+              </div>
+              <div className="sidebar-item-desc" title={skill.description}>
+                {skill.description}
+              </div>
+            </button>
+          ))
+        );
 
       case 'commands':
         return (catalog?.commands || []).length === 0 ? (

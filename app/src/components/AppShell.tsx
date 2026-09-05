@@ -6,6 +6,7 @@ import LlmCatalogScreen from './LlmCatalogScreen';
 import LlmDetailScreen from './LlmDetailScreen';
 import AgentEditScreen from './AgentEditScreen';
 import AgentCatalogScreen from './AgentCatalogScreen';
+import SkillCatalogScreen from './SkillCatalogScreen';
 import { readPref, writePref } from '../utils/uiPrefs';
 import { loadThemeId, applyTheme } from '../theme/themes';
 import { SectionKey } from '../utils/sidebarSections';
@@ -21,16 +22,25 @@ type FullScreen =
   | { kind: 'llmCatalog' }
   | { kind: 'llmDetail'; id: string }
   | { kind: 'agentCatalog' }
+  | { kind: 'skillCatalog' }
   | { kind: 'agentEdit'; name: string; fileKind: AgentFileKind; subtitle?: string; isNew?: boolean };
 
 // a qual secao da Activity Bar cada tela cheia "pertence" — usado so pra
 // decidir se trocar de secao deve fechar a tela cheia atual (ver
 // selectSection): trocar pra uma secao DIFERENTE da dona fecha; ficar na
 // mesma secao (ex: clicar noutro agente com a tela de edicao ja aberta)
-// nao deveria.
+// nao deveria. `agentEdit` reusa a MESMA tela pra agent/skill/command (ver
+// AgentEditScreen), entao a secao dona depende do `fileKind` guardado nesse
+// estado, nao de um kind de tela cheia separado por dominio.
 function fullScreenSection(fs: FullScreen | null): SectionKey | null {
   if (!fs) return null;
-  if (fs.kind === 'agentCatalog' || fs.kind === 'agentEdit') return 'agents';
+  if (fs.kind === 'agentCatalog') return 'agents';
+  if (fs.kind === 'skillCatalog') return 'skills';
+  if (fs.kind === 'agentEdit') {
+    if (fs.fileKind === 'skill') return 'skills';
+    if (fs.fileKind === 'command') return 'commands';
+    return 'agents';
+  }
   return 'llms';
 }
 
@@ -50,6 +60,7 @@ function readFullScreen(): FullScreen | null {
     if (parsed?.kind === 'llmCatalog') return { kind: 'llmCatalog' };
     if (parsed?.kind === 'llmDetail' && typeof parsed.id === 'string') return { kind: 'llmDetail', id: parsed.id };
     if (parsed?.kind === 'agentCatalog') return { kind: 'agentCatalog' };
+    if (parsed?.kind === 'skillCatalog') return { kind: 'skillCatalog' };
     if (parsed?.kind === 'agentEdit' && typeof parsed.name === 'string' && typeof parsed.fileKind === 'string') {
       return {
         kind: 'agentEdit',
@@ -126,6 +137,14 @@ export default function AppShell({ children }: Props) {
     dismissSidebar();
     setFullScreen({ kind: 'agentEdit', name, fileKind, subtitle, isNew });
   };
+  const openSkillCatalog = () => {
+    dismissSidebar();
+    setFullScreen({ kind: 'skillCatalog' });
+  };
+  // reusa a MESMA tela de edicao de agente (kind='skill'), nao existe um
+  // "skillEdit" separado — ver comentario no tipo FullScreen acima.
+  const openSkillEdit = (name: string, subtitle?: string, isNew?: boolean) =>
+    openAgentEdit(name, 'skill', subtitle, isNew);
   const closeFullScreen = () => setFullScreen(null);
   // botao fixo "Inicio" na Activity Bar — unica saida de QUALQUER tela cheia
   // que nao depende de achar o botao "Voltar" de dentro da propria tela.
@@ -315,6 +334,8 @@ export default function AppShell({ children }: Props) {
               onOpenLlmDetail={openLlmDetail}
               onOpenAgentEdit={openAgentEdit}
               onOpenAgentCatalog={openAgentCatalog}
+              onOpenSkillCatalog={openSkillCatalog}
+              onOpenSkillEdit={openSkillEdit}
             />
             <div
               className={`orbit-sash${resizing ? ' dragging' : ''}`}
@@ -337,6 +358,8 @@ export default function AppShell({ children }: Props) {
               onOpenLlmDetail={openLlmDetail}
               onOpenAgentEdit={openAgentEdit}
               onOpenAgentCatalog={openAgentCatalog}
+              onOpenSkillCatalog={openSkillCatalog}
+              onOpenSkillEdit={openSkillEdit}
             />
           </div>
         )}
@@ -351,13 +374,35 @@ export default function AppShell({ children }: Props) {
               onOpenAgent={(name, subtitle) => openAgentEdit(name, 'agent', subtitle)}
               onCreateAgent={() => openAgentEdit('', 'agent', undefined, true)}
             />
+          ) : fullScreen?.kind === 'skillCatalog' ? (
+            <SkillCatalogScreen
+              onBack={closeFullScreen}
+              onOpenSkill={(name, subtitle) => openSkillEdit(name, subtitle)}
+              onCreateSkill={() => openSkillEdit('', undefined, true)}
+            />
           ) : fullScreen?.kind === 'agentEdit' ? (
             <AgentEditScreen
               name={fullScreen.name}
               subtitle={fullScreen.subtitle}
               kind={fullScreen.fileKind}
               isNew={fullScreen.isNew}
-              onBack={openAgentCatalog}
+              // "voltar" leva ao catalogo DA MESMA secao do arquivo aberto —
+              // nao sempre pro de agentes (bug corrigido nesta entrega).
+              // Comandos nao tem catalogo full-screen ainda, entao fecha.
+              onBack={
+                fullScreen.fileKind === 'skill'
+                  ? openSkillCatalog
+                  : fullScreen.fileKind === 'command'
+                    ? closeFullScreen
+                    : openAgentCatalog
+              }
+              onDeleted={
+                fullScreen.fileKind === 'skill'
+                  ? openSkillCatalog
+                  : fullScreen.fileKind === 'command'
+                    ? closeFullScreen
+                    : openAgentCatalog
+              }
             />
           ) : (
             children
