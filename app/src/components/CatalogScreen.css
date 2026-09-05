@@ -1,4 +1,4 @@
-.agent-catalog-screen {
+.catalog-screen {
   height: 100%;
   overflow-y: auto;
   padding: 0 36px 48px;
@@ -8,9 +8,9 @@
 }
 
 /* toolbar: so o cabecalho (voltar + titulo), fixo no topo ao rolar. Busca e
-   "Criar agente" NAO moram aqui — sao conteudo da tela, nao cabecalho (ver
-   .agent-catalog-toolbar-actions abaixo), so ficam visualmente logo abaixo. */
-.agent-catalog-toolbar {
+   o botao de criar NAO moram aqui — sao conteudo da tela, nao cabecalho (ver
+   .catalog-toolbar-actions abaixo), so ficam visualmente logo abaixo. */
+.catalog-toolbar {
   position: sticky;
   top: 0;
   z-index: 5;
@@ -21,7 +21,7 @@
   background: #ffffff;
   border-bottom: 1px solid #ececef;
 }
-.agent-catalog-toolbar .llm-screen-header {
+.catalog-toolbar .llm-screen-header {
   margin: 0;
   padding: 0;
   border: none;
@@ -30,7 +30,7 @@
 /* busca cresce ate encostar no botao (nao mais dividido 50/50 — deixava um
    vao vazio entre o fim da busca e o botao) — botao fica com largura de
    conteudo, colado na borda direita da linha. */
-.agent-catalog-toolbar-actions {
+.catalog-toolbar-actions {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -87,10 +87,11 @@
   color: #a1a1aa;
 }
 
-/* agrupamento por modelo (Opus/Sonnet/Haiku/Outros) — definicao espelhada de
-   .llm-group* em LlmCatalogScreen.css (mesmo padrao visual: rotulo em
-   maiusculas + contagem), duplicada aqui porque essa tela nao importa o CSS
-   da tela de LLMs (arquivos autocontidos, ver convencao do projeto). */
+/* agrupamento editorial (tiers de agente, versionadas/sem versao de skill,
+   etc) — definicao espelhada de .llm-group* em LlmCatalogScreen.css (mesmo
+   padrao visual: rotulo em maiusculas + contagem), duplicada aqui porque
+   essa tela nao importa o CSS da tela de LLMs (arquivos autocontidos, ver
+   convencao do projeto). */
 .llm-group {
   margin-bottom: 32px;
 }
@@ -117,19 +118,26 @@
   font-variant-numeric: tabular-nums;
 }
 
-.agent-catalog-grid {
+.catalog-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 12px;
 }
 
+/* wrapper do card — existe so pra dar `position: relative` a ancora da acao
+   de excluir (.catalog-card-action), que fica FORA do <button> do card (ver
+   comentario no CatalogScreen.tsx sobre por que nao aninhar botao em botao). */
+.catalog-card-wrap {
+  position: relative;
+}
+
 /* alinhado ao topo (nao centralizado) — com align-items:center, um card sem
-   descricao/tools (menos linhas de conteudo) ficava com o nome+badge
+   descricao/meta (menos linhas de conteudo) ficava com o nome+badge
    flutuando no meio da altura do card em vez de cada card reservar a MESMA
    area/posicao pros elementos, ficando com uma altura inconsistente e
    "descentralizada" visualmente da vizinhanca quando misturado com cards
    que tem descricao. */
-.agent-catalog-card {
+.catalog-card {
   position: relative;
   width: 100%;
   display: flex;
@@ -146,31 +154,31 @@
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
-.agent-catalog-card:hover {
+.catalog-card:hover {
   border-color: #d4d4d8;
   box-shadow: 0 4px 16px rgba(17, 17, 20, 0.06);
   transform: translateY(-1px);
 }
-.agent-catalog-card:active {
+.catalog-card:active {
   transform: translateY(0);
   box-shadow: 0 1px 4px rgba(17, 17, 20, 0.06);
 }
-.agent-catalog-card:focus-visible {
+.catalog-card:focus-visible {
   outline: 2px solid #18181b;
   outline-offset: 2px;
 }
 
-.agent-catalog-card-body {
+.catalog-card-body {
   flex: 1;
   min-width: 0;
 }
-.agent-catalog-card-name-row {
+.catalog-card-name-row {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.agent-catalog-card-name {
+.catalog-card-name {
   font-size: 14px;
   line-height: 1.5;
   font-weight: 650;
@@ -180,7 +188,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.agent-catalog-card-badge {
+.catalog-card-badge {
   flex-shrink: 0;
   font-size: 10px;
   line-height: 1.5;
@@ -190,7 +198,7 @@
   background: #f4f4f5;
   color: #52525b;
 }
-.agent-catalog-card-desc {
+.catalog-card-desc {
   margin-top: 3px;
   font-size: 12px;
   line-height: 1.5;
@@ -199,29 +207,60 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* "Sem instruções" — placeholder de fallback (sem agent.description), nao
-   um valor real; mais apagado/italico pra nao ser confundido com uma
-   descricao de verdade. */
-.agent-catalog-card-desc-empty {
+/* placeholder de fallback (sem descricao real), nao um valor de verdade —
+   mais apagado/italico pra nao ser confundido com uma descricao de verdade. */
+.catalog-card-desc-empty {
   color: #c1c1c8;
   font-style: italic;
 }
-.agent-catalog-card-meta {
+.catalog-card-meta {
   margin-top: 4px;
   font-size: 11px;
   line-height: 1.4;
   color: #c1c1c8;
 }
 
+/* botao de excluir, discreto — some por padrao, so aparece com o mouse em
+   cima do card ou com foco em algum elemento dele (teclado), pra nao poluir
+   a grade inteira de cards com um icone vermelho o tempo todo. */
+.catalog-card-action {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: #a1a1aa;
+  background: #ffffff;
+  border: 1px solid #ececef;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.catalog-card-wrap:hover .catalog-card-action,
+.catalog-card-wrap:focus-within .catalog-card-action {
+  opacity: 1;
+  pointer-events: auto;
+}
+.catalog-card-action:hover {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
 .llm-card-chevron {
   flex-shrink: 0;
-  /* alinha com a linha do nome (o card agora e align-items:flex-start, nao
+  /* alinha com a linha do nome (o card e align-items:flex-start, nao
      centralizado) em vez de flutuar colado no topo do card. */
   margin-top: 3px;
   color: #d4d4d8;
   transition: transform 0.15s ease, color 0.15s ease;
 }
-.agent-catalog-card:hover .llm-card-chevron {
+.catalog-card:hover .llm-card-chevron {
   color: #a1a1aa;
   transform: translateX(2px);
 }

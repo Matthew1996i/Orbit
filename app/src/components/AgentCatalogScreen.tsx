@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ConfigProvider, Input, Typography, Button } from 'antd';
-import { ArrowLeft, Search, SearchX, Plus, ChevronRight, Bot } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { AgentDef, fetchCatalog } from '../api';
-import { useLlmScreenTheme } from '../utils/llmScreenTheme';
-import './LlmScreens.css';
-import './AgentCatalogScreen.css';
-
-const { Title, Text } = Typography;
+import CatalogScreen, { CatalogGroup } from './CatalogScreen';
 
 interface Props {
   onBack: () => void;
@@ -50,9 +45,10 @@ function toolCountOf(tools: string | undefined): number {
 // pelo "+" da secao Agentes — lista TODOS os agentes cadastrados, com busca
 // e o botao de criar um novo aqui dentro (em vez do "+" ja pular direto pro
 // formulario de criacao). Clicar num agente existente abre o AgentEditScreen
-// em modo edicao; autocontida, busca os proprios dados.
+// em modo edicao; autocontida, busca os proprios dados. O visual/grid/busca/
+// estado vazio vem do CatalogScreen generico (ver comentario la); aqui so
+// fica o que e especifico de agente: tiers por modelo e o corpo do card.
 export default function AgentCatalogScreen({ onBack, onOpenAgent, onCreateAgent }: Props) {
-  const theme = useLlmScreenTheme();
   const [agents, setAgents] = useState<AgentDef[]>([]);
   const [query, setQuery] = useState('');
 
@@ -70,103 +66,53 @@ export default function AgentCatalogScreen({ onBack, onOpenAgent, onCreateAgent 
     );
   }, [agents, query]);
 
-  const grouped = useMemo(
+  const groups: CatalogGroup<AgentDef>[] = useMemo(
     () =>
-      MODEL_TIERS.map((tier) => ({ ...tier, items: filtered.filter((agent) => modelTierOf(agent.model) === tier.key) })).filter(
-        (tier) => tier.items.length,
-      ),
+      MODEL_TIERS.map((tier) => ({
+        key: tier.key,
+        title: tier.title,
+        items: filtered.filter((agent) => modelTierOf(agent.model) === tier.key),
+      })).filter((tier) => tier.items.length),
     [filtered],
   );
 
   return (
-    <ConfigProvider theme={theme}>
-      <div className="agent-catalog-screen">
-        <div className="agent-catalog-toolbar">
-          <div className="llm-screen-header">
-            <button className="llm-screen-back" onClick={onBack} aria-label="Voltar">
-              <ArrowLeft size={16} />
-            </button>
-            <div>
-              <Title level={3} className="llm-screen-title">Agentes</Title>
-              <Text className="llm-screen-subtitle">Subagentes configurados neste projeto.</Text>
+    <CatalogScreen
+      title="Agentes"
+      subtitle="Subagentes configurados neste projeto."
+      groups={groups}
+      query={query}
+      onQueryChange={setQuery}
+      createLabel="Criar agente"
+      onCreate={onCreateAgent}
+      onBack={onBack}
+      itemKey={(agent) => agent.name}
+      onOpenItem={(agent) => onOpenAgent(agent.name, agentSubtitle(agent))}
+      totalCount={agents.length}
+      emptyIcon={<Bot size={20} strokeWidth={1.75} />}
+      emptyTitle="Nenhum agente cadastrado"
+      emptyText="Crie o primeiro agente com o botão acima."
+      noResultText="Nenhum agente encontrado"
+      renderCard={(agent) => {
+        const toolCount = toolCountOf(agent.tools);
+        return (
+          <>
+            <div className="catalog-card-name-row">
+              <span className="catalog-card-name">{agent.name}</span>
+              {agent.model && <span className="catalog-card-badge">{agent.model}</span>}
             </div>
-          </div>
-        </div>
-
-        {/* busca+acao fora da div do titulo — pertencem ao conteudo da
-            tela, nao ao cabecalho (que so tem titulo/voltar). */}
-        <div className="agent-catalog-toolbar-actions">
-          <Input
-            size="large"
-            className="llm-catalog-search"
-            prefix={<Search size={14} color="#a3a3ab" />}
-            placeholder="Buscar por nome ou descrição…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            allowClear
-            autoFocus
-            spellCheck={false}
-          />
-          <Button className="llm-btn llm-btn-primary" icon={<Plus size={13} />} onClick={onCreateAgent}>
-            Criar agente
-          </Button>
-        </div>
-
-        {filtered.length === 0 && (
-          <div className="llm-catalog-empty">
-            <span className="llm-catalog-empty-icon">
-              {agents.length === 0 ? <Bot size={20} strokeWidth={1.75} /> : <SearchX size={20} strokeWidth={1.75} />}
-            </span>
-            <div className="llm-catalog-empty-title">
-              {agents.length === 0 ? 'Nenhum agente cadastrado' : 'Nenhum agente encontrado'}
+            <div
+              className={`catalog-card-desc${agent.description ? '' : ' catalog-card-desc-empty'}`}
+              title={agent.description || undefined}
+            >
+              {agent.description || 'Sem instruções'}
             </div>
-            <div className="llm-catalog-empty-text">
-              {agents.length === 0
-                ? 'Crie o primeiro agente com o botão acima.'
-                : `Não encontramos resultados para "${query}". Tente outro nome ou descrição.`}
+            <div className="catalog-card-meta">
+              {toolCount} {toolCount === 1 ? 'ferramenta' : 'ferramentas'}
             </div>
-          </div>
-        )}
-
-        {grouped.map((tier) => (
-          <section key={tier.key} className="llm-group">
-            <div className="llm-group-header">
-              <span className="llm-group-title">{tier.title}</span>
-              <span className="llm-group-count">{tier.items.length}</span>
-            </div>
-
-            <div className="agent-catalog-grid">
-              {tier.items.map((agent) => {
-                const toolCount = toolCountOf(agent.tools);
-                return (
-                  <button
-                    key={agent.name}
-                    className="agent-catalog-card"
-                    onClick={() => onOpenAgent(agent.name, agentSubtitle(agent))}
-                  >
-                    <div className="agent-catalog-card-body">
-                      <div className="agent-catalog-card-name-row">
-                        <span className="agent-catalog-card-name">{agent.name}</span>
-                        {agent.model && <span className="agent-catalog-card-badge">{agent.model}</span>}
-                      </div>
-                      <div
-                        className={`agent-catalog-card-desc${agent.description ? '' : ' agent-catalog-card-desc-empty'}`}
-                        title={agent.description || undefined}
-                      >
-                        {agent.description || 'Sem instruções'}
-                      </div>
-                      <div className="agent-catalog-card-meta">
-                        {toolCount} {toolCount === 1 ? 'ferramenta' : 'ferramentas'}
-                      </div>
-                    </div>
-                    <ChevronRight size={16} className="llm-card-chevron" />
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </div>
-    </ConfigProvider>
+          </>
+        );
+      }}
+    />
   );
 }
