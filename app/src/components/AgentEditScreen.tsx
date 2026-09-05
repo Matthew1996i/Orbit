@@ -1,18 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ConfigProvider, Button, Select, Typography } from 'antd';
-import { ArrowLeft, Sparkles, Check, Send } from 'lucide-react';
+import { ConfigProvider, Button, Typography } from 'antd';
+import { ArrowLeft, Sparkles, Trash2 } from 'lucide-react';
 import { marked } from 'marked';
-import {
-  AgentFileKind,
-  AiChatMessage,
-  AiProvider,
-  fetchAgentFile,
-  saveAgentFile,
-  generateMarkdownChat,
-  fetchAiProviders,
-} from '../api';
+import { AgentFileKind, AiProvider, fetchAgentFile, saveAgentFile, deleteAgentFile, fetchAiProviders } from '../api';
 import { useLlmScreenTheme } from '../utils/llmScreenTheme';
-import AppDrawer from './AppDrawer';
+import AgentGenerateDrawer from './AgentGenerateDrawer';
+import ConfirmDialog from './ConfirmDialog';
 import './LlmScreens.css';
 import './AgentEditScreen.css';
 
@@ -86,41 +79,23 @@ interface Props {
   kind: AgentFileKind;
   onBack: () => void;
   isNew?: boolean;
+  // chamado APOS excluir com sucesso — quem monta a tela (AppShell) decide
+  // pra qual catalogo voltar (o da secao correspondente ao `kind`), ja que
+  // essa tela e generica e nao conhece rotas.
+  onDeleted?: () => void;
 }
 
-export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = false }: Props) {
+export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = false, onDeleted }: Props) {
   const theme = useLlmScreenTheme();
   const [content, setContent] = useState(isNew ? NEW_TEMPLATES[kind] : '');
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [aiProviders, setAiProviders] = useState<AiProvider[]>([]);
   const [showGenerate, setShowGenerate] = useState(false);
-  const [genProviderId, setGenProviderId] = useState('');
-  // conversa: cada rodada e um pedido do usuario + o markdown COMPLETO que a
-  // IA devolveu ja incorporando o pedido (nunca um diff) — mandado de volta
-  // como historico a cada nova mensagem, pra IA saber o que ja foi pedido
-  // antes (o backend nao guarda estado nenhum entre chamadas).
-  const [chatMessages, setChatMessages] = useState<AiChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState('');
-  const [sending, setSending] = useState(false);
-  const [genError, setGenError] = useState('');
-  // rascunho = ultima resposta da IA, ainda NAO aplicado ao editor — so
-  // sobrescreve o conteudo de verdade quando o usuario clica "Aplicar" no
-  // rodape (null = nenhuma rodada ainda, ninguem gerou nada nessa conversa).
-  const [draftContent, setDraftContent] = useState<string | null>(null);
-  // sempre rola pra ultima mensagem (enviada ou recebida) — sem isso, numa
-  // conversa longa, cada resposta nova da IA (que pode ser um arquivo grande)
-  // ficava fora da vista, exigindo rolar manualmente toda vez.
-  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    chatMessagesEndRef.current?.scrollIntoView({ block: 'end' });
-  }, [chatMessages, sending]);
-  // devolve o foco pro campo de mensagem depois de mandar (o clique no botao
-  // de enviar tira o foco do textarea) — pronto pra digitar a proxima sem
-  // precisar clicar de novo.
-  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   // editar/preview lado a lado (nao mais abas alternando) — preview sempre
   // calculado, atualiza ao vivo enquanto digita.
@@ -151,12 +126,7 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
   };
 
   useEffect(() => {
-    fetchAiProviders()
-      .then((providers) => {
-        setAiProviders(providers);
-        setGenProviderId((cur) => cur || providers[0]?.id || '');
-      })
-      .catch(() => {});
+    fetchAiProviders().then(setAiProviders).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -195,41 +165,17 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
     setTimeout(() => setSaved(false), 1800);
   };
 
-  // manda a mensagem, recebe o markdown COMPLETO ja ajustado de volta — nao
-  // mexe no `content` do editor ainda, so no rascunho (draftContent). So
-  // aplica (sobrescreve o editor de verdade) quando o usuario clica
-  // "Aplicar" no rodape, ver applyGenerated abaixo.
-  const sendChatMessage = async () => {
-    const text = chatInput.trim();
-    if (!text || !genProviderId || sending) return;
-    const nextMessages: AiChatMessage[] = [...chatMessages, { role: 'user', content: text }];
-    setChatMessages(nextMessages);
-    setChatInput('');
-    setSending(true);
-    setGenError('');
-    const res = await generateMarkdownChat(genProviderId, kind, draftContent ?? content, nextMessages);
-    setSending(false);
+  const confirmDelete = async () => {
+    setDeleting(true);
+    const res = await deleteAgentFile(name, kind);
+    setDeleting(false);
     if ('error' in res) {
-      setGenError(res.error);
+      setConfirmingDelete(false);
+      setError(res.error);
       return;
     }
-    setDraftContent(res.content);
-    setChatMessages([...nextMessages, { role: 'assistant', content: res.content }]);
-    chatInputRef.current?.focus();
-  };
-
-  const applyGenerated = () => {
-    if (draftContent === null) return;
-    setContent(draftContent);
-    closeGenerateDrawer();
-  };
-
-  const closeGenerateDrawer = () => {
-    setShowGenerate(false);
-    setChatMessages([]);
-    setChatInput('');
-    setDraftContent(null);
-    setGenError('');
+    setConfirmingDelete(false);
+    onDeleted?.();
   };
 
   return (
@@ -267,6 +213,17 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
               </div>
 
               <div className="agent-screen-header-actions">
+                {/* oculto em criacao (isNew) — nao ha nada no disco ainda
+                    pra excluir. */}
+                {!isNew && (
+                  <Button
+                    className="llm-btn llm-btn-secondary llm-btn-danger"
+                    icon={<Trash2 size={13} />}
+                    onClick={() => setConfirmingDelete(true)}
+                  >
+                    Excluir
+                  </Button>
+                )}
                 <Button
                   className="llm-btn llm-btn-secondary"
                   icon={<Sparkles size={13} />}
@@ -288,108 +245,14 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
             </div>
           </div>
 
-          <AppDrawer
+          <AgentGenerateDrawer
             open={showGenerate}
-            onClose={closeGenerateDrawer}
-            width={720}
-            title="Gerar com IA"
-            subtitle="Converse com o provedor cadastrado para ir ajustando o arquivo"
-            icon={<Sparkles size={16} />}
-            footer={
-              <div className="agent-screen-generate-footer">
-                <Select
-                  className="agent-screen-generate-select"
-                  value={genProviderId || undefined}
-                  onChange={(value) => setGenProviderId(value)}
-                  placeholder="Provedor de IA"
-                  options={aiProviders.map((p) => ({ value: p.id, label: p.title }))}
-                />
-                <div className="agent-screen-generate-footer-actions">
-                  <Button className="llm-btn llm-btn-secondary" onClick={closeGenerateDrawer}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    className="llm-btn llm-btn-primary"
-                    icon={<Check size={13} />}
-                    onClick={applyGenerated}
-                    disabled={draftContent === null}
-                  >
-                    Aplicar
-                  </Button>
-                </div>
-              </div>
-            }
-          >
-            <div className="agent-chat">
-              <div className="agent-chat-messages">
-                {chatMessages.length === 0 ? (
-                  <div className="agent-chat-empty">
-                    Descreva o que esse arquivo deve conter, ou peça um ajuste em cima do
-                    conteúdo atual — a IA responde só com o arquivo, nunca executa nada.
-                  </div>
-                ) : (
-                  chatMessages.map((m, i) =>
-                    m.role === 'user' ? (
-                      <div key={i} className="agent-chat-bubble agent-chat-bubble-user">
-                        {m.content}
-                      </div>
-                    ) : (
-                      // resposta da IA = o arquivo COMPLETO gerado nessa rodada — nunca
-                      // cortado/limitado em altura aqui (isso "perderia" informacao que
-                      // deveria estar visivel), so a lista inteira de mensagens rola.
-                      <div key={i} className="agent-chat-file-card">
-                        <div className="agent-chat-file-card-head">
-                          <Sparkles size={12} /> Arquivo atualizado
-                        </div>
-                        <pre className="agent-chat-file-card-code">{m.content}</pre>
-                      </div>
-                    ),
-                  )
-                )}
-                {sending && (
-                  <div className="agent-chat-typing">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                )}
-                {genError && <div className="agent-screen-error">{genError}</div>}
-                <div ref={chatMessagesEndRef} />
-              </div>
-
-              <div className="agent-chat-input-row">
-                <textarea
-                  ref={chatInputRef}
-                  className="agent-chat-input"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      sendChatMessage();
-                    }
-                  }}
-                  placeholder={
-                    draftContent === null
-                      ? 'Descreva o que esse arquivo deve conter…'
-                      : 'Peça um ajuste no rascunho…'
-                  }
-                  spellCheck={false}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="agent-chat-send"
-                  onClick={sendChatMessage}
-                  disabled={sending || !chatInput.trim() || !genProviderId}
-                  aria-label="Enviar"
-                  title={!genProviderId ? 'Escolha um provedor de IA primeiro' : 'Enviar'}
-                >
-                  <Send size={15} />
-                </button>
-              </div>
-            </div>
-          </AppDrawer>
+            onClose={() => setShowGenerate(false)}
+            kind={kind}
+            content={content}
+            aiProviders={aiProviders}
+            onApply={setContent}
+          />
 
           {loading ? (
             <div className="agent-screen-loading">Carregando…</div>
@@ -421,6 +284,20 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title={`Excluir ${name}?`}
+        message={
+          kind === 'skill'
+            ? 'A pasta inteira da skill é removida do disco (SKILL.md e quaisquer outros arquivos dentro dela). Essa ação não pode ser desfeita.'
+            : 'O arquivo é removido do disco. Essa ação não pode ser desfeita.'
+        }
+        confirmText={deleting ? 'Excluindo…' : 'Excluir'}
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </ConfigProvider>
   );
 }

@@ -137,6 +137,11 @@
   }
 }
 .agent-chat-bubble {
+  /* sem isso, o Chromium espreme cada bolha abaixo da altura real do
+     conteudo conforme a conversa cresce (em vez de deixar o scroll do
+     .agent-chat-messages resolver) — mesmo bug ja visto no Sidebar
+     (ver flex-shrink:0 em .sidebar-item). */
+  flex-shrink: 0;
   max-width: 90%;
   border-radius: 12px;
   padding: 8px 12px;
@@ -158,6 +163,7 @@
    proposito (so a lista inteira de mensagens rola, ver .agent-chat-messages)
    — cortar aqui "perderia" informacao que devia estar visivel. */
 .agent-chat-file-card {
+  flex-shrink: 0;
   align-self: stretch;
   max-width: 92%;
   border: 1px solid #ececef;
@@ -193,6 +199,7 @@
 /* indicador "gerando" com 3 pontinhos pulsando, em vez de texto piscando —
    mais discreto, linguagem visual comum de chat. */
 .agent-chat-typing {
+  flex-shrink: 0;
   align-self: flex-start;
   display: flex;
   align-items: center;
@@ -396,6 +403,20 @@
   background: #fafafa;
   border-color: #d4d4d8;
   color: #18181b;
+}
+
+/* tom destrutivo pro botao "Excluir" — mesma base do secundario, so muda a
+   cor de destaque (texto/borda) em repouso e no hover, sem virar um botao
+   preenchido/chamativo feito o primario (excluir nao e a acao principal da
+   tela). */
+.agent-screen-header-actions .llm-btn-danger.llm-btn-danger {
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.agent-screen-header-actions .llm-btn-danger.llm-btn-danger:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #b91c1c;
 }
 
 /* feedback visual claro de desabilitado — sem isso os botoes customizados

@@ -17,6 +17,7 @@ import os
 import pty
 import queue
 import re
+import shutil
 import signal
 import struct
 import subprocess
@@ -3716,6 +3717,42 @@ class Handler(BaseHTTPRequestHandler):
                 command = f"{command} && {cli['login']}"
             agent_id = spawn_install(cli_id, command)
             self._send_json({"id": agent_id})
+            return
+
+        if self.path == "/api/agent-file/delete":
+            # registrada ANTES de "/api/agent-file" (comparacao exata de path,
+            # nao prefixo) para essa rota nao ser engolida pelo handler acima.
+            body = self._read_json_body()
+            name = body.get("name", "")
+            kind = body.get("kind", "agent")
+            fpath = _agent_file_path(name, kind)
+            if not fpath:
+                self._send_json({"error": "nome inválido"}, status=400)
+                return
+            if not fpath.exists():
+                self._send_json({"error": "não encontrado"}, status=404)
+                return
+            try:
+                if kind == "skill":
+                    # skill e' uma PASTA (SKILL.md + eventuais arquivos
+                    # auxiliares) — remove o diretorio inteiro, nao so o
+                    # SKILL.md. rmtree e' recursivo/irreversivel, entao,
+                    # alem do regex de nome ja aplicado em _agent_file_path,
+                    # confere que o caminho resolvido continua DENTRO de
+                    # ~/.claude/skills antes de apagar (defesa em
+                    # profundidade, mesmo padrao do STATIC_DIR acima).
+                    skill_dir = fpath.parent.resolve()
+                    skills_root = (CLAUDE_DIR / "skills").resolve()
+                    if skill_dir != skills_root and skills_root not in skill_dir.parents:
+                        self._send_json({"error": "nome inválido"}, status=400)
+                        return
+                    shutil.rmtree(skill_dir)
+                else:
+                    fpath.unlink()
+            except OSError as e:
+                self._send_json({"error": str(e)}, status=500)
+                return
+            self._send_json({"ok": True})
             return
 
         if self.path == "/api/agent-file":

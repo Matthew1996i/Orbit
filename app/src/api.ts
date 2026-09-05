@@ -212,6 +212,20 @@ export async function saveAgentFile(
   return res.json();
 }
 
+// assinatura generica por `kind` (nao so skill) — serve agentes e comandos
+// tambem, sem precisar de outro endpoint quando a exclusao chegar la.
+export async function deleteAgentFile(
+  name: string,
+  kind: AgentFileKind = 'agent',
+): Promise<{ ok: true } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/agent-file/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, kind }),
+  });
+  return res.json();
+}
+
 // grupos de tokens/chaves secretas — ver server.py secrets_as_env(): toda
 // chave cadastrada aqui e injetada como env var em todo agente novo, pra
 // nao precisar colar de novo em cada sessao.
