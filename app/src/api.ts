@@ -71,8 +71,8 @@ export interface CommandDef {
 export interface McpDef {
   name: string;
   type: string;
-  projects: string[];
   enabled: boolean;
+  config: Record<string, unknown>;
 }
 
 export interface CatalogResponse {
@@ -83,9 +83,54 @@ export interface CatalogResponse {
   mcps: McpDef[];
 }
 
+export interface ToolDef {
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
+export async function fetchTools(): Promise<{ tools: ToolDef[] }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/tools`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`tools ${res.status}`);
+  return res.json();
+}
+
+export async function saveTools(tools: ToolDef[]): Promise<{ ok: true } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/tools/save`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tools }),
+  });
+  return res.ok ? { ok: true } : { error: (await res.json()).error || 'Não foi possível salvar as tools.' };
+}
+
 export async function fetchCatalog(): Promise<CatalogResponse> {
   const res = await fetch(`${BACKEND_HTTP}/api/catalog`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`catalog ${res.status}`);
+  return res.json();
+}
+
+export async function fetchMcps(): Promise<{ mcps: McpDef[]; error?: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/mcps`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`mcps ${res.status}`);
+  return res.json();
+}
+
+export async function saveMcp(
+  name: string, config: Record<string, unknown>, enabled: boolean,
+): Promise<{ ok: true } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/mcps/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, config, enabled }),
+  });
+  return res.json();
+}
+
+export async function deleteMcp(name: string): Promise<{ ok: true } | { error: string }> {
+  const res = await fetch(`${BACKEND_HTTP}/api/mcps/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
   return res.json();
 }
 

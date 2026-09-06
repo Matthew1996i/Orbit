@@ -264,18 +264,16 @@
   filter: brightness(0.88);
   color: #fff;
 }
-/* CTA solido (mesmo peso visual do primary) — desconectar tambem e uma acao
-   deliberada, nao um estado secundario/passivo, entao segue o padrao de cor
-   solida em vez de outline. */
+/* Ação destrutiva não compete com Salvar: usa o outline leve do sistema. */
 .llm-btn-danger.llm-btn-danger {
-  background: #c0272d;
-  border-color: #c0272d;
-  color: #fff;
+  background: #fff;
+  border-color: #fecaca;
+  color: #ef2b2d;
 }
 .llm-btn-danger.llm-btn-danger:hover {
-  background: #a3181e;
-  border-color: #a3181e;
-  color: #fff;
+  background: #fff5f5;
+  border-color: #fca5a5;
+  color: #dc2626;
 }
 .llm-btn-secondary.llm-btn-secondary {
   background: #fff;

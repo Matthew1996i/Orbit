@@ -162,7 +162,6 @@ export default function LlmDrawer({ llm, onClose, onChanged }: Props) {
   const Logo = llmLogoFor(llm.id);
   const logoColor = llmLogoColorFor(llm.id) ?? '#111114';
   const guide = llmGuideFor(llm);
-  const isNative = llm.id === 'claude';
 
   const titleNode = (
     <div className="llm-drawer-title-row">
@@ -253,12 +252,10 @@ export default function LlmDrawer({ llm, onClose, onChanged }: Props) {
             <GuideSteps steps={guide.installSteps} />
           </section>
 
-          {!isNative && (
-            <section className="llm-drawer-section">
-              <div className="llm-drawer-section-title llm-drawer-section-title-danger">Como desinstalar</div>
-              <GuideSteps steps={guide.uninstallSteps} />
-            </section>
-          )}
+          <section className="llm-drawer-section">
+            <div className="llm-drawer-section-title llm-drawer-section-title-danger">Como desinstalar</div>
+            <GuideSteps steps={guide.uninstallSteps} />
+          </section>
 
           {guide.docsUrl && (
             <Button

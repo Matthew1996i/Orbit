@@ -1,0 +1,7 @@
+.tools-edit-panel { max-width: 760px; margin: 0 0 22px; padding: 16px; border: 1px solid var(--orbit-canvas-border); border-radius: 10px; background: var(--orbit-sidebar-bg); display: grid; gap: 10px; }
+.tools-edit-heading { font-size: 13px; font-weight: 650; color: var(--orbit-sidebar-fg); }
+.tools-enabled-row { display: flex; align-items: center; gap: 9px; color: var(--orbit-sidebar-fg); font-size: 12px; }
+.tools-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.tools-edit-panel + .llm-group { margin-top: 8px; }
+.tools-edit-panel .ant-input, .tools-edit-panel .ant-input-affix-wrapper { background: var(--orbit-canvas-bg); color: var(--orbit-sidebar-fg); border-color: var(--orbit-canvas-border); }
+.tools-description-input { height: auto !important; min-height: 96px; padding-top: 10px !important; padding-bottom: 10px !important; resize: vertical; line-height: 1.45; }

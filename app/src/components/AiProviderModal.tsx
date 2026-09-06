@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { Button, ConfigProvider, Typography } from 'antd';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 import { AiProvider, AiProviderKind, SecretGroup, deleteAiProvider, fetchSecretGroups, saveAiProvider } from '../api';
 import { isSecretRef, validateSecretRef } from '../utils/secretRefs';
 import SecretRefInput from './SecretRefInput';
+import { useLlmScreenTheme } from '../utils/llmScreenTheme';
+import './AgentEditScreen.css';
 import './AiProviderModal.css';
-import './ConfirmDialog.css';
 import './SecretsModal.css';
 
 interface Props {
@@ -26,6 +27,7 @@ function inferKind(baseUrl: string, fallback: AiProviderKind): AiProviderKind {
 }
 
 export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
+  const theme = useLlmScreenTheme();
   const [title, setTitle] = useState(provider?.title ?? '');
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? '');
   const [apiKey, setApiKey] = useState(provider?.apiKey ?? '');
@@ -75,15 +77,10 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
     onClose();
   };
 
-  return createPortal(
-    <div className="confirm-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="confirm-dialog secrets-dialog">
-        <div className="confirm-header">
-          <h2>{provider ? 'Editar provedor de IA' : 'Novo provedor de IA'}</h2>
-          <button className="secrets-close-btn" onClick={onClose} aria-label="Fechar">
-            <X size={16} />
-          </button>
-        </div>
+  return (
+    <ConfigProvider theme={theme}>
+      <div className="agent-screen"><div className="agent-screen-inner"><div className="agent-screen-header"><div className="llm-screen-header agent-screen-header-section"><button className="llm-screen-back" onClick={onClose} aria-label="Voltar"><ArrowLeft size={16} /></button><div><Typography.Title level={3} className="llm-screen-title">Provedores de IA</Typography.Title><Typography.Text className="llm-screen-subtitle">Conexões usadas pela geração assistida.</Typography.Text></div></div><div className="agent-screen-title-row"><div className="agent-screen-title-block"><Typography.Title level={3} className="llm-screen-title">{provider ? provider.title : 'Novo provedor de IA'}</Typography.Title></div><div className="agent-screen-header-actions">{provider && <Button className="llm-btn llm-btn-danger" icon={<Trash2 size={13} />} onClick={remove} disabled={saving}>Excluir</Button>}<Button className="llm-btn llm-btn-primary" onClick={save} loading={saving} disabled={!valid}>{saving ? 'Salvando…' : 'Salvar'}</Button></div></div></div>
+        <div className="secrets-edit-form">
 
         <label className="new-agent-label">Título (identificação)</label>
         <input
@@ -126,18 +123,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
 
         {error && <p className="confirm-message secrets-error">{error}</p>}
 
-        <div className="confirm-actions">
-          {provider && (
-            <button className="confirm-btn-danger secrets-delete-btn" onClick={remove} disabled={saving} type="button">
-              Excluir
-            </button>
-          )}
-          <button className="confirm-btn-submit" onClick={save} disabled={saving || !valid} type="button">
-            {saving ? 'Salvando…' : 'Salvar'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+        </div></div></div>
+    </ConfigProvider>
   );
 }

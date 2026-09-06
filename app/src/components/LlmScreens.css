@@ -1,5 +1,5 @@
-/* telas cheias de LLM tem fundo branco por pedido explicito — NAO seguem os
-   tokens --orbit-* (escuros) do resto do shell, cor fixa em vez de tema.
+/* telas cheias de LLM usam cinza muito claro por conforto visual — NAO seguem
+   os tokens --orbit-* (escuros) do resto do shell, cor fixa em vez de tema.
    Paleta AntD escopada (ver utils/llmScreenTheme.ts) cuida dos componentes
    AntD usados aqui dentro; isto aqui e so o cabecalho compartilhado, que
    usa <h1> puro nos estados transitorios (carregando/rodando comando) em

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Servidor local (sem dependencias externas) que expoe o estado ao vivo
-das sessoes do Claude Code rodando nesta maquina, lendo diretamente de
-~/.claude/sessions/*.json e ~/.claude/teams/*/config.json.
+"""Servidor local (sem dependencias externas) que expõe o estado ao vivo
+das sessões de assistentes de IA nesta máquina, com integrações locais,
+incluindo dados em ~/.claude/sessions/*.json e ~/.claude/teams/*/config.json.
 
 Uso:
     python3 server.py [porta]
@@ -10,6 +10,7 @@ Depois abra http://localhost:<porta> no navegador.
 """
 import base64
 import hashlib
+import hmac
 import json
 import fcntl
 from collections import deque
@@ -48,6 +49,9 @@ STATIC_DIR = Path(__file__).parent / "static"
 ORBIT_DIR = Path.home() / ".orbit"
 SECRETS_PATH = ORBIT_DIR / "secrets.json"
 AI_PROVIDERS_PATH = ORBIT_DIR / "ai-providers.json"
+MCP_SERVERS_PATH = ORBIT_DIR / "mcps.json"
+MCP_RUNTIME_DIR = ORBIT_DIR / "runtime"
+ORBIT_MASTER_KEY_PATH = ORBIT_DIR / ".orbit-vault.key"
 
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_SCROLLBACK = 300_000  # bytes de buffer mantidos por agente
@@ -103,8 +107,12 @@ def _agent_reader_loop(agent_id, master_fd):
             except OSError:
                 pass
             with AGENTS_LOCK:
-                if AGENTS.get(agent_id, {}).get("master_fd") == master_fd:
-                    AGENTS.pop(agent_id, None)
+                removed = AGENTS.pop(agent_id, None) if AGENTS.get(agent_id, {}).get("master_fd") == master_fd else None
+            if removed and removed.get("mcpConfigPath"):
+                try:
+                    Path(removed["mcpConfigPath"]).unlink(missing_ok=True)
+                except OSError:
+                    pass
             return
         with info["buf_lock"]:
             info["buffer"] += chunk
@@ -143,6 +151,7 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
 
     master_fd, slave_fd = pty.openpty()
     fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
+    selected_llm = llm_bin if llm_bin in {c["bin"] for c in KNOWN_LLM_CLIS} | {"claude"} else "claude"
     if resume_session_id:
         # continua a MESMA conversa (sessionId) de uma sessao externa, via `claude --resume`.
         # so eh seguro se a sessao original nao estiver sendo usada ao mesmo tempo no terminal
@@ -154,8 +163,7 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
         # um binario da lista conhecida (KNOWN_LLM_CLIS) ou "claude" — nunca um
         # binario arbitrario vindo direto da API, pra nao virar um "rode qualquer
         # coisa" a partir do body do POST.
-        known_bins = {c["bin"] for c in KNOWN_LLM_CLIS} | {"claude"}
-        cmd = [llm_bin if llm_bin in known_bins else "claude"]
+        cmd = [selected_llm]
 
     agent_id = uuid.uuid4().hex[:12]
     with AGENTS_LOCK:
@@ -191,6 +199,7 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
             "closed": False,
             "kind": "agent",
             "llm": cmd[0],
+            "mcpConfigPath": None,
         }
     return agent_id
 
@@ -252,6 +261,7 @@ def _start_agent_process(agent_id):
         slave_fd = info["slave_fd"]
         cmd = info["cmd"]
         cwd = info["cwd"]
+        llm = info.get("llm", cmd[0])
 
     # este backend roda DENTRO de uma sessao do Claude Code (foi o proprio Claude
     # que o lancou), entao o os.environ daqui carrega variaveis como
@@ -285,6 +295,20 @@ def _start_agent_process(agent_id):
     # como env var pra ja estarem disponiveis pro processo, sem o usuario
     # precisar colar de novo em cada agente novo.
     env.update(secrets_as_env())
+    # MCPs pertencem ao Orbit.  Cada agente recebe exatamente o conjunto
+    # habilitado no momento em que e iniciado, sem escrever em ~/.claude.json
+    # nem no config global de outro provedor.
+    mcp_servers = _enabled_orbit_mcps()
+    if mcp_servers:
+        env["ORBIT_MCP_CONFIG"] = json.dumps({"mcpServers": mcp_servers})
+        env["ORBIT_MCP_SERVERS"] = ",".join(sorted(mcp_servers))
+        if llm == "claude":
+            path = _write_agent_mcp_config(agent_id, mcp_servers)
+            if path:
+                cmd = [cmd[0], "--mcp-config", str(path), *cmd[1:]]
+                info["mcpConfigPath"] = path
+        elif llm == "codex":
+            cmd = _codex_command_with_mcps(cmd, mcp_servers)
     try:
         proc = subprocess.Popen(
             cmd,
@@ -341,6 +365,11 @@ def stop_agent(agent_id):
             os.close(info["slave_fd"])
         except OSError:
             pass
+        if info.get("mcpConfigPath"):
+            try:
+                Path(info["mcpConfigPath"]).unlink(missing_ok=True)
+            except OSError:
+                pass
         return True
     try:
         pgid = os.getpgid(pid)
@@ -2503,6 +2532,7 @@ def _parse_frontmatter(text):
 
 
 _AGENT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+_COMMAND_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+(?::[a-zA-Z0-9_-]+)*$")
 
 
 def _agent_file_path(name, kind="agent"):
@@ -2511,7 +2541,15 @@ def _agent_file_path(name, kind="agent"):
     ~/.claude/commands/<name>.md (kind="command"), com validacao estrita
     do nome (so letras/numeros/-/_) — evita path traversal (../../etc) numa
     rota que le E escreve arquivo a partir de um parametro vindo da API."""
-    if not name or not _AGENT_NAME_RE.match(name):
+    if not name:
+        return None
+    if kind == "command":
+        # O catalogo representa subpastas como namespace (foo:bar). Cada
+        # segmento e validado antes de montar o caminho, impedindo traversal.
+        if not _COMMAND_NAME_RE.match(name):
+            return None
+        return CLAUDE_DIR.joinpath("commands", *name.split(":")).with_suffix(".md")
+    if not _AGENT_NAME_RE.match(name):
         return None
     if kind == "skill":
         return CLAUDE_DIR / "skills" / name / "SKILL.md"
@@ -2564,24 +2602,132 @@ def read_skills_catalog():
     return skills
 
 
+def _orbit_master_key():
+    """Chave própria do Orbit, portátil entre macOS, Linux e Windows."""
+    try:
+        key = ORBIT_MASTER_KEY_PATH.read_bytes()
+        if len(key) == 32:
+            return key
+    except OSError:
+        pass
+    try:
+        ORBIT_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        key = os.urandom(32)
+        ORBIT_MASTER_KEY_PATH.write_bytes(key)
+        os.chmod(ORBIT_MASTER_KEY_PATH, 0o600)
+        return key
+    except OSError:
+        return None
+
+
+def _seal(value):
+    """Cifra autenticada simples para armazenamento local do Orbit.
+
+    A chave fica em arquivo separado com permissão de dono; isso protege os
+    arquivos contra leitura casual e funciona sem Keychain ou dependências do
+    sistema operacional.
+    """
+    key = _orbit_master_key()
+    if not key:
+        return None
+    raw = value.encode("utf-8")
+    nonce = os.urandom(16)
+    stream = b"".join(hmac.new(key, nonce + index.to_bytes(4, "big"), hashlib.sha256).digest() for index in range((len(raw) + 31) // 32))
+    cipher = bytes(a ^ b for a, b in zip(raw, stream))
+    tag = hmac.new(key, nonce + cipher, hashlib.sha256).digest()
+    return {"v": 1, "n": base64.b64encode(nonce).decode(), "c": base64.b64encode(cipher).decode(), "t": base64.b64encode(tag).decode()}
+
+
+def _unseal(payload):
+    if not isinstance(payload, dict) or payload.get("v") != 1:
+        return None
+    key = _orbit_master_key()
+    if not key:
+        return None
+    try:
+        nonce, cipher, tag = (base64.b64decode(payload[name]) for name in ("n", "c", "t"))
+    except (KeyError, ValueError, TypeError):
+        return None
+    if not hmac.compare_digest(tag, hmac.new(key, nonce + cipher, hashlib.sha256).digest()):
+        return None
+    stream = b"".join(hmac.new(key, nonce + index.to_bytes(4, "big"), hashlib.sha256).digest() for index in range((len(cipher) + 31) // 32))
+    try:
+        return bytes(a ^ b for a, b in zip(cipher, stream)).decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def _read_legacy_macos_keychain_secret(group_id, key):
+    """Migração única de versões que chegaram a usar o Keychain no macOS."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        proc = subprocess.run(
+            ["security", "find-generic-password", "-a", "Orbit", "-s", f"orbit.secret.{group_id}.{key}", "-w"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return proc.stdout.rstrip("\n") if proc.returncode == 0 else None
+
+
 def read_secret_groups():
-    """Grupos de tokens/chaves secretas cadastrados pelo usuario em
-    ~/.orbit/secrets.json. Cada grupo: {id, title, entries: [{key, value}]}."""
+    """Lê metadados locais e valores cifrados pelo próprio Orbit.
+
+    Arquivos legados que continham ``value`` ainda são lidos para que possam
+    ser migrados no próximo salvamento, mas novos valores nunca são gravados
+    em ~/.orbit/secrets.json.
+    """
     try:
         data = json.loads(SECRETS_PATH.read_text())
     except (OSError, json.JSONDecodeError):
         return []
-    return data if isinstance(data, list) else []
+    if not isinstance(data, list):
+        return []
+    groups = []
+    for group in data:
+        if not isinstance(group, dict):
+            continue
+        group_id = str(group.get("id") or "")
+        entries = []
+        for entry in group.get("entries") or []:
+            if not isinstance(entry, dict):
+                continue
+            key = str(entry.get("key") or "").strip()
+            if not key:
+                continue
+            value = _unseal(entry.get("sealed"))
+            # fallback exclusivo para migração de formato antigo.
+            if value is None:
+                value = str(entry.get("value") or "") or _read_legacy_macos_keychain_secret(group_id, key) or ""
+            entries.append({"key": key, "value": value})
+        groups.append({"id": group_id, "title": group.get("title") or "", "identifier": group.get("identifier") or "", "entries": entries})
+    return groups
 
 
 def write_secret_groups(groups):
-    ORBIT_DIR.mkdir(parents=True, exist_ok=True)
-    SECRETS_PATH.write_text(json.dumps(groups, indent=2))
     try:
-        os.chmod(ORBIT_DIR, 0o700)
-        os.chmod(SECRETS_PATH, 0o600)
-    except OSError:
-        pass  # best-effort — nao bloqueia o cadastro por causa de permissao
+        ORBIT_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        metadata = []
+        for group in groups:
+            group_id = str(group.get("id") or "")
+            entries = []
+            for entry in group.get("entries") or []:
+                key = str(entry.get("key") or "").strip()
+                if not key:
+                    continue
+                sealed = _seal(str(entry.get("value") or ""))
+                if sealed is None:
+                    return "não foi possível criar a chave de proteção do Orbit"
+                entries.append({"key": key, "sealed": sealed})
+            metadata.append({"id": group_id, "title": group.get("title") or "", "identifier": group.get("identifier") or "", "entries": entries})
+        tmp = SECRETS_PATH.with_suffix(".json.orbit-tmp")
+        tmp.write_text(json.dumps(metadata, indent=2) + "\n")
+        os.chmod(tmp, 0o600)
+        tmp.replace(SECRETS_PATH)
+    except OSError as exc:
+        return str(exc)
+    return None
 
 
 def secrets_as_env():
@@ -2643,7 +2789,7 @@ def _ai_generate_system_prompt(kind):
     label = AI_MARKDOWN_KIND_LABEL.get(kind, "arquivo")
     return (
         "Voce e um especialista em prompt engineering e em projetar agentes de IA — "
-        "escreve arquivos de definicao de subagente/skill/comando pro Claude Code "
+        "escreve arquivos de definição de subagente/skill/comando para uma CLI de IA "
         "com o mesmo cuidado de quem faz isso profissionalmente: descricao clara e "
         "acionavel (nao vaga), escopo bem definido (o que o agente FAZ e, quando "
         "relevante, o que ele deliberadamente NAO faz), instrucoes objetivas e sem "
@@ -2653,7 +2799,7 @@ def _ai_generate_system_prompt(kind):
         "criterio de especialista pra preencher lacunas que o pedido do usuario "
         "deixou implicitas, nao so pra transcrever literalmente o que foi pedido.\n\n"
         f"Voce gera APENAS o conteudo de um arquivo Markdown de definicao de {label} "
-        "pro Claude Code, nada mais. Regras estritas e inegociaveis:\n"
+        "para uma CLI de IA, nada mais. Regras estritas e inegociaveis:\n"
         "1. Responda SOMENTE com o conteudo do arquivo .md (frontmatter YAML entre "
         "linhas `---` no topo quando fizer sentido, seguido do corpo em markdown). "
         "Nao escreva nenhum texto antes ou depois, nao explique o que fez, nao use "
@@ -2879,33 +3025,181 @@ BUILTIN_TOOLS = [
     "Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch",
     "Task", "TodoWrite", "NotebookEdit", "BashOutput", "KillShell",
 ]
+ORBIT_TOOLS_PATH = ORBIT_DIR / "tools.json"
+
+def read_tools_registry():
+    defaults = [{"name": name, "description": "Ferramenta nativa do ambiente", "enabled": True} for name in BUILTIN_TOOLS]
+    try:
+        data = json.loads(ORBIT_TOOLS_PATH.read_text())
+        tools = data.get("tools") if isinstance(data, dict) else None
+        if isinstance(tools, list):
+            return [t for t in tools if isinstance(t, dict) and isinstance(t.get("name"), str) and t["name"].strip()]
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        pass
+    return defaults
+
+def save_tool_registry(tools):
+    if not isinstance(tools, list):
+        return "lista de tools inválida"
+    clean, seen = [], set()
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        name = str(tool.get("name", "")).strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        clean.append({"name": name, "description": str(tool.get("description", "")).strip(), "enabled": bool(tool.get("enabled", True))})
+    try:
+        ORBIT_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        tmp = ORBIT_TOOLS_PATH.with_suffix(".json.orbit-tmp")
+        tmp.write_text(json.dumps({"tools": clean}, indent=2) + "\n")
+        os.chmod(tmp, 0o600)
+        tmp.replace(ORBIT_TOOLS_PATH)
+    except OSError as exc:
+        return str(exc)
+    return None
+
+
+def _read_orbit_mcps():
+    """Le o registro central do Orbit, nunca configuracoes de uma CLI."""
+    try:
+        data = json.loads(MCP_SERVERS_PATH.read_text())
+    except FileNotFoundError:
+        return {"mcps": {}}, None
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, f"não foi possível ler {MCP_SERVERS_PATH}: {exc}"
+    mcps = data.get("mcps") if isinstance(data, dict) else None
+    if not isinstance(mcps, dict):
+        return None, "o registro de MCPs do Orbit é inválido"
+    return {"mcps": mcps}, None
+
+
+def _write_orbit_mcps(data):
+    try:
+        ORBIT_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        tmp = MCP_SERVERS_PATH.with_suffix(".json.orbit-tmp")
+        tmp.write_text(json.dumps(data, indent=2) + "\n")
+        os.chmod(tmp, 0o600)
+        tmp.replace(MCP_SERVERS_PATH)
+    except OSError as exc:
+        return str(exc)
+    return None
+
+
+def _read_mcp_config(name, item):
+    """Configuração cifrada pelo Orbit; aceita o formato antigo uma vez."""
+    raw = _unseal(item.get("sealedConfig"))
+    if raw:
+        try:
+            value = json.loads(raw)
+            if isinstance(value, dict):
+                return value
+        except json.JSONDecodeError:
+            pass
+    # Migração compatível: a próxima gravação cifra este formato antigo.
+    return item.get("config") if isinstance(item.get("config"), dict) else {}
 
 
 def read_mcp_catalog():
-    """Servidores MCP configurados, agregados de todos os projetos conhecidos
-    em ~/.claude.json (a config e por-projeto, nao global) — "conectado" aqui
-    significa "configurado e habilitado", nao necessariamente com uma chamada
-    recente (isso quem mostra e o no de atividade na arvore de sessoes)."""
-    try:
-        cfg = json.loads((Path.home() / ".claude.json").read_text())
-    except (OSError, json.JSONDecodeError):
+    """MCPs gerenciados pelo Orbit e disponibilizados aos agentes novos."""
+    data, error = _read_orbit_mcps()
+    if error:
         return []
-    servers = {}
-    for proj_path, proj_cfg in (cfg.get("projects") or {}).items():
-        if not isinstance(proj_cfg, dict):
+    result = []
+    for name, item in data["mcps"].items():
+        if not isinstance(name, str) or not isinstance(item, dict):
             continue
-        disabled = set(proj_cfg.get("disabledMcpjsonServers") or [])
-        for name, server_cfg in (proj_cfg.get("mcpServers") or {}).items():
-            entry = servers.setdefault(name, {
-                "name": name,
-                "type": (server_cfg or {}).get("type", "stdio") if isinstance(server_cfg, dict) else "stdio",
-                "projects": [],
-                "enabled": True,
-            })
-            entry["projects"].append(proj_path)
-            if name in disabled:
-                entry["enabled"] = False
-    return list(servers.values())
+        config = _read_mcp_config(name, item)
+        result.append({
+            "name": name,
+            "type": config.get("type", "stdio"),
+            "enabled": bool(item.get("enabled", True)),
+            "config": config,
+        })
+    return sorted(result, key=lambda item: item["name"].lower())
+
+
+_MCP_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def read_mcp_management():
+    _cfg, error = _read_orbit_mcps()
+    if error:
+        return {"mcps": [], "error": error}
+    return {"mcps": read_mcp_catalog()}
+
+
+def save_mcp_config(name, config, enabled):
+    if not isinstance(name, str) or not _MCP_NAME_RE.match(name):
+        return "nome de MCP inválido"
+    if not isinstance(config, dict):
+        return "a configuração do MCP deve ser um objeto JSON"
+    data, error = _read_orbit_mcps()
+    if error:
+        return error
+    sealed = _seal(json.dumps(config))
+    if sealed is None:
+        return "não foi possível criar a chave de proteção do Orbit"
+    data["mcps"][name] = {"enabled": bool(enabled), "sealedConfig": sealed}
+    return _write_orbit_mcps(data)
+
+
+def delete_mcp_config(name):
+    if not isinstance(name, str) or not _MCP_NAME_RE.match(name):
+        return "nome de MCP inválido"
+    data, error = _read_orbit_mcps()
+    if error:
+        return error
+    if name not in data["mcps"]:
+        return "MCP não encontrado"
+    del data["mcps"][name]
+    return _write_orbit_mcps(data)
+
+
+def _enabled_orbit_mcps():
+    data, error = _read_orbit_mcps()
+    if error:
+        return {}
+    servers = {}
+    for name, item in data["mcps"].items():
+        if not isinstance(name, str) or not isinstance(item, dict) or not item.get("enabled", True):
+            continue
+        config = _read_mcp_config(name, item)
+        if config:
+            servers[name] = config
+    return servers
+
+
+def _write_agent_mcp_config(agent_id, servers):
+    try:
+        MCP_RUNTIME_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path = MCP_RUNTIME_DIR / f"mcp-{agent_id}.json"
+        path.write_text(json.dumps({"mcpServers": servers}, indent=2) + "\n")
+        os.chmod(path, 0o600)
+        return path
+    except OSError:
+        return None
+
+
+def _codex_command_with_mcps(cmd, servers):
+    """Converte o subconjunto comum de MCP para overrides efêmeros do Codex."""
+    overrides = []
+    for name, config in servers.items():
+        if not _MCP_NAME_RE.match(name):
+            continue
+        prefix = f"mcp_servers.{name}"
+        if config.get("url"):
+            overrides.append(f'{prefix}.url={json.dumps(str(config["url"]))}')
+        elif config.get("command"):
+            overrides.append(f'{prefix}.command={json.dumps(str(config["command"]))}')
+            if isinstance(config.get("args"), list):
+                overrides.append(f'{prefix}.args={json.dumps(config["args"])}')
+            if isinstance(config.get("env"), dict):
+                overrides.append(f'{prefix}.env={json.dumps(config["env"])}')
+        else:
+            continue
+    return [cmd[0], *[part for item in overrides for part in ("--config", item)], *cmd[1:]]
 
 
 # CLIs de outros LLMs/agentes conhecidas — so detecta se o binario existe no
@@ -3225,7 +3519,7 @@ def _fetch_claude_usage_live(token):
         headers={
             "Authorization": f"Bearer {token}",
             "anthropic-beta": "oauth-2025-04-20",
-            "User-Agent": "claude-sessions-dashboard",
+            "User-Agent": "orbit-ai-sessions-dashboard",
         },
         method="GET",
     )
@@ -3592,9 +3886,17 @@ class Handler(BaseHTTPRequestHandler):
                 "agents": read_agents_catalog(),
                 "skills": read_skills_catalog(),
                 "commands": read_commands_catalog(),
-                "tools": BUILTIN_TOOLS,
+                "tools": [t["name"] for t in read_tools_registry() if t.get("enabled", True)],
                 "mcps": read_mcp_catalog(),
             })
+            return
+
+        if self.path == "/api/mcps":
+            self._send_json(read_mcp_management())
+            return
+
+        if self.path == "/api/tools":
+            self._send_json({"tools": read_tools_registry()})
             return
 
         if self.path.startswith("/api/secrets"):
@@ -3663,6 +3965,35 @@ class Handler(BaseHTTPRequestHandler):
             return {}
 
     def do_POST(self):
+        if self.path == "/api/tools/save":
+            body = self._read_json_body()
+            error = save_tool_registry(body.get("tools"))
+            if error:
+                self._send_json({"error": error}, status=400)
+                return
+            self._send_json({"ok": True})
+            return
+
+        if self.path == "/api/mcps/save":
+            body = self._read_json_body()
+            error = save_mcp_config(
+                body.get("name"), body.get("config"), bool(body.get("enabled", True)),
+            )
+            if error:
+                self._send_json({"error": error}, status=400)
+                return
+            self._send_json({"ok": True})
+            return
+
+        if self.path == "/api/mcps/delete":
+            body = self._read_json_body()
+            error = delete_mcp_config(body.get("name"))
+            if error:
+                self._send_json({"error": error}, status=400)
+                return
+            self._send_json({"ok": True})
+            return
+
         if self.path == "/api/agents/start":
             body = self._read_json_body()
             try:
@@ -3822,14 +4153,21 @@ class Handler(BaseHTTPRequestHandler):
             ]
             groups = [g for g in groups if g.get("id") != group_id]
             groups.append({"id": group_id, "title": title, "identifier": identifier, "entries": entries})
-            write_secret_groups(groups)
+            error = write_secret_groups(groups)
+            if error:
+                self._send_json({"error": f"não foi possível proteger a chave: {error}"}, status=500)
+                return
             self._send_json({"ok": True, "id": group_id})
             return
 
         if self.path.startswith("/api/secrets/") and self.path.endswith("/delete"):
             group_id = self.path.split("/")[3]
-            groups = [g for g in read_secret_groups() if g.get("id") != group_id]
-            write_secret_groups(groups)
+            current = read_secret_groups()
+            groups = [g for g in current if g.get("id") != group_id]
+            error = write_secret_groups(groups)
+            if error:
+                self._send_json({"error": f"não foi possível atualizar os metadados: {error}"}, status=500)
+                return
             self._send_json({"ok": True})
             return
 
@@ -4339,7 +4677,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"Claude Sessions Dashboard rodando em http://localhost:{port}")
+    print(f"Orbit — Dashboard de Sessões de IA rodando em http://localhost:{port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

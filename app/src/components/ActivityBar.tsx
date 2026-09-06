@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings, Check, RotateCw, Info, X, Palette, Home } from 'lucide-react';
+import { Settings, Check, RotateCw, Info, X, Palette, Home, PanelLeft } from 'lucide-react';
 import ContextMenu, { ContextMenuItem } from './ContextMenu';
 import ConfirmDialog from './ConfirmDialog';
 import { THEMES } from '../theme/themes';
@@ -22,6 +22,8 @@ interface Props {
   // a unica saida era o botao "Voltar" de dentro da propria tela.
   onGoHome: () => void;
   isHome: boolean;
+  sidebarsPinned: boolean;
+  onToggleSidebars: () => void;
 }
 
 export default function ActivityBar({
@@ -35,6 +37,8 @@ export default function ActivityBar({
   onSelectTheme,
   onGoHome,
   isHome,
+  sidebarsPinned,
+  onToggleSidebars,
 }: Props) {
   const [settingsMenuAnchor, setSettingsMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showAbout, setShowAbout] = useState(false);
@@ -95,6 +99,7 @@ export default function ActivityBar({
   // fixada) por engano. onMouseOver delegado bubbling resolve isso: um so
   // handler, sempre olhando o elemento REAL sob o cursor.
   const handlePointerOver = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('.orbit-activitybar-pin-btn')) return;
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-hover-key]');
     onHoverSection((btn?.dataset.hoverKey as SectionKey | undefined) ?? fallbackSection);
   };
@@ -111,7 +116,7 @@ export default function ActivityBar({
         aria-label="Início"
         title="Início"
       >
-        <Home size={24} />
+        <Home size={21} strokeWidth={1.9} />
         {expanded && <span className="orbit-activitybar-label">Início</span>}
       </button>
 
@@ -124,7 +129,7 @@ export default function ActivityBar({
           aria-label={label}
           title={label}
         >
-          <Icon size={24} />
+          <Icon size={21} strokeWidth={1.9} />
           {expanded && <span className="orbit-activitybar-label">{label}</span>}
         </button>
       ))}
@@ -135,8 +140,18 @@ export default function ActivityBar({
         aria-label="Configurações"
         title="Configurações"
       >
-        <Settings size={24} />
+        <Settings size={21} strokeWidth={1.9} />
         {expanded && <span className="orbit-activitybar-label">Configurações</span>}
+      </button>
+
+      <button
+        className="orbit-activitybar-btn orbit-activitybar-pin-btn"
+        onClick={onToggleSidebars}
+        aria-label={sidebarsPinned ? 'Recolher painéis laterais' : 'Fixar painéis laterais'}
+        title={sidebarsPinned ? 'Recolher painéis laterais' : 'Fixar painéis laterais'}
+      >
+        <PanelLeft size={21} strokeWidth={1.9} />
+        {expanded && <span className="orbit-activitybar-label">{sidebarsPinned ? 'Recolher painéis' : 'Fixar painéis'}</span>}
       </button>
 
       {settingsMenuAnchor && (
@@ -151,7 +166,7 @@ export default function ActivityBar({
       <ConfirmDialog
         open={showAbout}
         title="Orbit"
-        message={`Dashboard de sessões do Claude Code.\n\nVersão: ${version || '—'}`}
+        message={`Dashboard de sessões de IA.\n\nVersão: ${version || '—'}`}
         singleButton
         confirmText="OK"
         onConfirm={() => setShowAbout(false)}

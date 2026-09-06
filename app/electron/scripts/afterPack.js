@@ -14,5 +14,12 @@ const path = require('path');
 module.exports = async function afterPack(context) {
   if (context.electronPlatformName !== 'darwin') return;
   const appPath = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
-  execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath]);
+  try {
+    execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], { stdio: 'inherit' });
+  } catch (error) {
+    // Ambientes macOS sem uma cadeia de assinatura funcional podem falhar ao
+    // assinar o Electron Framework. O artefato local continua utilizável para
+    // desenvolvimento/instalação manual, apenas sem a verificação do Gatekeeper.
+    console.warn('assinatura ad-hoc não aplicada; seguindo com artefato local:', error?.message || error);
+  }
 };

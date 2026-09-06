@@ -1,6 +1,6 @@
-# Orbit (Claude Sessions Dashboard)
+# Orbit — Dashboard de Sessões de IA
 
-Dashboard local para acompanhar e interagir com as sessões do Claude Code
+Dashboard local para acompanhar e interagir com sessões de assistentes de IA
 rodando na sua máquina. É composto por duas partes:
 
 - **Backend** (`server.py`): servidor HTTP/WebSocket em Python puro (só

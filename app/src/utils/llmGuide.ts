@@ -60,7 +60,28 @@ const KNOWN_DOCS: Record<string, { url: string; label: string }> = {
   },
 };
 
+// Claude Code usa atualmente o instalador nativo como caminho recomendado.
+// Mantemos a remoção limitada ao binário/versões: apagar ~/.claude também
+// apagaria sessões, MCPs, agents e skills que o Orbit gerencia.
+const CLAUDE_CODE_GUIDE: LlmGuide = {
+  docsUrl: 'https://code.claude.com/docs/en/setup',
+  docsLabel: 'code.claude.com/docs/en/setup',
+  installSteps: [
+    'No macOS, Linux ou WSL, rode no terminal: curl -fsSL https://claude.ai/install.sh | bash',
+    'Abra um novo terminal caso o instalador tenha atualizado o PATH.',
+    'Confirme que instalou certo: claude --version',
+    'Abra o Claude uma vez e siga o login no navegador, ou use o botão “Conectar” nesta tela.',
+  ],
+  uninstallSteps: [
+    'Remova o binário nativo: rm -f ~/.local/bin/claude',
+    'Remova as versões baixadas pelo instalador: rm -rf ~/.local/share/claude',
+    'Confirme que sumiu: which claude (não deve retornar nada).',
+    'Não apague ~/.claude nem ~/.claude.json se quiser manter suas sessões, MCPs, agents e skills no Orbit.',
+  ],
+};
+
 export function llmGuideFor(llm: LlmCli): LlmGuide {
+  if (llm.id === 'claude') return CLAUDE_CODE_GUIDE;
   const install = llm.install || '';
   const bin = llm.bin;
   const npmPkg = npmPackage(install);

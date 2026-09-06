@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, X, RefreshCw, LayoutGrid } from 'lucide-react';
-import { fetchCatalog, fetchSecretGroups, fetchAiProviders, CatalogResponse, LlmCli, AgentFileKind, SecretGroup, AiProvider } from '../api';
+import { Plus, RefreshCw, LayoutGrid } from 'lucide-react';
+import { fetchCatalog, fetchSecretGroups, fetchAiProviders, CatalogResponse, LlmCli, AgentFileKind, SecretGroup, AiProvider, McpDef } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import { fetchAllLlms } from '../utils/llmCatalog';
 import { SectionKey, SECTION_ICONS, SECTION_LABELS } from '../utils/sidebarSections';
-import AgentEditModal from './AgentEditModal';
-import SecretsModal from './SecretsModal';
-import AiProviderModal from './AiProviderModal';
 import './Sidebar.css';
 
 interface Props {
@@ -19,8 +16,7 @@ interface Props {
   // modal, pedem pro AppShell trocar o conteudo principal.
   onOpenLlmCatalog?: () => void;
   onOpenLlmDetail?: (id: string) => void;
-  // segundo caso do padrao "tela cheia" — Agentes e Skills (commands
-  // continua no AgentEditModal, ver editTarget abaixo). O "+"/grade abre
+  // segundo caso do padrao "tela cheia" — Agentes, Skills e Commands. O "+"/grade abre
   // o CATALOGO (lista tudo, com o botao de criar LA DENTRO) em vez de pular
   // direto pro formulario de criacao — mesmo padrao do "+" de LLMs
   // (onOpenLlmCatalog).
@@ -28,12 +24,15 @@ interface Props {
   onOpenAgentEdit?: (name: string, kind: AgentFileKind, subtitle?: string, isNew?: boolean) => void;
   onOpenSkillCatalog?: () => void;
   onOpenSkillEdit?: (name: string, subtitle?: string, isNew?: boolean) => void;
+  onOpenCommandCatalog?: () => void;
+  onOpenCommandEdit?: (name: string, subtitle?: string, isNew?: boolean) => void;
+  onOpenMcpCatalog?: () => void;
+  onOpenMcpEdit?: (mcp: McpDef) => void;
+  onOpenSecretsCatalog?: () => void;
+  onOpenSecretEdit?: (group: SecretGroup) => void;
+  onOpenAiProvidersCatalog?: () => void;
+  onOpenAiProviderEdit?: (provider: AiProvider) => void;
 }
-
-// sync automatico do status dos agentes/LLMs instalados na maquina — mesmo
-// ritmo do LlmUsageWidget (unico lugar que ja fazia polling de verdade antes
-// dessa correcao), pra nao ficar defasado em relacao ao resto da tela.
-const AGENT_SYNC_MS = 4000;
 
 export default function Sidebar({
   onClose,
@@ -44,17 +43,20 @@ export default function Sidebar({
   onOpenAgentEdit,
   onOpenSkillCatalog,
   onOpenSkillEdit,
+  onOpenCommandCatalog,
+  onOpenCommandEdit,
+  onOpenMcpCatalog,
+  onOpenMcpEdit,
+  onOpenSecretsCatalog,
+  onOpenSecretEdit,
+  onOpenAiProvidersCatalog,
+  onOpenAiProviderEdit,
 }: Props) {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
   const [syncing, setSyncing] = useState(false);
-  const [editTarget, setEditTarget] = useState<
-    { name: string; subtitle?: string; kind: AgentFileKind; isNew?: boolean } | null
-  >(null);
   const [secretGroups, setSecretGroups] = useState<SecretGroup[]>([]);
-  const [secretsTarget, setSecretsTarget] = useState<{ group?: SecretGroup } | null>(null);
   const [aiProviders, setAiProviders] = useState<AiProvider[]>([]);
-  const [aiProviderTarget, setAiProviderTarget] = useState<{ provider?: AiProvider } | null>(null);
 
   const reloadSecrets = () => fetchSecretGroups().then(setSecretGroups).catch(() => setSecretGroups([]));
   const reloadAiProviders = () => fetchAiProviders().then(setAiProviders).catch(() => setAiProviders([]));
@@ -77,8 +79,6 @@ export default function Sidebar({
 
   useEffect(() => {
     syncAll();
-    const id = setInterval(syncAll, AGENT_SYNC_MS);
-    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -111,9 +111,10 @@ export default function Sidebar({
     llms: { label: 'Ver catálogo de LLMs', icon: LayoutGrid, onClick: () => onOpenLlmCatalog?.() },
     agents: { label: 'Ver catálogo de agentes', icon: LayoutGrid, onClick: () => onOpenAgentCatalog?.() },
     skills: { label: 'Ver catálogo de skills', icon: LayoutGrid, onClick: () => onOpenSkillCatalog?.() },
-    commands: { label: 'Criar comando', icon: Plus, onClick: () => setEditTarget({ name: '', kind: 'command', isNew: true }) },
-    secrets: { label: 'Novo grupo de chaves', icon: Plus, onClick: () => setSecretsTarget({}) },
-    aiProviders: { label: 'Novo provedor de IA', icon: Plus, onClick: () => setAiProviderTarget({}) },
+    commands: { label: 'Ver catálogo de commands', icon: LayoutGrid, onClick: () => onOpenCommandCatalog?.() },
+    mcps: { label: 'Gerenciar MCPs', icon: LayoutGrid, onClick: () => onOpenMcpCatalog?.() },
+    secrets: { label: 'Gerenciar chaves e tokens', icon: LayoutGrid, onClick: () => onOpenSecretsCatalog?.() },
+    aiProviders: { label: 'Gerenciar provedores de IA', icon: LayoutGrid, onClick: () => onOpenAiProvidersCatalog?.() },
   };
   const addAction = onAdd[section];
 
@@ -207,7 +208,7 @@ export default function Sidebar({
             <button
               key={command.name}
               className="sidebar-item sidebar-item-stack sidebar-item-clickable"
-              onClick={() => setEditTarget({ name: command.name, kind: 'command' })}
+              onClick={() => onOpenCommandEdit?.(command.name, command.description || undefined)}
               type="button"
             >
               <div className="sidebar-item-name">/{command.name}</div>
@@ -234,15 +235,15 @@ export default function Sidebar({
           <div className="sidebar-empty">Nenhum MCP configurado</div>
         ) : (
           (catalog?.mcps || []).map((mcp) => (
-            <div key={mcp.name} className="sidebar-item">
+            <button key={mcp.name} className="sidebar-item sidebar-item-clickable" onClick={() => onOpenMcpEdit?.(mcp)} type="button">
               <span className={`sidebar-dot ${mcp.enabled ? 'on' : 'off'}`} />
               <div className="sidebar-item-body">
                 <div className="sidebar-item-name">{mcp.name}</div>
                 <div className="sidebar-item-sub">
-                  {mcp.projects.length} {mcp.projects.length === 1 ? 'projeto' : 'projetos'}
+                  {mcp.enabled ? 'Disponível para agentes novos' : 'Desabilitado'}
                 </div>
               </div>
-            </div>
+            </button>
           ))
         );
 
@@ -254,7 +255,7 @@ export default function Sidebar({
             <button
               key={group.id}
               className="sidebar-item sidebar-item-stack sidebar-item-clickable"
-              onClick={() => setSecretsTarget({ group })}
+              onClick={() => onOpenSecretEdit?.(group)}
               type="button"
             >
               <div className="sidebar-item-name">
@@ -276,7 +277,7 @@ export default function Sidebar({
             <button
               key={p.id}
               className="sidebar-item sidebar-item-stack sidebar-item-clickable"
-              onClick={() => setAiProviderTarget({ provider: p })}
+              onClick={() => onOpenAiProviderEdit?.(p)}
               type="button"
             >
               <div className="sidebar-item-name">{p.title}</div>
@@ -318,45 +319,12 @@ export default function Sidebar({
             >
               <RefreshCw size={14} className={syncing ? 'spinning' : ''} />
             </button>
-            <button className="sidebar-close-btn" onClick={onClose} aria-label="Fechar">
-              <X size={15} />
-            </button>
           </span>
         </div>
 
         <div className="sidebar-content">{renderBody()}</div>
       </div>
 
-      {editTarget && (
-        <AgentEditModal
-          name={editTarget.name}
-          subtitle={editTarget.subtitle}
-          kind={editTarget.kind}
-          isNew={editTarget.isNew}
-          aiProviders={aiProviders}
-          onClose={() => {
-            setEditTarget(null);
-            syncAll();
-          }}
-        />
-      )}
-
-      {aiProviderTarget && (
-        <AiProviderModal
-          provider={aiProviderTarget.provider}
-          onClose={() => setAiProviderTarget(null)}
-          onSaved={reloadAiProviders}
-        />
-      )}
-
-      {secretsTarget && (
-        <SecretsModal
-          group={secretsTarget.group}
-          existingGroups={secretGroups}
-          onClose={() => setSecretsTarget(null)}
-          onSaved={reloadSecrets}
-        />
-      )}
     </>
   );
 }

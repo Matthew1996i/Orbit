@@ -24,17 +24,18 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   background: var(--orbit-activitybar-bg);
   border-right: 1px solid var(--orbit-activitybar-border);
-  padding: 0;
+  padding: 8px 0;
+  box-sizing: border-box;
   transition: width 0.15s ease;
 }
 
 .orbit-activitybar-btn {
   position: relative;
   width: 48px;
-  height: 44px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -52,34 +53,47 @@
    linha larga com icone + nome, config incluso — largura real vem da propria
    .orbit-activitybar, que a AppShell alarga via --orbit-activitybar-w. */
 .orbit-activitybar.expanded .orbit-activitybar-btn {
-  width: 100%;
+  width: calc(100% - 16px);
+  margin: 0 8px;
   justify-content: flex-start;
-  padding: 0 14px;
+  padding: 0 10px;
+  border-radius: 7px;
 }
 
 .orbit-activitybar-label {
-  font-size: 12.5px;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1.5;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .orbit-activitybar-btn:hover {
+  background: color-mix(in srgb, var(--orbit-activitybar-fg-active) 7%, transparent);
   color: var(--orbit-activitybar-fg-active);
 }
 .orbit-activitybar-btn.active {
+  background: color-mix(in srgb, var(--orbit-activitybar-active-border) 16%, transparent);
   color: var(--orbit-activitybar-fg-active);
 }
 .orbit-activitybar-btn.active::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
+  left: -8px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
   background: var(--orbit-activitybar-active-border);
 }
 
 .orbit-activitybar-btn-footer {
+  margin-top: auto;
+  margin-bottom: 0;
+}
+.orbit-activitybar-pin-btn {
+  margin-top: 4px;
+}
+.orbit-activitybar.expanded .orbit-activitybar-btn-footer {
   margin-top: auto;
 }

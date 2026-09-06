@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ConfigProvider, Button, Typography } from 'antd';
+import { ConfigProvider, Button, Typography, message } from 'antd';
 import { ArrowLeft, Sparkles, Trash2 } from 'lucide-react';
 import { marked } from 'marked';
 import { AgentFileKind, AiProvider, fetchAgentFile, saveAgentFile, deleteAgentFile, fetchAiProviders } from '../api';
@@ -12,6 +12,7 @@ import './AgentEditScreen.css';
 const { Title, Text } = Typography;
 
 const AGENT_NAME_RE = /^[a-zA-Z0-9_-]+$/;
+const COMMAND_NAME_RE = /^[a-zA-Z0-9_-]+(?::[a-zA-Z0-9_-]+)*$/;
 
 // migalha de pao acima do titulo — sem isso, entrando direto num agente
 // (ex: pela sidebar) o usuario nao tinha nenhuma pista visual de que esta
@@ -73,6 +74,10 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+function isValidName(name: string, kind: AgentFileKind): boolean {
+  return (kind === 'command' ? COMMAND_NAME_RE : AGENT_NAME_RE).test(name.trim());
+}
+
 interface Props {
   name: string;
   subtitle?: string;
@@ -87,10 +92,14 @@ interface Props {
 
 export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = false, onDeleted }: Props) {
   const theme = useLlmScreenTheme();
+  // A API hook (em vez de message.success estatico) recebe o ConfigProvider
+  // desta tela, inclusive a cor de destaque do tema Orbit atualmente ativo.
+  // A janela tem title bar própria fixa; sem este offset o toast nasce atrás
+  // dela e parece que a confirmação foi cortada.
+  const [messageApi, messageContext] = message.useMessage({ top: 56 });
   const [content, setContent] = useState(isNew ? NEW_TEMPLATES[kind] : '');
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -143,13 +152,13 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
   }, [name, kind]);
 
   const rawName = !isNew ? name : parseFrontmatterName(content);
-  const effectiveName = !isNew || AGENT_NAME_RE.test(rawName.trim()) ? rawName : slugify(rawName);
-  const nameValid = AGENT_NAME_RE.test(effectiveName.trim());
+  const effectiveName = !isNew || isValidName(rawName, kind) ? rawName : slugify(rawName);
+  const nameValid = isValidName(effectiveName, kind);
 
   const save = async () => {
     if (isNew && !nameValid) return;
     setSaving(true);
-    setSaved(false);
+    setError('');
     const finalContent =
       isNew && rawName.trim() !== effectiveName
         ? content.replace(/^(---\n[\s\S]*?\nname:)([^\n]*)/, `$1 ${effectiveName}`)
@@ -158,11 +167,11 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
     setSaving(false);
     if ('error' in res) {
       setError(res.error);
+      messageApi.error(`Não foi possível salvar: ${res.error}`);
       return;
     }
     if (finalContent !== content) setContent(finalContent);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
+    messageApi.success(`${SECTION_LABEL[kind].slice(0, -1)} salvo com sucesso.`);
   };
 
   const confirmDelete = async () => {
@@ -180,6 +189,7 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
 
   return (
     <ConfigProvider theme={theme}>
+      {messageContext}
       <div className="agent-screen">
         <div className="agent-screen-inner">
           <div className="agent-screen-header">
@@ -206,7 +216,7 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
                 </Title>
                 {isNew && !nameValid && (
                   <Text className="llm-screen-subtitle">
-                    Defina um `name:` válido no frontmatter (letras/números/-/_)
+                    Defina um `name:` válido no frontmatter (letras/números/-/_ {kind === 'command' ? ' e namespaces separados por :' : ''})
                   </Text>
                 )}
                 {subtitle && <Text className="llm-screen-subtitle">{subtitle}</Text>}
@@ -233,7 +243,6 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
                 >
                   Gerar com IA
                 </Button>
-                {saved && <span className="agent-screen-saved">Salvo</span>}
                 <Button
                   className="llm-btn llm-btn-primary"
                   onClick={save}

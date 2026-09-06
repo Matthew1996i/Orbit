@@ -7,11 +7,22 @@ import LlmDetailScreen from './LlmDetailScreen';
 import AgentEditScreen from './AgentEditScreen';
 import AgentCatalogScreen from './AgentCatalogScreen';
 import SkillCatalogScreen from './SkillCatalogScreen';
+import CommandCatalogScreen from './CommandCatalogScreen';
+import McpCatalogScreen from './McpCatalogScreen';
+import McpEditScreen from './McpEditScreen';
+import McpPresetCatalogScreen from './McpPresetCatalogScreen';
+import SecretsCatalogScreen from './SecretsCatalogScreen';
+import AiProvidersCatalogScreen from './AiProvidersCatalogScreen';
+import SecretsModal from './SecretsModal';
+import AiProviderModal from './AiProviderModal';
+import { AiProvider, McpDef, SecretGroup } from '../api';
 import { readPref, writePref } from '../utils/uiPrefs';
 import { loadThemeId, applyTheme } from '../theme/themes';
 import { SectionKey } from '../utils/sidebarSections';
 import { AgentFileKind } from '../api';
 import './AppShell.css';
+import ToolsCatalogScreen from './ToolsCatalogScreen';
+import ToolsEditScreen from './ToolsEditScreen';
 
 // primeiro caso do padrao "tela cheia no lugar do conteudo" (substitui
 // modal) — a Sidebar dispara, o AppShell troca `.orbit-content` por uma
@@ -23,6 +34,16 @@ type FullScreen =
   | { kind: 'llmDetail'; id: string }
   | { kind: 'agentCatalog' }
   | { kind: 'skillCatalog' }
+  | { kind: 'commandCatalog' }
+  | { kind: 'toolsCatalog' }
+  | { kind: 'toolsEdit'; tool: import('../api').ToolDef; allTools: import('../api').ToolDef[] }
+  | { kind: 'mcpCatalog' }
+  | { kind: 'mcpPresetCatalog' }
+  | { kind: 'mcpEdit'; mcp?: McpDef; draft?: { name: string; config: Record<string, unknown> } }
+  | { kind: 'secretsCatalog' }
+  | { kind: 'aiProvidersCatalog' }
+  | { kind: 'secretEdit'; group?: SecretGroup }
+  | { kind: 'aiProviderEdit'; provider?: AiProvider }
   | { kind: 'agentEdit'; name: string; fileKind: AgentFileKind; subtitle?: string; isNew?: boolean };
 
 // a qual secao da Activity Bar cada tela cheia "pertence" — usado so pra
@@ -36,6 +57,14 @@ function fullScreenSection(fs: FullScreen | null): SectionKey | null {
   if (!fs) return null;
   if (fs.kind === 'agentCatalog') return 'agents';
   if (fs.kind === 'skillCatalog') return 'skills';
+  if (fs.kind === 'commandCatalog') return 'commands';
+  if (fs.kind === 'toolsCatalog') return 'tools';
+  if (fs.kind === 'toolsEdit') return 'tools';
+  if (fs.kind === 'mcpCatalog' || fs.kind === 'mcpPresetCatalog' || fs.kind === 'mcpEdit') return 'mcps';
+  if (fs.kind === 'secretsCatalog') return 'secrets';
+  if (fs.kind === 'aiProvidersCatalog') return 'aiProviders';
+  if (fs.kind === 'secretEdit') return 'secrets';
+  if (fs.kind === 'aiProviderEdit') return 'aiProviders';
   if (fs.kind === 'agentEdit') {
     if (fs.fileKind === 'skill') return 'skills';
     if (fs.fileKind === 'command') return 'commands';
@@ -61,6 +90,11 @@ function readFullScreen(): FullScreen | null {
     if (parsed?.kind === 'llmDetail' && typeof parsed.id === 'string') return { kind: 'llmDetail', id: parsed.id };
     if (parsed?.kind === 'agentCatalog') return { kind: 'agentCatalog' };
     if (parsed?.kind === 'skillCatalog') return { kind: 'skillCatalog' };
+    if (parsed?.kind === 'commandCatalog') return { kind: 'commandCatalog' };
+    if (parsed?.kind === 'mcpCatalog') return { kind: 'mcpCatalog' };
+    if (parsed?.kind === 'mcpPresetCatalog') return { kind: 'mcpPresetCatalog' };
+    if (parsed?.kind === 'secretsCatalog') return { kind: 'secretsCatalog' };
+    if (parsed?.kind === 'aiProvidersCatalog') return { kind: 'aiProvidersCatalog' };
     if (parsed?.kind === 'agentEdit' && typeof parsed.name === 'string' && typeof parsed.fileKind === 'string') {
       return {
         kind: 'agentEdit',
@@ -104,6 +138,7 @@ export default function AppShell({ children }: Props) {
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Number(readPref(SIDEBAR_WIDTH_KEY, String(SIDEBAR_DEFAULT))) || SIDEBAR_DEFAULT)),
   );
+  const [sidebarsPinned, setSidebarsPinned] = useState(false);
   const [themeId, setThemeId] = useState(() => loadThemeId());
   const [resizing, setResizing] = useState(false);
   const [fullScreen, setFullScreenState] = useState<FullScreen | null>(() => readFullScreen());
@@ -118,6 +153,7 @@ export default function AppShell({ children }: Props) {
   const dismissSidebar = () => {
     clearHoverTimers();
     setHoverSection(null);
+    setSidebarsPinned(false);
     setSidebar((cur) => ({ ...cur, open: false }));
     writePref(SIDEBAR_OPEN_KEY, '0');
   };
@@ -141,10 +177,52 @@ export default function AppShell({ children }: Props) {
     dismissSidebar();
     setFullScreen({ kind: 'skillCatalog' });
   };
+  const openCommandCatalog = () => {
+    dismissSidebar();
+    setFullScreen({ kind: 'commandCatalog' });
+  };
+  const openToolsCatalog = () => {
+    dismissSidebar();
+    setFullScreen({ kind: 'toolsCatalog' });
+  };
+  const openToolsEdit = (tool: import('../api').ToolDef, allTools: import('../api').ToolDef[]) => {
+    dismissSidebar();
+    setFullScreen({ kind: 'toolsEdit', tool, allTools });
+  };
   // reusa a MESMA tela de edicao de agente (kind='skill'), nao existe um
   // "skillEdit" separado — ver comentario no tipo FullScreen acima.
   const openSkillEdit = (name: string, subtitle?: string, isNew?: boolean) =>
     openAgentEdit(name, 'skill', subtitle, isNew);
+  const openCommandEdit = (name: string, subtitle?: string, isNew?: boolean) =>
+    openAgentEdit(name, 'command', subtitle, isNew);
+  const openMcpCatalog = () => {
+    dismissSidebar();
+    setFullScreen({ kind: 'mcpCatalog' });
+  };
+  const openMcpPresetCatalog = () => {
+    dismissSidebar();
+    setFullScreen({ kind: 'mcpPresetCatalog' });
+  };
+  const openMcpEdit = (mcp?: McpDef, draft?: { name: string; config: Record<string, unknown> }) => {
+    dismissSidebar();
+    setFullScreen({ kind: 'mcpEdit', mcp, draft });
+  };
+  const openSecretsCatalog = () => {
+    dismissSidebar();
+    setFullScreen({ kind: 'secretsCatalog' });
+  };
+  const openAiProvidersCatalog = () => {
+    dismissSidebar();
+    setFullScreen({ kind: 'aiProvidersCatalog' });
+  };
+  const openSecretEdit = (group?: SecretGroup) => {
+    dismissSidebar();
+    setFullScreen({ kind: 'secretEdit', group });
+  };
+  const openAiProviderEdit = (provider?: AiProvider) => {
+    dismissSidebar();
+    setFullScreen({ kind: 'aiProviderEdit', provider });
+  };
   const closeFullScreen = () => setFullScreen(null);
   // botao fixo "Inicio" na Activity Bar — unica saida de QUALQUER tela cheia
   // que nao depende de achar o botao "Voltar" de dentro da propria tela.
@@ -166,6 +244,7 @@ export default function AppShell({ children }: Props) {
   };
 
   const handleHoverSection = (key: SectionKey) => {
+    if (sidebarsPinned) return;
     clearHoverTimers();
     // ja fixado nessa secao: nao ha o que sobrepor.
     if (sidebarOpen && activeSection === key) return;
@@ -221,8 +300,10 @@ export default function AppShell({ children }: Props) {
   // cresce apenas VISUALMENTE, via position:absolute (ver .orbit-activitybar
   // no CSS), exatamente como o proprio preview da Sidebar ja faz — por cima
   // do conteudo, sem empurrar nada.
-  const activityBarExpanded = sidebarOpen || hoverSection !== null;
-  const activityBarRealWidth = sidebarOpen ? 208 : 48;
+  // A Activity Bar só mostra rótulos durante o preview. Com a sidebar fixada,
+  // permanece compacta para não criar dois níveis de navegação lado a lado.
+  const activityBarExpanded = sidebarsPinned || hoverSection !== null;
+  const activityBarRealWidth = sidebarsPinned ? 208 : 48;
 
   // evita stale closure no listener de pointerup, que le o valor MAIS RECENTE
   // pra gravar — sem isso o handler capturava o `sidebarWidth` do momento em
@@ -252,11 +333,46 @@ export default function AppShell({ children }: Props) {
   }, [sidebarOpen, sidebarWidth, activityBarRealWidth]);
 
   // cada icone da Activity Bar = uma secao da Sidebar (ver sidebarSections.ts).
-  // Clicar no icone da secao JA ATIVA fecha o painel (mesmo gesto de toggle
-  // de antes); clicar em outro icone troca a secao e garante o painel aberto.
+  // Os ícones de navegação apenas trocam a seção. Recolher a sidebar é uma
+  // ação explícita do botão no cabeçalho dela.
   const selectSection = (key: SectionKey) => {
     clearHoverTimers();
     setHoverSection(null);
+    // Agentes e LLMs sao destinos de navegacao, nao filtros da Home. Abrir
+    // diretamente seus catalogos evita o salto visual de volta para sessões
+    // que acontecia ao clicar nesses icones da barra lateral.
+    if (key === 'agents') {
+      openAgentCatalog();
+      return;
+    }
+    if (key === 'llms') {
+      openLlmCatalog();
+      return;
+    }
+    if (key === 'skills') {
+      openSkillCatalog();
+      return;
+    }
+    if (key === 'commands') {
+      openCommandCatalog();
+      return;
+    }
+    if (key === 'tools') {
+      openToolsCatalog();
+      return;
+    }
+    if (key === 'mcps') {
+      openMcpCatalog();
+      return;
+    }
+    if (key === 'secrets') {
+      openSecretsCatalog();
+      return;
+    }
+    if (key === 'aiProviders') {
+      openAiProvidersCatalog();
+      return;
+    }
     // trocar pra uma secao diferente da "dona" da tela cheia atual (ver
     // fullScreenSection) fecha ela — senao o conteudo principal ficava
     // preso nela mesmo navegando pra outra secao da Activity Bar. Ficar na
@@ -264,8 +380,8 @@ export default function AppShell({ children }: Props) {
     // aberta) nao fecha.
     if (fullScreenSection(fullScreen) !== null && key !== fullScreenSection(fullScreen)) setFullScreen(null);
     setSidebar((cur) => {
-      const open = !(cur.open && cur.section === key);
-      writePref(SIDEBAR_OPEN_KEY, open ? '1' : '0');
+      const open = true;
+      writePref(SIDEBAR_OPEN_KEY, '1');
       writePref(SIDEBAR_SECTION_KEY, key);
       return { open, section: key };
     });
@@ -274,6 +390,21 @@ export default function AppShell({ children }: Props) {
   const closeSidebar = () => {
     setSidebar((cur) => ({ ...cur, open: false }));
     writePref(SIDEBAR_OPEN_KEY, '0');
+  };
+
+  const toggleSidebars = () => {
+    if (sidebarsPinned) {
+      setSidebarsPinned(false);
+      closeSidebar();
+      return;
+    }
+    const section = hoverSection ?? activeSection ?? 'llms';
+    clearHoverTimers();
+    setHoverSection(null);
+    setSidebarsPinned(true);
+    setSidebar({ open: true, section });
+    writePref(SIDEBAR_OPEN_KEY, '1');
+    writePref(SIDEBAR_SECTION_KEY, section);
   };
 
   const onSashPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -323,10 +454,11 @@ export default function AppShell({ children }: Props) {
             onSelectTheme={setThemeId}
             onGoHome={goHome}
             isHome={!fullScreen}
+            sidebarsPinned={sidebarsPinned}
+            onToggleSidebars={toggleSidebars}
           />
         </div>
-        {sidebarOpen && (
-          <div className="orbit-sidebar" style={{ width: sidebarWidth }}>
+        <div className={`orbit-sidebar${sidebarOpen ? '' : ' orbit-sidebar-hidden'}`} style={{ width: sidebarWidth }}>
             <Sidebar
               activeSection={activeSection}
               onClose={closeSidebar}
@@ -336,13 +468,20 @@ export default function AppShell({ children }: Props) {
               onOpenAgentCatalog={openAgentCatalog}
               onOpenSkillCatalog={openSkillCatalog}
               onOpenSkillEdit={openSkillEdit}
+              onOpenCommandCatalog={openCommandCatalog}
+              onOpenCommandEdit={openCommandEdit}
+              onOpenMcpCatalog={openMcpCatalog}
+              onOpenMcpEdit={openMcpEdit}
+              onOpenSecretsCatalog={openSecretsCatalog}
+              onOpenSecretEdit={openSecretEdit}
+              onOpenAiProvidersCatalog={openAiProvidersCatalog}
+              onOpenAiProviderEdit={openAiProviderEdit}
             />
             <div
               className={`orbit-sash${resizing ? ' dragging' : ''}`}
               onPointerDown={onSashPointerDown}
             />
-          </div>
-        )}
+        </div>
         {hoverSection && (
           <div
             ref={previewRef}
@@ -360,6 +499,14 @@ export default function AppShell({ children }: Props) {
               onOpenAgentCatalog={openAgentCatalog}
               onOpenSkillCatalog={openSkillCatalog}
               onOpenSkillEdit={openSkillEdit}
+              onOpenCommandCatalog={openCommandCatalog}
+              onOpenCommandEdit={openCommandEdit}
+              onOpenMcpCatalog={openMcpCatalog}
+              onOpenMcpEdit={openMcpEdit}
+              onOpenSecretsCatalog={openSecretsCatalog}
+              onOpenSecretEdit={openSecretEdit}
+              onOpenAiProvidersCatalog={openAiProvidersCatalog}
+              onOpenAiProviderEdit={openAiProviderEdit}
             />
           </div>
         )}
@@ -380,6 +527,43 @@ export default function AppShell({ children }: Props) {
               onOpenSkill={(name, subtitle) => openSkillEdit(name, subtitle)}
               onCreateSkill={() => openSkillEdit('', undefined, true)}
             />
+          ) : fullScreen?.kind === 'commandCatalog' ? (
+            <CommandCatalogScreen
+              onBack={closeFullScreen}
+              onOpenCommand={(name, subtitle) => openCommandEdit(name, subtitle)}
+              onCreateCommand={() => openCommandEdit('', undefined, true)}
+            />
+          ) : fullScreen?.kind === 'toolsCatalog' ? (
+            <ToolsCatalogScreen onBack={closeFullScreen} onOpenTool={openToolsEdit} />
+          ) : fullScreen?.kind === 'toolsEdit' ? (
+            <ToolsEditScreen tool={fullScreen.tool} allTools={fullScreen.allTools} onBack={openToolsCatalog} />
+          ) : fullScreen?.kind === 'mcpCatalog' ? (
+            <McpCatalogScreen
+              onBack={closeFullScreen}
+              onOpenMcp={(mcp) => openMcpEdit(mcp)}
+              onCreateMcp={() => openMcpPresetCatalog()}
+            />
+          ) : fullScreen?.kind === 'mcpPresetCatalog' ? (
+            <McpPresetCatalogScreen
+              onBack={openMcpCatalog}
+              onChoose={(draft) => openMcpEdit(undefined, draft)}
+              onManual={() => openMcpEdit()}
+            />
+          ) : fullScreen?.kind === 'mcpEdit' ? (
+            <McpEditScreen
+              mcp={fullScreen.mcp}
+              draft={fullScreen.draft}
+              onBack={openMcpCatalog}
+              onDeleted={openMcpCatalog}
+            />
+          ) : fullScreen?.kind === 'secretsCatalog' ? (
+            <SecretsCatalogScreen onBack={closeFullScreen} onOpenGroup={openSecretEdit} />
+          ) : fullScreen?.kind === 'aiProvidersCatalog' ? (
+            <AiProvidersCatalogScreen onBack={closeFullScreen} onOpenProvider={openAiProviderEdit} />
+          ) : fullScreen?.kind === 'secretEdit' ? (
+            <SecretsModal group={fullScreen.group} existingGroups={[]} onClose={openSecretsCatalog} onSaved={() => undefined} />
+          ) : fullScreen?.kind === 'aiProviderEdit' ? (
+            <AiProviderModal provider={fullScreen.provider} onClose={openAiProvidersCatalog} onSaved={() => undefined} />
           ) : fullScreen?.kind === 'agentEdit' ? (
             <AgentEditScreen
               name={fullScreen.name}
@@ -388,19 +572,18 @@ export default function AppShell({ children }: Props) {
               isNew={fullScreen.isNew}
               // "voltar" leva ao catalogo DA MESMA secao do arquivo aberto —
               // nao sempre pro de agentes (bug corrigido nesta entrega).
-              // Comandos nao tem catalogo full-screen ainda, entao fecha.
               onBack={
                 fullScreen.fileKind === 'skill'
                   ? openSkillCatalog
                   : fullScreen.fileKind === 'command'
-                    ? closeFullScreen
+                    ? openCommandCatalog
                     : openAgentCatalog
               }
               onDeleted={
                 fullScreen.fileKind === 'skill'
                   ? openSkillCatalog
                   : fullScreen.fileKind === 'command'
-                    ? closeFullScreen
+                    ? openCommandCatalog
                     : openAgentCatalog
               }
             />

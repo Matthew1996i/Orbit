@@ -149,7 +149,6 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
   const Logo = llmLogoFor(llm.id);
   const logoColor = llmLogoColorFor(llm.id) ?? '#111114';
   const guide = llmGuideFor(llm);
-  const isNative = llm.id === 'claude';
 
   return (
     <ConfigProvider theme={theme}>
@@ -216,6 +215,14 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
           </div>
 
           <div className="llm-detail-section">
+            <Text className="llm-detail-section-title">Como instalar</Text>
+            <p className="llm-detail-uninstall-text">
+              Esses passos são executados no terminal e não modificam o Orbit.
+            </p>
+            <GuideSteps steps={guide.installSteps} />
+          </div>
+
+          <div className="llm-detail-section">
             <Text className="llm-detail-section-title">Configurações</Text>
             <div className="llm-detail-config-list">
               <div className="llm-detail-config-row">
@@ -233,26 +240,24 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
             </div>
           </div>
 
-          {!isNative && (
-            <div className="llm-detail-section">
-              <Text className="llm-detail-section-title llm-detail-section-title-danger">Desinstalar</Text>
-              <p className="llm-detail-uninstall-text">
-                Remover {llm.name} do sistema é feito fora do Orbit — siga os passos abaixo no seu terminal.
-              </p>
-              <GuideSteps steps={guide.uninstallSteps} />
-              {guide.docsUrl && (
-                <Button
-                  type="link"
-                  size="small"
-                  className="llm-detail-docs-link"
-                  icon={<ExternalLink size={12} />}
-                  onClick={() => window.dashboardAPI?.openExternal(guide.docsUrl)}
-                >
-                  {guide.docsLabel}
-                </Button>
-              )}
-            </div>
-          )}
+          <div className="llm-detail-section">
+            <Text className="llm-detail-section-title llm-detail-section-title-danger">Desinstalar</Text>
+            <p className="llm-detail-uninstall-text">
+              Remover {llm.name} do sistema é feito fora do Orbit — siga os passos abaixo no seu terminal.
+            </p>
+            <GuideSteps steps={guide.uninstallSteps} />
+            {guide.docsUrl && (
+              <Button
+                type="link"
+                size="small"
+                className="llm-detail-docs-link"
+                icon={<ExternalLink size={12} />}
+                onClick={() => window.dashboardAPI?.openExternal(guide.docsUrl)}
+              >
+                {guide.docsLabel}
+              </Button>
+            )}
+          </div>
         </div>
 
         {running && (

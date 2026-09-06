@@ -20,6 +20,27 @@
   animation-delay: 0.15s;
 }
 
+.orbit-sidebar-float-toggle {
+  position: absolute;
+  left: calc(var(--orbit-activitybar-w) - 14px);
+  top: 12px;
+  z-index: 30;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--orbit-sidebar-border);
+  border-radius: 5px;
+  background: var(--orbit-sidebar-bg);
+  color: var(--orbit-sidebar-fg);
+  box-shadow: 2px 3px 10px rgba(0, 0, 0, .24);
+  cursor: pointer;
+}
+.orbit-sidebar-float-toggle:hover {
+  background: var(--orbit-list-hover-bg);
+  color: var(--orbit-sidebar-fg);
+}
+
 @keyframes orbit-sidebar-enter {
   from {
     opacity: 0;
@@ -43,6 +64,9 @@
   position: relative;
   z-index: 16;
   height: 100%;
+}
+.orbit-sidebar-hidden {
+  display: none;
 }
 
 .orbit-sash {
@@ -98,3 +122,8 @@ body.orbit-resizing {
   background-size: 22px 22px;
   color: var(--orbit-sidebar-fg);
 }
+
+/* Em janelas compactas, a Activity Bar expandida (208px) somada ao painel
+   redimensionável pode consumir toda a largura disponível. Nessa situação a
+   navegação vira sobreposição — como o preview de hover — e o conteúdo não é
+   espremido para uma faixa inútil à direita. */

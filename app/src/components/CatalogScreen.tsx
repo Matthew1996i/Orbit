@@ -19,8 +19,8 @@ interface CatalogScreenProps<T> {
   query: string;
   onQueryChange: (query: string) => void;
   searchPlaceholder?: string;
-  createLabel: string;
-  onCreate: () => void;
+  createLabel?: string;
+  onCreate?: () => void;
   onBack: () => void;
   itemKey: (item: T) => string;
   renderCard: (item: T) => React.ReactNode;
@@ -89,9 +89,9 @@ export default function CatalogScreen<T>({
             autoFocus
             spellCheck={false}
           />
-          <Button className="llm-btn llm-btn-primary" icon={<Plus size={13} />} onClick={onCreate}>
+          {createLabel && onCreate && <Button className="llm-btn llm-btn-primary" icon={<Plus size={13} />} onClick={onCreate}>
             {createLabel}
-          </Button>
+          </Button>}
         </div>
 
         {isEmpty && (
