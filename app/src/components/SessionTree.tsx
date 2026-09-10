@@ -239,6 +239,7 @@ function rollupCostUsage(
   let tokensTotal = 0;
   let costUsd = 0;
   let costBrl = 0;
+  let costAvailable = true;
   let any = false;
   flattenNodes(node).forEach((n) => {
     const own = perSession[n.session.sessionId];
@@ -247,8 +248,19 @@ function rollupCostUsage(
     tokensTotal += own.tokensTotal;
     costUsd += own.costUsd;
     costBrl += own.costBrl;
+    costAvailable = costAvailable && own.costAvailable !== false;
   });
-  return any ? { tokensTotal, costUsd, costBrl } : undefined;
+  const rootTiming = perSession[node.session.sessionId];
+  return any ? {
+    tokensTotal,
+    costUsd,
+    costBrl,
+    costAvailable,
+    requestStartedAt: rootTiming?.requestStartedAt,
+    requestEndedAt: rootTiming?.requestEndedAt,
+    requestDurationMs: rootTiming?.requestDurationMs,
+    requestInProgress: rootTiming?.requestInProgress,
+  } : undefined;
 }
 
 function statusOf(session: SessionInfo): 'busy' | 'idle' | 'dead' {
@@ -256,16 +268,12 @@ function statusOf(session: SessionInfo): 'busy' | 'idle' | 'dead' {
   return session.status === 'busy' ? 'busy' : 'idle';
 }
 
-// "1h23m45s" so cresce ate o minuto quando passa de 1h (nao mostra segundo
-// junto de hora — perde precisao que ninguem le num relance) e "12m34s"/"45s"
-// nos demais casos, sempre com segundos pra ficar visivelmente "vivo" tique a
-// tique.
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}h${String(minutes).padStart(2, '0')}m`;
+  if (hours > 0) return `${hours}h${String(minutes).padStart(2, '0')}m${String(seconds).padStart(2, '0')}s`;
   if (minutes > 0) return `${minutes}m${String(seconds).padStart(2, '0')}s`;
   return `${seconds}s`;
 }
@@ -289,6 +297,9 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
   // pra abrir) — só mostram atividade recente, não são clicáveis.
   const isActivityNode = !!session.isMcp || !!session.isSkill || !!session.isResource;
   const canOpen = status !== 'dead' && !isActivityNode;
+  const requestElapsed = costUsage?.requestInProgress && costUsage.requestStartedAt
+    ? now - costUsage.requestStartedAt
+    : costUsage?.requestDurationMs;
 
   const McpIcon = session.isMcp ? mcpIconFor(session.mcpServer || '') : null;
   const ResourceIcon = session.isResource ? resourceIconFor(session.resourceKind) : null;
@@ -393,14 +404,14 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
           <div className="tree-card-effort">{formatModelEffort(session.model, session.effort)}</div>
         )}
       </div>
-      {/* tempo de execucao ao vivo, canto inferior direito do proprio card —
-          so faz sentido pra sessao com processo de verdade rodando (nao pra
-          no de atividade sintetico de MCP/skill, que nao tem "execucao"
-          propria) e so enquanto ela estiver viva (uma sessao morta ja mostra
-          "done" na pill, o tempo final nao muda mais e so poluiria). */}
+      {/* Usa a duração nativa do último turno quando a CLI a fornece. Para
+          provedores sem telemetria de solicitação, cai no tempo do processo. */}
       {!isActivityNode && session.alive && (
-        <div className="tree-card-elapsed" title="tempo de execução">
-          {formatElapsed(now - session.startedAt)}
+        <div
+          className="tree-card-elapsed"
+          title={requestElapsed != null ? 'tempo da solicitação mais recente' : 'tempo da sessão (estimado)'}
+        >
+          {formatElapsed(requestElapsed != null ? requestElapsed : now - session.startedAt)}
         </div>
       )}
     </div>
@@ -417,10 +428,10 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
             ? { left: x, top: y - CARD_HEIGHT / 2 - 30, width: CARD_WIDTH / 2 }
             : { left: x - CARD_WIDTH / 2, top: y + CARD_HEIGHT / 2 + 4, width: CARD_WIDTH }
         }
-        title={isRootLevel ? 'custo total desta execução (agente + subagentes)' : 'custo estimado desta sessão'}
+        title={isRootLevel ? 'uso da solicitação mais recente (agente + subagentes)' : 'uso da solicitação mais recente desta sessão'}
       >
         <div>{formatTokens(costUsage.tokensTotal)} tokens</div>
-        <div>~{formatBrl(costUsage.costBrl)}</div>
+        {costUsage.costAvailable !== false && <div>~{formatBrl(costUsage.costBrl)}</div>}
       </div>
     )}
     </>

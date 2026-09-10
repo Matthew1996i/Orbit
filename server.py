@@ -968,6 +968,7 @@ def read_copilot_sessions():
             "isSubagent": False,
             "parentSessionId": None,
             "llm": "copilot",
+            "_transcriptPath": str(lock_path.parent / "events.jsonl"),
         })
     return sessions
 
@@ -2140,6 +2141,48 @@ def find_subagent_transcripts():
 PRICING_PATH = Path.home() / ".claude" / "tools" / "precos-modelos.json"
 _PRICING_CACHE = None
 
+# Precos publicos por modelo subjacente, em USD / 1M tokens, vigentes em
+# 2026-09-09. Isso atende tanto as CLIs de um provedor (Codex/Claude/Gemini)
+# quanto as multi-provider (Aider/OpenCode/Goose/OpenHands/Continue): nestas,
+# o custo pertence ao modelo escolhido, nao ao executavel que o chamou.
+BUILTIN_MODEL_PRICING = {
+    # OpenAI
+    "gpt-6-astra": {"input": 10.0, "output": 50.0, "cache_read": 1.0, "cache_write": 12.5, "long_context_threshold": 272_000},
+    "gpt-5.6": {"input": 4.0, "output": 20.0, "cache_read": 0.4, "cache_write": 5.0, "long_context_threshold": 272_000},
+    "gpt-5.6-sol": {"input": 4.0, "output": 20.0, "cache_read": 0.4, "cache_write": 5.0, "long_context_threshold": 272_000},
+    "gpt-5.6-terra": {"input": 2.0, "output": 12.0, "cache_read": 0.2, "cache_write": 2.5, "long_context_threshold": 272_000},
+    "gpt-5.6-luna": {"input": 0.2, "output": 1.2, "cache_read": 0.02, "cache_write": 0.25, "long_context_threshold": 272_000},
+    "gpt-5.5": {"input": 5.0, "output": 30.0, "cache_read": 0.5, "cache_write": 5.0, "long_context_threshold": 272_000},
+    "gpt-5.4": {"input": 2.5, "output": 15.0, "cache_read": 0.25, "cache_write": 2.5, "long_context_threshold": 272_000},
+    "gpt-5.4-mini": {"input": 0.75, "output": 4.5, "cache_read": 0.075, "cache_write": 0.75},
+    "gpt-5.3-codex": {"input": 1.75, "output": 14.0, "cache_read": 0.175, "cache_write": 1.75},
+    "gpt-5.2": {"input": 1.75, "output": 14.0, "cache_read": 0.175, "cache_write": 1.75},
+    "gpt-5.2-codex": {"input": 1.75, "output": 14.0, "cache_read": 0.175, "cache_write": 1.75},
+    # Anthropic. O scanner Claude pode preferir a tabela local porque ela e
+    # tambem a fonte do relatorio mostrado pelo hook dentro do terminal.
+    "claude-fable-5": {"input": 10.0, "output": 50.0, "cache_read": 1.0, "cache_write": 12.5, "cache_write_5m": 12.5, "cache_write_1h": 20.0},
+    "claude-fable-5-1": {"input": 10.0, "output": 50.0, "cache_read": 1.0, "cache_write": 12.5, "cache_write_5m": 12.5, "cache_write_1h": 20.0},
+    "claude-opus-5": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_5m": 6.25, "cache_write_1h": 10.0},
+    "claude-opus-4-8": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_5m": 6.25, "cache_write_1h": 10.0},
+    "claude-opus-4-7": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_5m": 6.25, "cache_write_1h": 10.0},
+    "claude-opus-4-6": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_5m": 6.25, "cache_write_1h": 10.0},
+    "claude-opus-4-5": {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25, "cache_write_5m": 6.25, "cache_write_1h": 10.0},
+    "claude-sonnet-5": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75, "cache_write_5m": 3.75, "cache_write_1h": 6.0},
+    "claude-sonnet-4-6": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75, "cache_write_5m": 3.75, "cache_write_1h": 6.0},
+    "claude-sonnet-4-5": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75, "cache_write_5m": 3.75, "cache_write_1h": 6.0},
+    "claude-haiku-4-5": {"input": 1.0, "output": 5.0, "cache_read": 0.1, "cache_write": 1.25, "cache_write_5m": 1.25, "cache_write_1h": 2.0},
+    # Google Gemini (texto). Modalidades de audio/video e custos de tools sao
+    # tarifados separadamente e nao sao inferidos de contadores de texto.
+    "gemini-3.5-flash": {"input": 1.5, "output": 9.0, "cache_read": 0.15, "cache_write": 1.5},
+    "gemini-3.5-flash-lite": {"input": 0.3, "output": 2.5, "cache_read": 0.03, "cache_write": 0.3},
+    "gemini-3.1-pro-preview": {"input": 2.0, "output": 12.0, "cache_read": 0.2, "cache_write": 2.0, "long_context_threshold": 200_000},
+    "gemini-3.1-flash-lite": {"input": 0.25, "output": 1.5, "cache_read": 0.025, "cache_write": 0.25},
+    "gemini-3-flash-preview": {"input": 0.5, "output": 3.0, "cache_read": 0.05, "cache_write": 0.5},
+    "gemini-2.5-pro": {"input": 1.25, "output": 10.0, "cache_read": 0.125, "cache_write": 1.25, "long_context_threshold": 200_000},
+    "gemini-2.5-flash": {"input": 0.3, "output": 2.5, "cache_read": 0.03, "cache_write": 0.3},
+    "gemini-2.5-flash-lite": {"input": 0.1, "output": 0.4, "cache_read": 0.01, "cache_write": 0.1},
+}
+
 
 def _load_pricing():
     """Tabela de preco por modelo (USD por 1M tokens) e cotacao USD->BRL de
@@ -2161,32 +2204,168 @@ def _load_pricing():
     return _PRICING_CACHE
 
 
-def _price_for_model(model):
+def _matching_model_price(table, model):
+    """Resolve IDs exatos, snapshots datados e IDs qualificados por provider.
+
+    Exemplos: `openai/gpt-5.6-sol`, `claude-haiku-4-5-20251001` e
+    `gemini-3.1-pro-preview-customtools`. A chave mais longa ganha para que
+    `gpt-5.4-mini` nunca caia acidentalmente no preco de `gpt-5.4`.
+    """
+    normalized = str(model or "").strip().lower()
+    if not normalized:
+        return None
+    candidates = (normalized, normalized.rsplit("/", 1)[-1])
+    for candidate in candidates:
+        if candidate in table:
+            return table[candidate]
+        # Claude aparece tanto como `4.8` quanto como `4-8`; canonizar pontos
+        # ENTRE digitos cobre os dois sem alterar nomes como `gpt-5.6-sol` de
+        # forma assimetrica (a mesma regra e aplicada na chave e no ID).
+        canonical_candidate = re.sub(r"(?<=\d)\.(?=\d)", "-", candidate)
+        for key in sorted(table, key=len, reverse=True):
+            canonical_key = re.sub(r"(?<=\d)\.(?=\d)", "-", key)
+            if canonical_candidate == canonical_key or canonical_candidate.startswith(
+                (canonical_key + "-", canonical_key + "@", canonical_key + ":")
+            ):
+                return table[key]
+    return None
+
+
+def _price_for_model(model, prefer_local=False):
     pricing = _load_pricing()
     modelos = pricing.get("modelos") or {}
-    return modelos.get(model) or pricing.get("default") or {}
+    local = _matching_model_price(modelos, model)
+    builtin = _matching_model_price(BUILTIN_MODEL_PRICING, model)
+    if prefer_local:
+        return local or builtin or pricing.get("default") or {}
+    return builtin or local or pricing.get("default") or {}
 
 
-_USAGE_CACHE = {}  # caminho do transcript (str) -> (mtime, {tokens/custo acumulados})
+def _has_specific_price(model):
+    modelos = _load_pricing().get("modelos") or {}
+    return bool(_matching_model_price(modelos, model) or _matching_model_price(BUILTIN_MODEL_PRICING, model))
 
 
-def _scan_transcript_usage(fpath):
-    """Soma tokens e custo estimado (USD) de TODAS as mensagens do assistente
-    num transcript inteiro. Diferente dos outros scans deste arquivo (que so
-    leem o RABO pra achar o estado mais recente), o relatorio de custo
-    precisa do historico inteiro da sessao — por isso so reprocessa o
-    arquivo quando o mtime muda, reaproveitando o total cacheado entre polls."""
-    try:
-        mtime = fpath.stat().st_mtime
-    except OSError:
-        return None
-    cache_key = str(fpath)
-    cached = _USAGE_CACHE.get(cache_key)
-    if cached and cached[0] == mtime:
-        return cached[1]
+_USAGE_CACHE = {}  # (caminho, llm) -> (mtime, metricas do turno mais recente)
 
-    input_tokens = output_tokens = cache_read_tokens = cache_write_tokens = 0
-    cost_usd = 0.0
+
+def _empty_usage():
+    return {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "costUsd": 0.0,
+        "requestStartedAt": None,
+        "requestEndedAt": None,
+        "requestDurationMs": None,
+        "requestInProgress": False,
+        "costAvailable": True,
+    }
+
+
+def _usage_cost(input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, model):
+    price = _price_for_model(model or "")
+    long_context = (
+        price.get("long_context_threshold")
+        and input_tokens + cache_read_tokens + cache_write_tokens > price["long_context_threshold"]
+    )
+    input_multiplier = 2 if long_context else 1
+    output_multiplier = 1.5 if long_context else 1
+    return (
+        input_tokens * (price.get("input") or 0) * input_multiplier
+        + output_tokens * (price.get("output") or 0) * output_multiplier
+        + cache_read_tokens * (price.get("cache_read") or price.get("input") or 0) * input_multiplier
+        + cache_write_tokens * (price.get("cache_write") or price.get("input") or 0) * input_multiplier
+    ) / 1_000_000
+
+
+def _claude_segment_usage(records, duration_ms=None, ended_at=None, in_progress=False):
+    """Metricas de UM turno Claude. O transcript repete a mesma resposta uma
+    vez por content block; `message.id` identifica a chamada unica e impede
+    multiplicar exatamente os mesmos tokens/custo."""
+    result = _empty_usage()
+    seen_messages = set()
+    first_ts = None
+    by_model = {}
+    reported_duration_ms = None
+    for d in records:
+        attachment = d.get("attachment") or {}
+        report_stdout = attachment.get("stdout") if isinstance(attachment, dict) else None
+        if isinstance(report_stdout, str) and "RELATÓRIO DE TOKENS (turno atual)" in report_stdout:
+            match = re.search(r"duração:\s*(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:(\d+)s)?", report_stdout)
+            if match and any(value is not None for value in match.groups()):
+                hours, minutes, seconds = (int(value or 0) for value in match.groups())
+                reported_duration_ms = (hours * 3600 + minutes * 60 + seconds) * 1000
+        if first_ts is None and d.get("type") == "user":
+            content = (d.get("message") or {}).get("content")
+            is_prompt = isinstance(content, str) or (
+                isinstance(content, list)
+                and any(isinstance(item, dict) and item.get("type") == "text" for item in content)
+            )
+            if is_prompt:
+                first_ts = _iso_to_ms(d.get("timestamp"))
+        if d.get("type") != "assistant":
+            continue
+        message = d.get("message") or {}
+        usage = message.get("usage") or {}
+        if not usage:
+            continue
+        message_key = message.get("id") or d.get("requestId") or d.get("uuid")
+        if message_key in seen_messages:
+            continue
+        seen_messages.add(message_key)
+        inp = usage.get("input_tokens") or 0
+        out = usage.get("output_tokens") or 0
+        cread = usage.get("cache_read_input_tokens") or 0
+        cwrite = usage.get("cache_creation_input_tokens") or 0
+        result["inputTokens"] += inp
+        result["outputTokens"] += out
+        result["cacheReadTokens"] += cread
+        result["cacheWriteTokens"] += cwrite
+        model = message.get("model") or ""
+        model_usage = by_model.setdefault(model, {"input": 0, "output": 0, "cache_read": 0, "cache_write_5m": 0, "cache_write_1h": 0, "cache_write": 0})
+        model_usage["input"] += inp
+        model_usage["output"] += out
+        model_usage["cache_read"] += cread
+        creation = usage.get("cache_creation") or {}
+        cwrite_1h = creation.get("ephemeral_1h_input_tokens")
+        cwrite_5m = creation.get("ephemeral_5m_input_tokens")
+        if cwrite_1h is not None or cwrite_5m is not None:
+            model_usage["cache_write_1h"] += cwrite_1h or 0
+            model_usage["cache_write_5m"] += cwrite_5m or 0
+        else:
+            model_usage["cache_write"] += cwrite
+    # O relatorio exibido no terminal arredonda cada categoria/modelo em 4
+    # casas antes de somar. Repetir a mesma ordem evita diferencas de centavos
+    # em BRL mesmo quando os tokens brutos ja estao iguais.
+    for model, usage in by_model.items():
+        if not _has_specific_price(model):
+            result["costAvailable"] = False
+            continue
+        price = _price_for_model(model, prefer_local=True)
+        result["costUsd"] += sum((
+            round(usage["input"] * (price.get("input") or 0) / 1_000_000, 4),
+            round(usage["output"] * (price.get("output") or 0) / 1_000_000, 4),
+            round(usage["cache_read"] * (price.get("cache_read") or price.get("input") or 0) / 1_000_000, 4),
+            round(usage["cache_write_5m"] * (price.get("cache_write_5m") or price.get("cache_write") or price.get("input") or 0) / 1_000_000, 4),
+            round(usage["cache_write_1h"] * (price.get("cache_write_1h") or price.get("cache_write") or price.get("input") or 0) / 1_000_000, 4),
+            round(usage["cache_write"] * (price.get("cache_write") or price.get("input") or 0) / 1_000_000, 4),
+        ))
+    # Esse valor e o que o usuario ve no terminal. `turn_duration` mede so a
+    # parte interna do turno e pode ser varios segundos menor por nao incluir
+    # o fechamento e os hooks de Stop.
+    duration_ms = reported_duration_ms if reported_duration_ms is not None else duration_ms
+    result["requestDurationMs"] = duration_ms
+    result["requestEndedAt"] = ended_at
+    result["requestStartedAt"] = (ended_at - duration_ms) if ended_at is not None and duration_ms is not None else first_ts
+    result["requestInProgress"] = bool(in_progress and first_ts is not None)
+    return result
+
+
+def _scan_claude_usage(fpath):
+    segment = []
+    latest = None
     try:
         with fpath.open("r", errors="ignore") as f:
             for line in f:
@@ -2194,56 +2373,135 @@ def _scan_transcript_usage(fpath):
                     d = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if d.get("type") != "assistant":
-                    continue
-                message = d.get("message") or {}
-                usage = message.get("usage") or {}
-                if not usage:
-                    continue
-                price = _price_for_model(message.get("model") or "")
-                inp = usage.get("input_tokens") or 0
-                out = usage.get("output_tokens") or 0
-                cread = usage.get("cache_read_input_tokens") or 0
-                cwrite = usage.get("cache_creation_input_tokens") or 0
-                input_tokens += inp
-                output_tokens += out
-                cache_read_tokens += cread
-                cache_write_tokens += cwrite
-                # cache write NAO tem preco unico — TTL de 1h custa quase o
-                # dobro do de 5m (ver precos-modelos.json: cache_write_1h vs
-                # cache_write_5m). O proprio Claude Code grava esse detalhe
-                # em usage.cache_creation.ephemeral_{5m,1h}_input_tokens;
-                # sem separar por ali, todo cache write cai no generico
-                # `cache_write` (a media dos dois) e o relatorio deste app
-                # ficava sistematicamente MAIS BARATO que o relatorio real
-                # da propria CLI sempre que ela usa cache de 1h (comum).
-                creation = usage.get("cache_creation") or {}
-                cwrite_1h = creation.get("ephemeral_1h_input_tokens")
-                cwrite_5m = creation.get("ephemeral_5m_input_tokens")
-                if cwrite_1h is not None or cwrite_5m is not None:
-                    cache_write_cost = (cwrite_1h or 0) * (
-                        price.get("cache_write_1h") or price.get("cache_write") or price.get("input") or 0
-                    ) + (cwrite_5m or 0) * (
-                        price.get("cache_write_5m") or price.get("cache_write") or price.get("input") or 0
-                    )
+                if d.get("type") == "system" and d.get("subtype") == "turn_duration":
+                    ended_at = _iso_to_ms(d.get("timestamp"))
+                    latest = _claude_segment_usage(segment, d.get("durationMs"), ended_at)
+                    segment = []
                 else:
-                    cache_write_cost = cwrite * (price.get("cache_write") or price.get("input") or 0)
-                cost_usd += (
-                    inp * (price.get("input") or 0)
-                    + out * (price.get("output") or 0)
-                    + cread * (price.get("cache_read") or price.get("input") or 0)
-                    + cache_write_cost
-                ) / 1_000_000
+                    segment.append(d)
     except OSError:
         return None
+    current = _claude_segment_usage(segment, in_progress=True)
+    # Depois de concluir um turno o Claude ainda anexa hooks/cost-state. Isso
+    # nao constitui uma nova solicitacao; so troca pelo segmento corrente se
+    # houve de fato um novo prompt do usuario.
+    return current if current["requestInProgress"] else (latest or current)
 
-    result = {
-        "inputTokens": input_tokens,
-        "outputTokens": output_tokens,
-        "cacheReadTokens": cache_read_tokens,
-        "cacheWriteTokens": cache_write_tokens,
-        "costUsd": cost_usd,
-    }
+
+def _scan_codex_usage(fpath):
+    latest = None
+    current = None
+    try:
+        with fpath.open("r", errors="ignore") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                payload = d.get("payload") or {}
+                if d.get("type") == "event_msg" and payload.get("type") == "task_started":
+                    current = _empty_usage()
+                    current["requestStartedAt"] = _iso_to_ms(d.get("timestamp"))
+                    current["requestInProgress"] = True
+                    current["model"] = None
+                elif d.get("type") == "turn_context" and current is not None:
+                    current["model"] = payload.get("model")
+                elif d.get("type") == "token_usage_record" and current is not None:
+                    usage = payload.get("turn_token_usage") or payload.get("usage") or {}
+                    total_input = usage.get("input_tokens") or 0
+                    cached = usage.get("cached_input_tokens") or 0
+                    cache_write = usage.get("cache_write_input_tokens") or 0
+                    current["inputTokens"] = max(0, total_input - cached - cache_write)
+                    current["outputTokens"] = usage.get("output_tokens") or 0
+                    current["cacheReadTokens"] = cached
+                    current["cacheWriteTokens"] = cache_write
+                elif d.get("type") == "event_msg" and payload.get("type") in ("task_complete", "turn_aborted") and current is not None:
+                    current["requestDurationMs"] = payload.get("duration_ms")
+                    current["requestEndedAt"] = _iso_to_ms(d.get("timestamp"))
+                    current["requestInProgress"] = False
+                    latest = current
+                    current = None
+    except OSError:
+        return None
+    result = current or latest or _empty_usage()
+    model = result.pop("model", None)
+    # Modelos de assinatura internos (ex. gpt-5.6-sol) nem sempre possuem
+    # preco na tabela local. Nessa situacao tokens/tempo continuam exatos e o
+    # custo fica explicitamente indisponivel em vez de usar o default Claude.
+    if model and _has_specific_price(model):
+        result["costUsd"] = _usage_cost(
+            result["inputTokens"], result["outputTokens"], result["cacheReadTokens"], result["cacheWriteTokens"], model
+        )
+    else:
+        result["costAvailable"] = False
+    return result
+
+
+def _scan_copilot_usage(fpath):
+    result = _empty_usage()
+    latest_metrics = None
+    interactions = {}
+    latest_interaction = None
+    try:
+        with fpath.open("r", errors="ignore") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                dtype = d.get("type")
+                data = d.get("data") or {}
+                interaction_id = data.get("interactionId")
+                if dtype == "assistant.turn_start" and interaction_id:
+                    item = interactions.setdefault(interaction_id, {"start": _iso_to_ms(d.get("timestamp")), "end": None})
+                    item["start"] = min(item["start"] or 2**63, _iso_to_ms(d.get("timestamp")) or 2**63)
+                    latest_interaction = interaction_id
+                elif dtype == "assistant.turn_end" and latest_interaction:
+                    interactions[latest_interaction]["end"] = _iso_to_ms(d.get("timestamp"))
+                if dtype in ("session.usage_checkpoint", "session.shutdown") and data.get("modelMetrics"):
+                    latest_metrics = data["modelMetrics"]
+    except OSError:
+        return None
+    if latest_metrics:
+        for model, metrics in latest_metrics.items():
+            details = metrics.get("tokenDetails") or {}
+            inp = (details.get("input") or {}).get("tokenCount") or 0
+            out = (details.get("output") or {}).get("tokenCount") or 0
+            cread = (details.get("cache_read") or {}).get("tokenCount") or 0
+            cwrite = (details.get("cache_write") or {}).get("tokenCount") or 0
+            result["inputTokens"] += inp
+            result["outputTokens"] += out
+            result["cacheReadTokens"] += cread
+            result["cacheWriteTokens"] += cwrite
+            if _has_specific_price(model):
+                result["costUsd"] += _usage_cost(inp, out, cread, cwrite, model)
+            elif inp + out + cread + cwrite > 0:
+                result["costAvailable"] = False
+    if latest_interaction:
+        timing = interactions[latest_interaction]
+        result["requestStartedAt"] = timing["start"]
+        result["requestEndedAt"] = timing["end"]
+        result["requestInProgress"] = timing["end"] is None
+        if timing["start"] and timing["end"]:
+            result["requestDurationMs"] = timing["end"] - timing["start"]
+    return result
+
+
+def _scan_transcript_usage(fpath, llm="claude"):
+    """Le as metricas do turno/solicitacao mais recente no formato nativo da CLI."""
+    try:
+        mtime = fpath.stat().st_mtime
+    except OSError:
+        return None
+    cache_key = (str(fpath), llm)
+    cached = _USAGE_CACHE.get(cache_key)
+    if cached and cached[0] == mtime:
+        return cached[1]
+
+    scanner = {"codex": _scan_codex_usage, "copilot": _scan_copilot_usage}.get(llm, _scan_claude_usage)
+    result = scanner(fpath)
+    if result is None:
+        return None
     _USAGE_CACHE[cache_key] = (mtime, result)
     return result
 
@@ -2258,23 +2516,20 @@ def read_cost_summary():
     # proprio arquivo), diferente do dedup por fpath usado antes so pra
     # proteger o total contra sessao fisicamente duplicada (ver read_sessions).
     session_paths = {}
-    for s in read_sessions():
-        fpath = transcript_path(s.get("cwd", ""), s.get("sessionId", ""))
+    metric_sessions = read_sessions() + find_subagent_transcripts() + read_codex_sessions() + read_copilot_sessions()
+    for s in metric_sessions:
+        fpath = resolve_transcript(s)
         if fpath:
-            session_paths[s["sessionId"]] = fpath
-    for s in find_subagent_transcripts():
-        known_path = s.get("_transcriptPath")
-        if known_path:
-            session_paths[s["sessionId"]] = Path(known_path)
+            session_paths[s["sessionId"]] = (fpath, s.get("llm") or "claude")
 
     pricing = _load_pricing()
     usd_brl = pricing.get("usd_brl_fallback") or 5.09
 
-    totals = {"inputTokens": 0, "outputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0, "costUsd": 0.0}
+    totals = {"inputTokens": 0, "outputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0, "costUsd": 0.0, "costAvailable": True}
     per_session = {}
     seen_paths = set()
-    for session_id, fpath in session_paths.items():
-        usage = _scan_transcript_usage(fpath)
+    for session_id, (fpath, llm) in session_paths.items():
+        usage = _scan_transcript_usage(fpath, llm)
         if not usage:
             continue
         session_tokens = (
@@ -2284,6 +2539,11 @@ def read_cost_summary():
             "tokensTotal": session_tokens,
             "costUsd": usage["costUsd"],
             "costBrl": usage["costUsd"] * usd_brl,
+            "costAvailable": usage.get("costAvailable", True),
+            "requestStartedAt": usage.get("requestStartedAt"),
+            "requestEndedAt": usage.get("requestEndedAt"),
+            "requestDurationMs": usage.get("requestDurationMs"),
+            "requestInProgress": usage.get("requestInProgress", False),
         }
         # o agregado geral ainda deduplica por arquivo fisico — uma sessao
         # duplicada (bug ja corrigido, mas defensivo) nao deve contar 2x no
@@ -2294,6 +2554,8 @@ def read_cost_summary():
         for key in ("inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens"):
             totals[key] += usage[key]
         totals["costUsd"] += usage["costUsd"]
+        if session_tokens > 0:
+            totals["costAvailable"] = totals["costAvailable"] and usage.get("costAvailable", True)
 
     totals["costBrl"] = totals["costUsd"] * usd_brl
     totals["tokensTotal"] = (

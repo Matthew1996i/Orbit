@@ -3,13 +3,16 @@ import { CostSummary } from '../api';
 import './CostUsageFooter.css';
 
 export function formatTokens(total: number): string {
-  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(2)}M`;
-  if (total >= 1_000) return `${(total / 1_000).toFixed(1)}k`;
-  return `${total}`;
+  return Math.round(total).toLocaleString('pt-BR');
 }
 
 export function formatBrl(value: number): string {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  });
 }
 
 interface Props {
@@ -38,8 +41,9 @@ export default function CostUsageFooter({ summary, connectionError }: Props) {
   if (!summary || summary.tokensTotal === 0) return null;
 
   return (
-    <div className="cost-usage-footer" title="custo estimado com base nos preços por modelo configurados localmente">
-      {formatTokens(summary.tokensTotal)} tokens · ~{formatBrl(summary.costBrl)}
+    <div className="cost-usage-footer" title="uso da solicitação mais recente, lido da telemetria nativa de cada CLI">
+      {formatTokens(summary.tokensTotal)} tokens
+      {summary.costAvailable !== false ? ` · ~${formatBrl(summary.costBrl)}` : ''}
     </div>
   );
 }

@@ -200,6 +200,11 @@ export interface SessionCostUsage {
   tokensTotal: number;
   costUsd: number;
   costBrl: number;
+  costAvailable?: boolean;
+  requestStartedAt?: number | null;
+  requestEndedAt?: number | null;
+  requestDurationMs?: number | null;
+  requestInProgress?: boolean;
 }
 
 export interface CostSummary {
@@ -210,6 +215,7 @@ export interface CostSummary {
   tokensTotal: number;
   costUsd: number;
   costBrl: number;
+  costAvailable?: boolean;
   perSession: Record<string, SessionCostUsage>;
 }
 
