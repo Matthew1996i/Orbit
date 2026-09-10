@@ -17,6 +17,7 @@ interface Props {
   onHoverSectionEnd: () => void;
   themeId: string;
   onSelectTheme: (id: string) => void;
+  onSettingsMenuOpenChange: (open: boolean) => void;
   // volta pra tela inicial (sessions) fechando qualquer tela cheia aberta —
   // sem isso, com uma tela cheia aberta (catalogo de LLM, edicao de agente)
   // a unica saida era o botao "Voltar" de dentro da propria tela.
@@ -35,6 +36,7 @@ export default function ActivityBar({
   onHoverSectionEnd,
   themeId,
   onSelectTheme,
+  onSettingsMenuOpenChange,
   onGoHome,
   isHome,
   sidebarsPinned,
@@ -47,12 +49,14 @@ export default function ActivityBar({
   const openSettingsMenu = (e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setSettingsMenuAnchor({ x: rect.right + 4, y: rect.top });
+    onSettingsMenuOpenChange(true);
   };
 
   const themeItems: ContextMenuItem[] = THEMES.map((t) => ({
     label: t.label,
     icon: t.id === themeId ? <Check size={14} /> : <span style={{ width: 14, display: 'inline-block' }} />,
     onClick: () => onSelectTheme(t.id),
+    keepOpen: true,
   }));
 
   const settingsMenuItems: ContextMenuItem[] = [
@@ -159,7 +163,7 @@ export default function ActivityBar({
           x={settingsMenuAnchor.x}
           y={settingsMenuAnchor.y}
           items={settingsMenuItems}
-          onClose={() => setSettingsMenuAnchor(null)}
+          onClose={() => { setSettingsMenuAnchor(null); onSettingsMenuOpenChange(false); }}
         />
       )}
 

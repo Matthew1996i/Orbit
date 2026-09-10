@@ -32,12 +32,10 @@ import './SessionTree.css';
 // defaultPanelTop(), pra coordenada RELATIVA ao viewport do canvas).
 const TOPBAR_H = 38;
 
-// relatorio de custo muda bem mais devagar que status de sessao (que ja
-// atualiza a cada 2s) — um numero que so cresce aos poucos nao precisa do
-// mesmo ritmo, e um poll mais espacado evita trafego extra so pra reler
-// transcripts inteiros no backend. Um unico poll aqui alimenta o rodape geral
-// E o custo por card, em vez de cada um buscar por conta propria.
-const COST_REFRESH_MS = 8000;
+// Mantem custo, tokens e cronometro no mesmo ritmo do estado das sessoes.
+// O cache por mtime no backend evita reprocessar transcripts que nao mudaram;
+// 8s era perceptivelmente atrasado durante uma resposta em andamento.
+const COST_REFRESH_MS = 2000;
 
 function useCostSummary(): { summary: CostSummary | null; connectionError: boolean } {
   const [summary, setSummary] = useState<CostSummary | null>(null);

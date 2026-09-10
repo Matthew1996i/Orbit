@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
-import { X, Minus, ExternalLink } from 'lucide-react';
+import { X, Minus, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
 import { BACKEND_WS, SessionInfo, StepEvent } from '../api';
 import TranscriptView from './TranscriptView';
 import { getOsPlatform } from '../utils/platform';
@@ -65,7 +65,9 @@ export default function TerminalPanel({
   onNeedsAction,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [maximized, setMaximized] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
+  const resizeRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -110,6 +112,14 @@ export default function TerminalPanel({
   useEffect(() => {
     if (!isApp) return;
     if (!bodyRef.current) return;
+    const orbitThemeColors = () => {
+      const styles = getComputedStyle(document.documentElement);
+      return {
+        background: styles.getPropertyValue('--orbit-canvas-bg').trim() || '#1e1e1e',
+        foreground: styles.getPropertyValue('--orbit-sidebar-fg').trim() || '#cccccc',
+      };
+    };
+    const orbitColors = orbitThemeColors();
     const term = new Terminal({
       // convertEol:false (nao true) — um PTY de verdade ja manda \r\n certinho;
       // forcar a conversao pode duplicar quebras de linha em alguns casos. E o
@@ -118,6 +128,10 @@ export default function TerminalPanel({
       allowProposedApi: true,
       fontSize: 13,
       lineHeight: 1.25,
+      // Reorganiza linhas ja impressas quando a grade muda, como um terminal
+      // nativo. Sem isso o canvas muda de tamanho, mas o scrollback continua
+      // visualmente preso na largura anterior.
+      reflowCursorLine: true,
       disableStdin: !isApp,
       cursorBlink: isApp,
       cursorStyle: 'block',
@@ -126,8 +140,8 @@ export default function TerminalPanel({
       fontFamily:
         '"SF Mono", Menlo, Monaco, "Cascadia Code", "Fira Code", ui-monospace, Consolas, monospace',
       theme: {
-        background: '#000000',
-        foreground: '#d4d4d4',
+        background: orbitColors.background,
+        foreground: orbitColors.foreground,
         cursor: '#d4d4d4',
         cursorAccent: '#000000',
         selectionBackground: 'rgba(255,255,255,0.25)',
@@ -161,6 +175,17 @@ export default function TerminalPanel({
     term.focus();
     termRef.current = term;
     fitRef.current = fit;
+
+    // O tema e aplicado no <html data-theme="...">. Atualiza tambem o
+    // canvas interno do xterm quando o usuario troca de tema, pois canvas nao
+    // entende `var(--css-variable)` como cor de preenchimento.
+    const themeObserver = new MutationObserver(() => {
+      const colors = orbitThemeColors();
+      term.options.theme = { ...term.options.theme, ...colors };
+      bodyRef.current?.style.setProperty('--orbit-terminal-bg', colors.background);
+      term.refresh(0, Math.max(0, term.rows - 1));
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
     // paridade com terminal nativo: selecionar texto copia pro clipboard
     term.onSelectionChange(() => {
@@ -211,81 +236,56 @@ export default function TerminalPanel({
     ws.onclose = () => term.writeln('\r\n\x1b[31m[desconectado]\x1b[0m');
     let lastCols = -1;
     let lastRows = -1;
-    // force=true sempre manda pro PTY mesmo se cols/rows nao mudaram (usado
-    // nos reenvios de seguranca do 1o boot, onde o objetivo e garantir que a
-    // CLI redesenha, nao so avisar de uma mudanca de tamanho de verdade).
-    const sendResize = (force = false) => {
-      // limpa o esticamento visual temporario ANTES do fit.fit() (nao
-      // depois) — senao sobra um frame com o texto ja na grade nova mas
-      // ainda esticado pelo scale antigo, borrando a fonte por engano.
-      const screenEl = bodyRef.current?.querySelector<HTMLElement>('.xterm-screen');
-      if (screenEl) screenEl.style.transform = '';
-      fit.fit();
-      // forca o xterm a re-renderizar todas as linhas com a nova grade —
-      // sem isso, glifos medidos/posicionados pra um cols antigo podem ficar
-      // levemente fora do lugar (linha quebrando 1-2 colunas antes/depois do
-      // que realmente cabe na tela).
-      try {
-        term.refresh(0, Math.max(0, term.rows - 1));
-      } catch {
-        /* nada a fazer se o buffer ainda nao tem linhas pra redesenhar */
+    let resizeFrame: number | null = null;
+    let forceResizePending = false;
+    let disposed = false;
+    const startupTimers: Array<ReturnType<typeof setTimeout>> = [];
+    let observedWidth = bodyRef.current.clientWidth;
+    let observedHeight = bodyRef.current.clientHeight;
+
+    // Mantem a grade do xterm e o PTY com exatamente as dimensoes que cabem
+    // no body. `proposeDimensions` evita um resize inutil; requestAnimationFrame
+    // agrupa os varios eventos que Chromium emite no mesmo frame enquanto a
+    // borda e arrastada. Nao ha scale CSS: caracteres mantem o tamanho e o
+    // buffer faz o reflow real, como em Terminal.app/Windows Terminal.
+    const fitAndSendResize = (force = false) => {
+      if (disposed || !bodyRef.current || bodyRef.current.clientWidth < 2 || bodyRef.current.clientHeight < 2) return;
+      const dimensions = fit.proposeDimensions();
+      if (!dimensions || dimensions.cols < 2 || dimensions.rows < 1) return;
+      const changed = dimensions.cols !== term.cols || dimensions.rows !== term.rows;
+      // fit() nao apenas chama resize: ele limpa o render service interno
+      // antes, necessario para os canvases ocuparem imediatamente a nova
+      // grade. Chamar term.resize() diretamente podia atualizar cols/rows
+      // sem repintar toda a largura na janela destacada.
+      if (changed) {
+        fit.fit();
+        // fit.fit() limpa o renderizador; o refresh garante que o scrollback
+        // visivel seja pintado imediatamente, inclusive sem nova saida da CLI.
+        try {
+          term.refresh(0, Math.max(0, term.rows - 1));
+        } catch {
+          /* terminal em desmontagem */
+        }
       }
-      const changed = term.cols !== lastCols || term.rows !== lastRows;
+      const shouldSend = force || term.cols !== lastCols || term.rows !== lastRows;
       lastCols = term.cols;
       lastRows = term.rows;
-      // so re-envia pro PTY se a grade (cols/rows) realmente mudou — evita
-      // SIGWINCH redundante (e o redesenho que ele dispara na CLI) quando so
-      // o tamanho em pixels mudou mas a grade de caracteres ficou igual.
-      if (!force && !changed) return;
-      if (ws.readyState === WebSocket.OPEN) {
+      if (shouldSend && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'resize', rows: term.rows, cols: term.cols }));
       }
     };
-    // manda o resize de verdade (PTY + SIGWINCH pro `claude` real, e o
-    // fit.fit()/term.resize() que faz reflow do scrollback de verdade) so
-    // quando o tamanho PARA de mudar por ~120ms. NAO da pra chamar fit.fit()
-    // a cada tick do ResizeObserver (ou mesmo a cada frame via rAF): term
-    // .resize() reflui o BUFFER inteiro toda vez que cols muda, e uma
-    // sequencia de reflows rapida demais (arrastar a borda gera dezenas de
-    // eventos por segundo) corrompe o que esta desenhado na tela — linhas
-    // somem/ficam em branco ate a proxima escrita real forcar um redesenho.
-    // Isso ja tinha sido resolvido aqui antes (ver historico) e uma tentativa
-    // de reflow "ao vivo" via requestAnimationFrame REINTRODUZIU o mesmo bug,
-    // so que numa frequencia menor — confirmado ao vivo, texto sumindo
-    // durante o arrasto. Por isso o reflow REAL so roda no settle.
-    // Enquanto isso, o `.xterm-screen` (elemento que o xterm.js dimensiona
-    // com width/height fixos em px a cada fit) e esticado via
-    // `transform: scale()` pra acompanhar o container ao vivo — e so
-    // CSS/composicao, nao mexe no reflow nem no conteudo real, so estica a
-    // pintura (pode distorcer a fonte levemente por poucos frames), e some
-    // assim que o fit.fit() de verdade roda e recalcula o tamanho real. A
-    // escala usa o espaco de CONTEUDO do container (clientWidth/Height MENOS
-    // o padding, lido via computed style, do mesmo jeito que o FitAddon
-    // calcula por baixo dos panos) — medir contra `container.clientWidth`
-    // direto (que INCLUI o padding) deixava a escala sempre um pouco maior
-    // que 1, borrando a fonte por engano.
-    let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
-    const debouncedSendResize = () => {
-      const container = bodyRef.current;
-      const screenEl = container?.querySelector<HTMLElement>('.xterm-screen');
-      if (container && screenEl) {
-        const cs = window.getComputedStyle(container);
-        const padH = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-        const padV = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-        const availW = container.clientWidth - padH;
-        const availH = container.clientHeight - padV;
-        const screenW = screenEl.offsetWidth;
-        const screenH = screenEl.offsetHeight;
-        if (screenW > 0 && screenH > 0 && availW > 0 && availH > 0) {
-          screenEl.style.transformOrigin = 'top left';
-          screenEl.style.transform = `scale(${availW / screenW}, ${availH / screenH})`;
-        }
-      }
-      if (resizeDebounce) clearTimeout(resizeDebounce);
-      resizeDebounce = setTimeout(sendResize, 120);
+    const scheduleResize = (force = false) => {
+      forceResizePending = forceResizePending || force;
+      if (resizeFrame !== null) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        const shouldForce = forceResizePending;
+        forceResizePending = false;
+        fitAndSendResize(shouldForce);
+      });
     };
     ws.onopen = () => {
-      sendResize(true);
+      scheduleResize(true);
       // reajuste de seguranca: a 1a medicao pode ocorrer antes do layout do
       // painel assentar de vez (fontes/CSS/handles de resize), deixando o
       // rodape do CLI real cortado fora da area visivel. Reenvia o tamanho
@@ -295,25 +295,42 @@ export default function TerminalPanel({
       // do que uma sessão retomada/já em execução há mais tempo. `force` aqui
       // pra sempre reenviar e forcar a CLI a redesenhar, mesmo se cols/rows
       // ja bateram com a ultima medicao.
-      [200, 500, 1000, 2000].forEach((delay) => setTimeout(() => sendResize(true), delay));
+      [200, 500, 1000, 2000].forEach((delay) => {
+        startupTimers.push(setTimeout(() => scheduleResize(true), delay));
+      });
     };
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(new TextEncoder().encode(data));
     });
 
-    const ro = new ResizeObserver(() => {
-      debouncedSendResize();
-    });
-    if (panelRef.current) ro.observe(panelRef.current);
+    const ro = new ResizeObserver(() => scheduleResize());
+    if (bodyRef.current) ro.observe(bodyRef.current);
     // segunda fonte de verdade, independente do ResizeObserver: o evento
     // nativo de resize da janela do SO. Sem isso a janela destacada (popout)
     // dependia SO do ResizeObserver no painel — redundante aqui, mas barato
     // e evita ficar refem de um unico mecanismo pra algo tao importante.
-    window.addEventListener('resize', debouncedSendResize);
+    const onWindowResize = () => scheduleResize();
+    window.addEventListener('resize', onWindowResize);
+    // Chromium/Electron pode deixar de emitir ResizeObserver durante certas
+    // transicoes nativas (maximizar, sair de fullscreen ou resize muito
+    // rapido). Confere somente o tamanho em pixels e agenda trabalho quando
+    // ele realmente mudou; nao gera resize/SIGWINCH ocioso.
+    const dimensionWatcher = window.setInterval(() => {
+      const body = bodyRef.current;
+      if (!body) return;
+      if (body.clientWidth === observedWidth && body.clientHeight === observedHeight) return;
+      observedWidth = body.clientWidth;
+      observedHeight = body.clientHeight;
+      scheduleResize();
+    }, 100);
 
     return () => {
-      if (resizeDebounce) clearTimeout(resizeDebounce);
-      window.removeEventListener('resize', debouncedSendResize);
+      disposed = true;
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      startupTimers.forEach(clearTimeout);
+      window.clearInterval(dimensionWatcher);
+      themeObserver.disconnect();
+      window.removeEventListener('resize', onWindowResize);
       ro.disconnect();
       ws.close();
       term.dispose();
@@ -329,7 +346,6 @@ export default function TerminalPanel({
     // quem continua igual o tempo todo. Reagir a sessionId aqui derrubava e
     // reabria a conexao (e reiniciava o xterm do zero) nessa troca, dando a
     // impressao de "abriu, fechou, abriu de novo" pro usuario.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isApp, session.appAgentId]);
 
   // --- arrastar pelo cabecalho ---
@@ -345,6 +361,7 @@ export default function TerminalPanel({
     let startTop = 0;
 
     const onPointerDown = (e: PointerEvent) => {
+      if (panel.classList.contains('term-panel-maximized') || panel.classList.contains('term-panel-popout')) return;
       // o botao de destacar (.term-popout-btn) mora dentro do header
       // arrastavel, igual aos semaforos (.term-dot, so no mac) e aos botoes
       // de fechar/minimizar no estilo Windows/Linux (.term-win-btn, ver
@@ -386,16 +403,67 @@ export default function TerminalPanel({
     };
   }, []);
 
-  // tamanho fixo = 920x619 (o tamanho validado como correto) — sem resize
-  // manual por borda: o usuário só arrasta pra ORGANIZAR onde cada painel
-  // fica, o tamanho de cada um é sempre esse (encolhe só se a janela do app
-  // for menor que isso, pra nunca estourar pra fora da tela).
-  const computeQuarterSize = () => ({
+  // Resize manual do painel interno. O handle nativo de `resize: both` fica
+  // inconsistente em janelas Electron com `overflow:hidden` e elementos que
+  // capturam pointer events (como o cabecalho arrastavel). Um handle proprio
+  // garante o mesmo comportamento em macOS, Windows e Linux; a janela
+  // destacada continua usando o resize nativo do BrowserWindow.
+  useEffect(() => {
+    if (popout) return;
+    const handle = resizeRef.current;
+    const panel = panelRef.current;
+    if (!handle || !panel) return;
+    let resizing = false;
+    let startX = 0;
+    let startY = 0;
+    let startWidth = 0;
+    let startHeight = 0;
+
+    const onPointerDown = (event: PointerEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = panel.getBoundingClientRect();
+      resizing = true;
+      startX = event.clientX;
+      startY = event.clientY;
+      startWidth = rect.width;
+      startHeight = rect.height;
+      handle.setPointerCapture(event.pointerId);
+      onFocusRef.current();
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (!resizing) return;
+      const maxWidth = Math.max(360, window.innerWidth - 16);
+      const maxHeight = Math.max(220, window.innerHeight - 54);
+      const width = Math.max(360, Math.min(maxWidth, startWidth + event.clientX - startX));
+      const height = Math.max(220, Math.min(maxHeight, startHeight + event.clientY - startY));
+      panel.style.width = `${width}px`;
+      panel.style.height = `${height}px`;
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      resizing = false;
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+    };
+    handle.addEventListener('pointerdown', onPointerDown);
+    handle.addEventListener('pointermove', onPointerMove);
+    handle.addEventListener('pointerup', onPointerUp);
+    handle.addEventListener('pointercancel', onPointerUp);
+    return () => {
+      handle.removeEventListener('pointerdown', onPointerDown);
+      handle.removeEventListener('pointermove', onPointerMove);
+      handle.removeEventListener('pointerup', onPointerUp);
+      handle.removeEventListener('pointercancel', onPointerUp);
+    };
+  }, [popout]);
+
+  // Tamanho inicial; depois de aberto o usuario pode redimensionar o painel
+  // pelas bordas como uma janela normal de terminal.
+  const computeInitialSize = () => ({
     w: Math.max(360, Math.min(920, window.innerWidth - 16)),
     h: Math.max(220, Math.min(619, window.innerHeight - 38 - 16)),
   });
 
-  // aplica o tamanho fixo assim que o painel nasce, encostado na DIREITA da
+  // aplica o tamanho inicial assim que o painel nasce, encostado na DIREITA da
   // tela (so depois disso o usuario pode arrastar pra organizar) — assim o
   // card do agente que o usuario acabou de clicar (na arvore, sempre mais pra
   // esquerda) continua visivel ao lado do painel, em vez de ficar coberto por
@@ -407,7 +475,7 @@ export default function TerminalPanel({
     if (popout) return;
     const panel = panelRef.current;
     if (!panel) return;
-    const { w, h } = computeQuarterSize();
+    const { w, h } = computeInitialSize();
     panel.style.width = `${w}px`;
     panel.style.height = `${h}px`;
     // margem maior que os 16px "padrao" do resto do app (ver Home.css) —
@@ -415,25 +483,27 @@ export default function TerminalPanel({
     // espaco de sobra na tela, tipo uma janela "cortada".
     panel.style.left = `${Math.max(0, window.innerWidth - w - 56)}px`;
     panel.style.top = `${Math.max(38, (window.innerHeight - h) / 2)}px`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [popout]);
 
-  // --- acompanha o tamanho da JANELA: o painel sempre fica no tamanho fixo
-  // (920x619, ou menor se a janela do app for pequena), recalculado a cada
-  // resize da janela do app — só a POSIÇÃO fica a cargo do usuário (arrastar
-  // o cabeçalho), o tamanho nunca é escolha manual. ---
+  // Ao redimensionar a janela principal, preserva o tamanho escolhido pelo
+  // usuario e apenas limita/reposiciona o painel para ele continuar visivel.
   useEffect(() => {
     if (popout) return;
     const panel = panelRef.current;
     if (!panel) return;
     const onWindowResize = () => {
-      const { w, h } = computeQuarterSize();
+      if (panel.classList.contains('term-panel-maximized')) return;
+      const rect = panel.getBoundingClientRect();
+      const w = Math.min(rect.width, Math.max(360, window.innerWidth - 16));
+      const h = Math.min(rect.height, Math.max(220, window.innerHeight - 54));
       panel.style.width = `${w}px`;
       panel.style.height = `${h}px`;
+      panel.style.left = `${Math.max(0, Math.min(rect.left, window.innerWidth - w))}px`;
+      panel.style.top = `${Math.max(38, Math.min(rect.top, window.innerHeight - h))}px`;
     };
     window.addEventListener('resize', onWindowResize);
     return () => window.removeEventListener('resize', onWindowResize);
-  }, []);
+  }, [popout]);
 
   const title = useMemo(() => session.name || session.sessionId.slice(0, 8), [session]);
 
@@ -441,7 +511,7 @@ export default function TerminalPanel({
 
   return (
     <div
-      className={`term-panel${popout ? ' term-panel-popout' : ''}${settledHidden ? ' term-panel-minimized-hidden' : ''}${geniePhase ? ` term-panel-genie-${geniePhase}` : ''}${session.remoteControl ? ' term-panel-remote' : ''}`}
+      className={`term-panel${maximized ? ' term-panel-maximized' : ''}${popout ? ' term-panel-popout' : ''}${settledHidden ? ' term-panel-minimized-hidden' : ''}${geniePhase ? ` term-panel-genie-${geniePhase}` : ''}${session.remoteControl ? ' term-panel-remote' : ''}`}
       style={{ zIndex }}
       ref={panelRef}
       data-session-id={session.sessionId}
@@ -461,6 +531,9 @@ export default function TerminalPanel({
             </button>
             <button className="term-dot term-dot-min" onClick={onMinimize} aria-label="Minimizar">
               <Minus size={9} strokeWidth={2.5} />
+            </button>
+            <button className="term-dot term-dot-max" onClick={() => setMaximized((value) => !value)} aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar'} title={maximized ? 'Restaurar tamanho' : 'Maximizar'}>
+              {maximized ? <Minimize2 size={9} /> : <Maximize2 size={9} />}
             </button>
           </div>
         )}
@@ -489,6 +562,9 @@ export default function TerminalPanel({
                 <button className="term-win-btn" onClick={onMinimize} aria-label="Minimizar">
                   <Minus size={11} strokeWidth={2.25} />
                 </button>
+                <button className="term-win-btn" onClick={() => setMaximized((value) => !value)} aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar'}>
+                  {maximized ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+                </button>
                 <button className="term-win-btn term-win-btn-close" onClick={onClose} aria-label="Fechar">
                   <X size={11} strokeWidth={2.25} />
                 </button>
@@ -504,6 +580,7 @@ export default function TerminalPanel({
           <TranscriptView session={session} allSessions={allSessions} steps={replaySteps} />
         </div>
       )}
+      {!popout && <div className="term-resize-handle" ref={resizeRef} aria-label="Redimensionar terminal" />}
     </div>
   );
 }

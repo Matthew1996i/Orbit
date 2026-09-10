@@ -184,22 +184,18 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
             "buf_lock": threading.Lock(),
             "writers": [],
             "writers_lock": threading.Lock(),
-            # tamanho (rows, cols) que CADA viewer conectado reportou por
+            # tamanho (rows, cols, instante) que CADA viewer conectado reportou por
             # ultimo, chaveado por um id proprio da conexao — o PTY e
             # compartilhado entre todos os viewers do mesmo agent_id (painel
-            # flutuante + janela destacada podem estar conectados ao mesmo
-            # tempo), entao aplicar cru o que o ULTIMO viewer mandou faz um
-            # reenvio de seguranca de um painel menor sobrescrever o tamanho
-            # que outro viewer maior tinha acabado de aplicar — o terminal
-            # trava permanentemente na largura do viewer errado. A politica
-            # (igual multiplexadores como tmux) e "o menor viewer manda": o
-            # PTY nunca fica maior do que a tela de QUALQUER viewer conectado,
-            # entao nenhum deles ve conteudo cortado.
+            # flutuante + janela destacada podem coexistir brevemente). O
+            # instante permite aplicar o tamanho do viewer usado por ultimo.
             "sizes": {},
             "closed": False,
             "kind": "agent",
             "llm": cmd[0],
             "mcpConfigPath": None,
+            "codexRolloutsBeforeStart": None,
+            "transcriptPath": None,
         }
     return agent_id
 
@@ -231,17 +227,10 @@ def spawn_install(cli_id, command):
             "buf_lock": threading.Lock(),
             "writers": [],
             "writers_lock": threading.Lock(),
-            # tamanho (rows, cols) que CADA viewer conectado reportou por
+            # tamanho (rows, cols, instante) que CADA viewer conectado reportou por
             # ultimo, chaveado por um id proprio da conexao — o PTY e
-            # compartilhado entre todos os viewers do mesmo agent_id (painel
-            # flutuante + janela destacada podem estar conectados ao mesmo
-            # tempo), entao aplicar cru o que o ULTIMO viewer mandou faz um
-            # reenvio de seguranca de um painel menor sobrescrever o tamanho
-            # que outro viewer maior tinha acabado de aplicar — o terminal
-            # trava permanentemente na largura do viewer errado. A politica
-            # (igual multiplexadores como tmux) e "o menor viewer manda": o
-            # PTY nunca fica maior do que a tela de QUALQUER viewer conectado,
-            # entao nenhum deles ve conteudo cortado.
+            # compartilhado entre todos os viewers do mesmo agent_id; o
+            # instante permite aplicar o tamanho do viewer usado por ultimo.
             "sizes": {},
             "closed": False,
             "kind": "install",
@@ -285,6 +274,10 @@ def _start_agent_process(agent_id):
     # tela de "conectar LLM" (ver _path_dirs_with_user_bins()), pra nao
     # divergir dessa outra deteccao de novo.
     clean_env["PATH"] = os.pathsep.join(_path_dirs_with_user_bins())
+    # O backend pode herdar NO_COLOR do executor que abriu o Electron.
+    # O terminal interativo suporta cores; FORCE_COLOR nao anula NO_COLOR
+    # em todas as CLIs (especialmente o binario Rust do Codex).
+    clean_env.pop("NO_COLOR", None)
     env = dict(
         clean_env,
         TERM="xterm-256color",
@@ -309,6 +302,15 @@ def _start_agent_process(agent_id):
                 info["mcpConfigPath"] = path
         elif llm == "codex":
             cmd = _codex_command_with_mcps(cmd, mcp_servers)
+    if llm == "codex":
+        # O executavel npm do Codex aparece no SO como processo `node`, entao
+        # read_codex_sessions() (voltado a terminais externos) nao consegue
+        # casa-lo pelo nome do processo. Guarda os rollouts que ja existiam
+        # antes deste agente para identificar sem ambiguidade o NOVO arquivo
+        # criado por esta instancia quando o primeiro turno comecar.
+        info["codexRolloutsBeforeStart"] = {
+            str(path) for path in _recent_codex_rollout_files()
+        }
     try:
         proc = subprocess.Popen(
             cmd,
@@ -434,7 +436,7 @@ def read_app_agent_sessions():
             # ainda nao comecou de verdade (esperando o 1o resize) - usa um
             # pid sintetico so pra exibicao, nao colide com pid real (>0)
             pid = -(int(hashlib.sha1(info["id"].encode()).hexdigest(), 16) % 2_000_000_000 + 1)
-        sessions.append({
+        session = {
             "pid": pid,
             "sessionId": info["id"],
             "cwd": info["cwd"],
@@ -447,7 +449,10 @@ def read_app_agent_sessions():
             "appAgentId": info["id"],
             "parentSessionId": info.get("parentSessionId"),
             "llm": info.get("llm", "claude"),
-        })
+        }
+        if info.get("transcriptPath"):
+            session["_transcriptPath"] = info["transcriptPath"]
+        sessions.append(session)
     return sessions
 
 
@@ -2516,7 +2521,13 @@ def read_cost_summary():
     # proprio arquivo), diferente do dedup por fpath usado antes so pra
     # proteger o total contra sessao fisicamente duplicada (ver read_sessions).
     session_paths = {}
-    metric_sessions = read_sessions() + find_subagent_transcripts() + read_codex_sessions() + read_copilot_sessions()
+    metric_sessions = (
+        read_sessions()
+        + find_subagent_transcripts()
+        + read_codex_sessions()
+        + read_copilot_sessions()
+        + read_app_agent_sessions()
+    )
     for s in metric_sessions:
         fpath = resolve_transcript(s)
         if fpath:
@@ -2573,6 +2584,39 @@ def resolve_transcript(session):
     if known_path:
         fpath = Path(known_path)
         return fpath if fpath.exists() else None
+    if session.get("appManaged") and session.get("llm") == "codex":
+        agent_id = session.get("appAgentId")
+        with AGENTS_LOCK:
+            info = AGENTS.get(agent_id)
+            if info:
+                assigned = info.get("transcriptPath")
+                before = set(info.get("codexRolloutsBeforeStart") or ())
+                cwd = info.get("cwd")
+            else:
+                assigned = None
+                before = set()
+                cwd = None
+        if assigned:
+            fpath = Path(assigned)
+            return fpath if fpath.exists() else None
+
+        # Escolhe o primeiro rollout novo deste cwd. Como cada agente salva o
+        # snapshot `before` no instante do spawn, duas instancias iniciadas em
+        # sequencia na mesma pasta continuam recebendo arquivos diferentes.
+        candidates = []
+        for fpath in _recent_codex_rollout_files():
+            if str(fpath) in before:
+                continue
+            payload = _codex_rollout_meta_from_path(fpath)
+            if payload and payload.get("cwd") == cwd:
+                candidates.append(fpath)
+        if candidates:
+            fpath = min(candidates, key=lambda path: path.stat().st_mtime)
+            with AGENTS_LOCK:
+                current = AGENTS.get(agent_id)
+                if current is not None:
+                    current["transcriptPath"] = str(fpath)
+            return fpath
     return transcript_path(session.get("cwd", ""), session["sessionId"])
 
 
@@ -3458,7 +3502,15 @@ def _codex_command_with_mcps(cmd, servers):
             if isinstance(config.get("args"), list):
                 overrides.append(f'{prefix}.args={json.dumps(config["args"])}')
             if isinstance(config.get("env"), dict):
-                overrides.append(f'{prefix}.env={json.dumps(config["env"])}')
+                # O parser de `codex --config` aceita arrays na sintaxe JSON,
+                # mas um objeto JSON no lado direito e tratado como STRING.
+                # `env` precisa ser um mapa TOML; caso contrario o Codex aborta
+                # no boot com "invalid type: string, expected a map".
+                env_items = ", ".join(
+                    f'{json.dumps(str(key))} = {json.dumps(str(value))}'
+                    for key, value in config["env"].items()
+                )
+                overrides.append(f"{prefix}.env={{ {env_items} }}")
         else:
             continue
     return [cmd[0], *[part for item in overrides for part in ("--config", item)], *cmd[1:]]
@@ -3641,7 +3693,12 @@ def _nvm_bin_dirs():
     nvm_versions_dir = Path.home() / ".nvm" / "versions" / "node"
     if not nvm_versions_dir.is_dir():
         return []
-    return [str(p / "bin") for p in nvm_versions_dir.iterdir() if (p / "bin").is_dir()]
+    versions = sorted(
+        nvm_versions_dir.iterdir(),
+        key=lambda p: tuple(int(n) for n in re.findall(r"\d+", p.name)),
+        reverse=True,
+    )
+    return [str(p / "bin") for p in versions if (p / "bin").is_dir()]
 
 
 def _path_dirs_with_user_bins():
@@ -3659,7 +3716,10 @@ def _path_dirs_with_user_bins():
         *_nvm_bin_dirs(),
     ):
         if d not in path_dirs:
-            path_dirs.insert(0, d)
+            # Preserva a escolha do shell (e o par node/npm correspondente).
+            # Prepending cada fallback fazia uma instalacao NVM antiga
+            # ultrapassar o Codex atualizado que ja estava no PATH.
+            path_dirs.append(d)
     return [p for p in path_dirs if p]
 
 
@@ -4702,19 +4762,31 @@ class Handler(BaseHTTPRequestHandler):
         viewer_id = id(on_chunk)
 
         def _apply_effective_size():
-            # "o menor viewer manda" (igual tmux): garante que o PTY nunca
-            # fica maior do que a tela de nenhum viewer conectado no momento.
+            # O viewer redimensionado mais recentemente manda. Isso e o que
+            # permite destacar um terminal e maximiza-lo mesmo se uma conexao
+            # antiga do painel interno ainda estiver terminando de desmontar.
+            # A politica anterior (sempre o menor viewer) prendia Claude e
+            # Codex permanentemente nas colunas/linhas da janela pequena.
             with info["writers_lock"]:
                 sizes = list(info["sizes"].values())
             if not sizes:
                 return
-            eff_rows = min(r for r, _ in sizes)
-            eff_cols = min(c for _, c in sizes)
+            eff_rows, eff_cols, _updated_at = max(sizes, key=lambda size: size[2])
             try:
                 fcntl.ioctl(master_fd, termios.TIOCSWINSZ,
                             struct.pack("HHHH", eff_rows, eff_cols, 0, 0))
             except OSError:
                 pass
+            # Nem todo processo iniciado no PTY recebe SIGWINCH apenas pelo
+            # ioctl (especialmente CLIs Node/TUI em macOS). O sinal explicito
+            # faz Claude, Codex e as demais CLIs redesenharem o conteudo ja
+            # impresso imediatamente depois da nova grade.
+            pid = info.get("pid")
+            if isinstance(pid, int) and pid > 0:
+                try:
+                    os.killpg(pid, signal.SIGWINCH)
+                except (ProcessLookupError, PermissionError, OSError):
+                    pass
 
         with info["writers_lock"]:
             info["writers"].append(on_chunk)
@@ -4745,7 +4817,7 @@ class Handler(BaseHTTPRequestHandler):
                         rows = int(msg.get("rows", 30))
                         cols = int(msg.get("cols", 100))
                         with info["writers_lock"]:
-                            info["sizes"][viewer_id] = (rows, cols)
+                            info["sizes"][viewer_id] = (rows, cols, time.monotonic())
                         _apply_effective_size()
                         # so inicia o processo de verdade depois do 1o resize
                         # real (ou do fallback acima) — assim ele ja nasce com

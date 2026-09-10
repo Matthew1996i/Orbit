@@ -7,6 +7,7 @@ export interface ContextMenuItem {
   label: string;
   icon?: React.ReactNode;
   danger?: boolean;
+  keepOpen?: boolean;
   // item com submenu: sem onClick proprio, so abre a cascata em `items` ao passar o mouse.
   onClick?: () => void;
   items?: ContextMenuItem[];
@@ -76,7 +77,7 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
             onClick={() => {
               if (item.items) return;
               item.onClick?.();
-              onClose();
+              if (!item.keepOpen) onClose();
             }}
           >
             {item.icon}
@@ -95,7 +96,7 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
                   className={`context-menu-item${sub.danger ? ' danger' : ''}`}
                   onClick={() => {
                     sub.onClick?.();
-                    onClose();
+                    if (!sub.keepOpen) onClose();
                   }}
                 >
                   {sub.icon}

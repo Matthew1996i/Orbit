@@ -6,17 +6,65 @@
   height: min(619px, 78vh);
   min-width: 360px;
   min-height: 220px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 54px);
   background: #0d0d0f;
   border: 1px solid #2a2a2f;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  resize: both;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
   z-index: 1000;
   transform-origin: bottom left;
   transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease;
   animation: term-panel-in 0.16s ease-out;
+}
+
+.term-panel-maximized {
+  left: 8px !important;
+  top: 46px !important;
+  width: calc(100vw - 16px) !important;
+  height: calc(100vh - 54px) !important;
+  resize: none;
+}
+
+.term-panel-maximized .term-resize-handle {
+  display: none;
+}
+
+.term-traffic-lights:hover .term-dot-max {
+  background: #28c840;
+  color: #095b17;
+}
+
+.term-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  z-index: 20;
+  touch-action: none;
+}
+
+.term-resize-handle::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(180, 180, 190, 0.58);
+  border-bottom: 2px solid rgba(180, 180, 190, 0.58);
+  opacity: 0.75;
+}
+
+.term-resize-handle:hover::after {
+  border-color: #8ab4ff;
+  opacity: 1;
 }
 
 @keyframes term-panel-in {
@@ -54,6 +102,13 @@
   animation: none;
   transform: none;
   transition: none;
+  resize: none;
+  max-width: none;
+  max-height: none;
+}
+
+.term-panel-popout .term-resize-handle {
+  display: none;
 }
 
 /* o header/body normal tem cantos arredondados pra combinar com o painel
@@ -287,8 +342,18 @@
   flex: 1;
   padding: 8px;
   overflow: hidden;
+  background: var(--orbit-terminal-bg, var(--orbit-canvas-bg));
   min-height: 0;
   border-radius: 0 0 10px 10px;
+}
+
+/* O elemento raiz criado pelo xterm nao recebe width/height do pacote base.
+   Prende-o ao body flexivel para que canvas, viewport e hit area acompanhem a
+   janela inteira enquanto o FitAddon recalcula a grade. */
+.term-body > .xterm {
+  width: 100%;
+  height: 100%;
+  background: var(--orbit-terminal-bg, var(--orbit-canvas-bg));
 }
 
 .term-body-transcript {
@@ -308,6 +373,7 @@
      clientWidth = largura real visivel = o que o fit.fit() assume.
      Comportamento visual identico (barra fina, some quando nao tem hover). */
   overflow-y: overlay !important;
+  background-color: var(--orbit-terminal-bg, var(--orbit-canvas-bg)) !important;
   scrollbar-width: thin;
   scrollbar-color: #3a3a42 transparent;
 }

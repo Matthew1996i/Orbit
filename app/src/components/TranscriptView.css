@@ -6,7 +6,8 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #0d0d0f;
+  background: var(--orbit-canvas-bg);
+  color: var(--orbit-sidebar-fg);
   position: relative;
   min-height: 0;
 }
@@ -16,30 +17,30 @@
   min-height: 0;
   overflow-y: auto;
   padding: 14px 16px;
-  background: #0d0d0f;
-  color: #d4d4d4;
+  background: var(--orbit-canvas-bg);
+  color: var(--orbit-sidebar-fg);
   font-family: 'SF Mono', Menlo, Monaco, 'Cascadia Code', 'Fira Code', ui-monospace, Consolas, monospace;
   font-size: 13px;
   line-height: 1.55;
-  scrollbar-width: none; /* Firefox: rolagem continua funcionando, só a barra some */
+  scrollbar-width: thin;
 }
 .transcript-view::-webkit-scrollbar {
-  width: 0;
+  width: 8px;
   height: 0;
 }
 .transcript-view::-webkit-scrollbar-track {
   background: transparent;
 }
 .transcript-view::-webkit-scrollbar-thumb {
-  background: #33333a;
+  background: var(--orbit-badge-bg);
   border-radius: 5px;
 }
 .transcript-view::-webkit-scrollbar-thumb:hover {
-  background: #4c4c56;
+  background: var(--orbit-accent);
 }
 
 .transcript-empty {
-  color: #7a7a82;
+  color: var(--orbit-fg-muted);
   padding: 8px 2px;
 }
 
@@ -54,15 +55,15 @@
 
 .transcript-marker {
   flex-shrink: 0;
-  color: #e8e8ea;
+  color: var(--orbit-sidebar-fg);
 }
 
 .transcript-marker-tool {
-  color: #7a7a82;
+  color: var(--orbit-accent);
 }
 
 .transcript-marker-prompt {
-  color: #9a9aa2;
+  color: var(--orbit-accent);
   font-weight: normal;
 }
 
@@ -72,27 +73,27 @@
 }
 
 .transcript-bold {
-  color: #f5f5f7;
+  color: var(--orbit-sidebar-fg);
   font-weight: 600;
 }
 
 .transcript-text .transcript-body {
-  color: #c9c9cf;
+  color: var(--orbit-sidebar-fg);
 }
 
 .transcript-prompt {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 10px 0;
-  margin: 4px 0;
+  background: var(--orbit-list-hover-bg);
+  border-left: 2px solid var(--orbit-accent);
+  padding: 10px 12px;
+  margin: 18px 0 12px;
 }
 
 .transcript-prompt .transcript-body {
-  color: #f5f5f7;
+  color: var(--orbit-sidebar-fg);
 }
 
 .transcript-tool-summary {
-  color: #9a9aa2;
+  color: var(--orbit-sidebar-fg);
 }
 
 .transcript-subitem {
@@ -100,7 +101,7 @@
   align-items: flex-start;
   gap: 6px;
   margin-top: 2px;
-  color: #6a6a72;
+  color: var(--orbit-fg-muted);
 }
 
 .transcript-subitem-branch {
@@ -114,12 +115,12 @@
 
 .transcript-jump-bottom {
   position: absolute;
-  bottom: 68px;
+  bottom: 110px;
   left: 50%;
   transform: translateX(-50%);
-  background: #3a1f2a;
-  color: #e3cbd8;
-  border: 1px solid #5a3446;
+  background: var(--orbit-sidebar-bg);
+  color: var(--orbit-sidebar-fg);
+  border: 1px solid var(--orbit-accent);
   border-radius: 999px;
   font-family: inherit;
   font-size: 11.5px;
@@ -128,7 +129,7 @@
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 .transcript-jump-bottom:hover {
-  background: #4a2836;
+  background: var(--orbit-list-hover-bg);
 }
 
 /* --- barra "pensando" (estilo spinner do CLI real do Claude Code) --- */
@@ -141,11 +142,11 @@
   flex-wrap: wrap;
   align-items: baseline;
   column-gap: 8px;
-  border-top: 1px solid #3a2029;
+  border-top: 1px solid var(--orbit-canvas-border);
 }
 
 .transcript-thinking-spinner {
-  color: #f5a623;
+  color: var(--orbit-status-warn);
   display: inline-block;
   animation: transcript-thinking-spin 1.1s linear infinite;
 }
@@ -165,14 +166,14 @@
 }
 
 .transcript-thinking-text {
-  color: #e8a94a;
+  color: var(--orbit-status-warn);
 }
 
 .transcript-thinking-tip {
   flex-basis: 100%;
   display: flex;
   gap: 6px;
-  color: #8a6a54;
+  color: var(--orbit-fg-muted);
   padding-left: 2px;
   margin-top: 1px;
 }
@@ -192,26 +193,84 @@
 .transcript-status-line {
   margin-top: 6px;
   padding-left: 2px;
-  color: #6f5c66;
+  color: var(--orbit-fg-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .transcript-status-icon {
-  color: #f5a623;
+  color: var(--orbit-accent);
   margin-right: 4px;
 }
 
 .transcript-status-highlight.busy {
-  color: #f5a623;
+  color: var(--orbit-status-warn);
   font-weight: 600;
 }
 
 .transcript-status-highlight.idle {
-  color: #8a7a83;
+  color: var(--orbit-status-ok);
 }
 
 .transcript-status-dim {
-  color: #6f5c66;
+  color: var(--orbit-fg-muted);
+}
+
+.transcript-session-header {
+  border: 1px solid var(--orbit-fg-subtle);
+  border-radius: 5px;
+  padding: 14px 18px;
+  margin: 4px 0 24px;
+  max-width: 640px;
+  overflow-wrap: anywhere;
+}
+.transcript-session-header strong { color: var(--orbit-sidebar-fg); }
+.transcript-session-mode {
+  display: inline-block;
+  margin-left: 12px;
+  color: var(--orbit-fg-muted);
+  font-size: 11px;
+}
+.transcript-session-header dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 16px;
+  margin: 14px 0 0;
+}
+.transcript-session-header dt { color: var(--orbit-fg-muted); }
+.transcript-session-header dd { margin: 0; }
+.transcript-readonly-prompt {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  background: var(--orbit-list-hover-bg);
+  color: var(--orbit-fg-muted);
+  overflow-wrap: anywhere;
+}
+.transcript-readonly-prompt > span { color: var(--orbit-accent); }
+
+.transcript-view .diff-block {
+  background: var(--orbit-sidebar-bg);
+  border-color: var(--orbit-canvas-border);
+}
+.transcript-view .diff-header,
+.transcript-view .diff-line-context .diff-line-text { color: var(--orbit-sidebar-fg); }
+.transcript-view .diff-header-file,
+.transcript-view .diff-subitem,
+.transcript-view .diff-line-no,
+.transcript-view .code-comment { color: var(--orbit-fg-muted); }
+.transcript-view .code-keyword,
+.transcript-view .code-number { color: var(--orbit-accent); }
+.transcript-view .code-string { color: var(--orbit-status-warn); }
+.transcript-view .diff-summary-added,
+.transcript-view .transcript-marker-diff,
+.transcript-view .diff-line-add .diff-line-text,
+.transcript-view .diff-line-add .diff-line-sign { color: var(--orbit-status-ok); }
+.transcript-view .diff-summary-removed,
+.transcript-view .diff-line-remove .diff-line-text,
+.transcript-view .diff-line-remove .diff-line-sign { color: var(--orbit-danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .transcript-thinking-spinner { animation: none; }
 }

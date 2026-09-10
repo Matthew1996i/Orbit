@@ -231,6 +231,14 @@ const TranscriptView = ({ session, allSessions, steps }: Props) => {
     <div className="transcript-view-wrap">
       <div className="transcript-view" ref={scrollRef} onScroll={handleScroll}>
         <div ref={contentRef}>
+        <div className="transcript-session-header">
+          <strong>❯ {session.llm === 'codex' ? 'Codex' : session.llm === 'copilot' ? 'GitHub Copilot' : session.llm || 'Claude Code'}</strong>
+          <span className="transcript-session-mode">somente leitura</span>
+          <dl>
+            <dt>modelo</dt><dd>{session.model || 'não informado'}{session.effort ? ` · ${session.effort}` : ''}</dd>
+            <dt>diretório</dt><dd>{session.cwd || 'não informado'}</dd>
+          </dl>
+        </div>
         {entries.length === 0 ? (
           <div className="transcript-empty">
             {transcriptSupported
@@ -302,6 +310,9 @@ const TranscriptView = ({ session, allSessions, steps }: Props) => {
       )}
 
       <div className="transcript-footer">
+        <div className="transcript-readonly-prompt">
+          <span aria-hidden="true">❯</span> Continue a conversa no terminal de origem
+        </div>
         <div className="transcript-status-line">
           <span className="transcript-status-icon" aria-hidden="true">▸▸</span>
           <span className={`transcript-status-highlight ${isBusy ? 'busy' : 'idle'}`}>

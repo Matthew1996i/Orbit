@@ -140,6 +140,7 @@ export default function AppShell({ children }: Props) {
   );
   const [sidebarsPinned, setSidebarsPinned] = useState(false);
   const [themeId, setThemeId] = useState(() => loadThemeId());
+  const settingsMenuOpenRef = useRef(false);
   const [resizing, setResizing] = useState(false);
   const [fullScreen, setFullScreenState] = useState<FullScreen | null>(() => readFullScreen());
   const setFullScreen = (next: FullScreen | null) => {
@@ -258,6 +259,7 @@ export default function AppShell({ children }: Props) {
   };
 
   const handleHoverSectionEnd = () => {
+    if (settingsMenuOpenRef.current) return;
     if (hoverOpenTimer.current) clearTimeout(hoverOpenTimer.current);
     hoverOpenTimer.current = null;
     hoverCloseTimer.current = setTimeout(() => setHoverSection(null), HOVER_CLOSE_DELAY);
@@ -269,6 +271,7 @@ export default function AppShell({ children }: Props) {
   };
 
   const handlePreviewPointerLeave = () => {
+    if (settingsMenuOpenRef.current) return;
     hoverCloseTimer.current = setTimeout(() => setHoverSection(null), HOVER_CLOSE_DELAY);
   };
 
@@ -452,6 +455,11 @@ export default function AppShell({ children }: Props) {
             onHoverSectionEnd={handleHoverSectionEnd}
             themeId={themeId}
             onSelectTheme={setThemeId}
+            onSettingsMenuOpenChange={(open) => {
+              settingsMenuOpenRef.current = open;
+              clearHoverTimers();
+              if (!open) handleHoverSectionEnd();
+            }}
             onGoHome={goHome}
             isHome={!fullScreen}
             sidebarsPinned={sidebarsPinned}

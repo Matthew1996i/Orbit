@@ -208,12 +208,12 @@ ipcMain.handle('open-session-window', (_event, sessionId: string) => {
   const win = new BrowserWindow({
     width: 920,
     height: 619,
-    // tamanho fixo (920x619, igual o painel interno) — sem resize manual
-    // nenhum, nem por borda nem por maximizar (o reflow em si funciona pra
-    // qualquer tamanho, ver correcao do PTY compartilhado em server.py, mas
-    // manter as janelas num tamanho unico e conhecido evita layouts
-    // esquisitos da TUI da CLI em proporcoes fora do validado).
-    resizable: false,
+    minWidth: 360,
+    minHeight: 220,
+    // O xterm recalcula a grade e envia cols/rows ao PTY durante o resize;
+    // portanto a janela destacada pode crescer, encolher e maximizar como um
+    // terminal nativo do sistema operacional.
+    resizable: true,
     title: 'Orbit',
     ...macTitleBarOptions,
     webPreferences: {

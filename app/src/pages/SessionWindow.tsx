@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { IonPage } from '@ionic/react';
-import { Minus, X } from 'lucide-react';
+import { Minus, X, Maximize2 } from 'lucide-react';
 import TerminalPanel from '../components/TerminalPanel';
 import { SessionInfo, StepEvent, connectStepStream, fetchState } from '../api';
 import { getOsPlatform } from '../utils/platform';
@@ -18,9 +18,6 @@ const MAX_BUFFER_STEPS = 300;
 // (mesmo visual dos botoes de janela) mas e um componente bem mais simples
 // (sem menu, sem sidebar) — nao faz sentido portar TitleBar.tsx inteiro.
 function PopoutTitleBar({ title }: { title: string }) {
-  // sem botao de maximizar: a janela destacada nasce com resizable:false
-  // (tamanho fixo 920x619, ver open-session-window no processo principal) —
-  // maximizar nao faz sentido pra uma janela que nao redimensiona.
   // no macOS a janela usa titleBarStyle:'hiddenInset' (ver index.ts) — os
   // semaforos nativos ja aparecem sozinhos, entao os nossos ficam de fora
   // pra nao duplicar; no Linux/Windows continuam simulados (so muda o
@@ -39,6 +36,13 @@ function PopoutTitleBar({ title }: { title: string }) {
             aria-label="Minimizar"
           >
             <Minus size={14} />
+          </button>
+          <button
+            className="title-bar-btn"
+            onClick={() => window.dashboardAPI?.windowToggleMaximize()}
+            aria-label="Maximizar ou restaurar"
+          >
+            <Maximize2 size={14} />
           </button>
           <button
             className="title-bar-btn title-bar-btn-close"
