@@ -480,6 +480,7 @@ export default function Home() {
           {terminalDocked && dockedPanels.length > 0 && (
             <div className="term-pinned-tabs" role="tablist" aria-label="Terminais fixados">
               <div className="term-pinned-resize-handle" onPointerDown={beginDockedResize} aria-label="Redimensionar painel de terminais" />
+              <div className="term-pinned-tabs-scroll">
               {dockedPanels.map((s) => {
                 const Logo = llmLogoFor(s.llm || 'claude');
                 const active = s.sessionId === activeDockedId;
@@ -511,6 +512,7 @@ export default function Home() {
                   </button>
                 );
               })}
+              </div>
               <button
                 className="term-pinned-undock"
                 onClick={() => setTerminalDocked(false)}

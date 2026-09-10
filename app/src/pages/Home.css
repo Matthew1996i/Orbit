@@ -60,12 +60,26 @@ ion-toolbar {
   align-items: stretch;
   gap: 2px;
   padding: 5px 6px 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
   background: #18181b;
   border-left: 1px solid #303036;
   border-bottom: 1px solid #2a2a2f;
   z-index: 1201;
+}
+
+.term-pinned-tabs-scroll {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.term-pinned-tabs-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .term-pinned-resize-handle {
@@ -79,8 +93,25 @@ ion-toolbar {
   touch-action: none;
 }
 
+.term-pinned-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: #303036;
+  transform: translateX(-50%);
+  transition: background 0.1s ease;
+}
+
 .term-pinned-resize-handle:hover,
 body.orbit-terminal-resizing .term-pinned-resize-handle {
+  background: transparent;
+}
+
+.term-pinned-resize-handle:hover::after,
+body.orbit-terminal-resizing .term-pinned-resize-handle::after {
   background: var(--orbit-sash-hover, #5b8cff);
 }
 
@@ -90,9 +121,10 @@ body.orbit-terminal-resizing {
 }
 
 .term-pinned-tab {
-  min-width: 0;
-  max-width: 190px;
-  flex: 1 1 120px;
+  width: 150px;
+  min-width: 150px;
+  max-width: 150px;
+  flex: 0 0 150px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -101,8 +133,8 @@ body.orbit-terminal-resizing {
   border: 1px solid transparent;
   border-bottom: 0;
   border-radius: 6px 6px 0 0;
-  background: #202024;
-  color: #8f8f98;
+  background: #111114;
+  color: #696971;
   font: 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   cursor: pointer;
 }
@@ -115,6 +147,7 @@ body.orbit-terminal-resizing {
   place-items: center;
   border-radius: 4px;
   color: #74747d;
+  margin-left: auto;
 }
 
 .term-pinned-tab-close:hover {
@@ -143,13 +176,17 @@ body.orbit-terminal-resizing {
 
 .term-pinned-tab:hover {
   color: #dddde1;
-  background: #29292e;
+  background: #1b1b1f;
 }
 
 .term-pinned-tab.active {
-  color: #f1f1f3;
-  background: #0d0d0f;
-  border-color: #34343a;
+  color: var(--orbit-sidebar-fg);
+  background: var(--orbit-canvas-bg);
+  border-color: transparent var(--orbit-canvas-border) var(--orbit-canvas-border);
+}
+
+.term-pinned-tab.active .term-pinned-tab-close {
+  color: var(--orbit-sidebar-fg);
 }
 
 .term-pinned-tab span:first-of-type {

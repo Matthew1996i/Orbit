@@ -73,10 +73,11 @@ export default function TerminalPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const [maximized, setMaximized] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
-  const resizeRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const dockedRef = useRef(docked);
+  dockedRef.current = docked;
 
   const onFocusRef = useRef(onFocus);
   onFocusRef.current = onFocus;
@@ -258,13 +259,19 @@ export default function TerminalPanel({
       if (disposed || !bodyRef.current || bodyRef.current.clientWidth < 2 || bodyRef.current.clientHeight < 2) return;
       const dimensions = fit.proposeDimensions();
       if (!dimensions || dimensions.cols < 2 || dimensions.rows < 1) return;
-      const changed = dimensions.cols !== term.cols || dimensions.rows !== term.rows;
+      // No painel fixado, deixa uma linha completa de folga no canvas. Em
+      // monitores grandes/fracionados o renderer do xterm pode arredondar a
+      // altura acumulada das linhas para cima e recortar justamente o footer
+      // da CLI. Subtrair uma LINHA da grade e mais robusto que reservar pixels
+      // por CSS, pois acompanha fontSize, lineHeight e escala do monitor.
+      const targetRows = Math.max(1, dimensions.rows - (dockedRef.current ? 1 : 0));
+      const changed = dimensions.cols !== term.cols || targetRows !== term.rows;
       // fit() nao apenas chama resize: ele limpa o render service interno
       // antes, necessario para os canvases ocuparem imediatamente a nova
       // grade. Chamar term.resize() diretamente podia atualizar cols/rows
       // sem repintar toda a largura na janela destacada.
       if (changed) {
-        fit.fit();
+        term.resize(dimensions.cols, targetRows);
         // fit.fit() limpa o renderizador; o refresh garante que o scrollback
         // visivel seja pintado imediatamente, inclusive sem nova saida da CLI.
         try {
@@ -416,49 +423,67 @@ export default function TerminalPanel({
   // destacada continua usando o resize nativo do BrowserWindow.
   useEffect(() => {
     if (popout || docked) return;
-    const handle = resizeRef.current;
     const panel = panelRef.current;
-    if (!handle || !panel) return;
+    if (!panel) return;
+    const handles = [...panel.querySelectorAll<HTMLElement>('[data-resize-dir]')];
     let resizing = false;
+    let direction = '';
     let startX = 0;
     let startY = 0;
     let startWidth = 0;
     let startHeight = 0;
+    let startLeft = 0;
+    let startTop = 0;
 
     const onPointerDown = (event: PointerEvent) => {
       event.preventDefault();
       event.stopPropagation();
       const rect = panel.getBoundingClientRect();
       resizing = true;
+      direction = (event.currentTarget as HTMLElement).dataset.resizeDir || 'se';
       startX = event.clientX;
       startY = event.clientY;
       startWidth = rect.width;
       startHeight = rect.height;
-      handle.setPointerCapture(event.pointerId);
+      startLeft = rect.left;
+      startTop = rect.top;
       onFocusRef.current();
     };
     const onPointerMove = (event: PointerEvent) => {
       if (!resizing) return;
-      const maxWidth = Math.max(360, window.innerWidth - 16);
-      const maxHeight = Math.max(220, window.innerHeight - 54);
-      const width = Math.max(360, Math.min(maxWidth, startWidth + event.clientX - startX));
-      const height = Math.max(220, Math.min(maxHeight, startHeight + event.clientY - startY));
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      let width = startWidth;
+      let height = startHeight;
+      let left = startLeft;
+      let top = startTop;
+      if (direction.includes('e')) width = Math.max(360, Math.min(window.innerWidth - startLeft, startWidth + dx));
+      if (direction.includes('s')) height = Math.max(220, Math.min(window.innerHeight - startTop, startHeight + dy));
+      if (direction.includes('w')) {
+        width = Math.max(360, Math.min(startLeft + startWidth, startWidth - dx));
+        left = startLeft + startWidth - width;
+      }
+      if (direction.includes('n')) {
+        height = Math.max(220, Math.min(startTop + startHeight - 38, startHeight - dy));
+        top = startTop + startHeight - height;
+      }
       panel.style.width = `${width}px`;
       panel.style.height = `${height}px`;
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
     };
-    const onPointerUp = (event: PointerEvent) => {
+    const onPointerUp = () => {
       resizing = false;
-      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
     };
-    handle.addEventListener('pointerdown', onPointerDown);
-    handle.addEventListener('pointermove', onPointerMove);
-    handle.addEventListener('pointerup', onPointerUp);
-    handle.addEventListener('pointercancel', onPointerUp);
+    handles.forEach((handle) => handle.addEventListener('pointerdown', onPointerDown));
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
     return () => {
-      handle.removeEventListener('pointerdown', onPointerDown);
-      handle.removeEventListener('pointermove', onPointerMove);
-      handle.removeEventListener('pointerup', onPointerUp);
-      handle.removeEventListener('pointercancel', onPointerUp);
+      handles.forEach((handle) => handle.removeEventListener('pointerdown', onPointerDown));
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
     };
   }, [popout, docked]);
 
@@ -596,7 +621,14 @@ export default function TerminalPanel({
           <TranscriptView session={session} allSessions={allSessions} steps={replaySteps} />
         </div>
       )}
-      {!popout && !docked && <div className="term-resize-handle" ref={resizeRef} aria-label="Redimensionar terminal" />}
+      {!popout && !docked && ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'].map((direction) => (
+        <div
+          key={direction}
+          className={`term-resize-edge term-resize-${direction}`}
+          data-resize-dir={direction}
+          aria-label={`Redimensionar terminal (${direction})`}
+        />
+      ))}
     </div>
   );
 }

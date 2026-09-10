@@ -67,6 +67,41 @@
   opacity: 1;
 }
 
+.term-resize-edge {
+  position: absolute;
+  z-index: 22;
+  touch-action: none;
+}
+.term-resize-n,
+.term-resize-s {
+  left: 9px;
+  right: 9px;
+  height: 7px;
+  cursor: ns-resize;
+}
+.term-resize-n { top: 0; }
+.term-resize-s { bottom: 0; }
+.term-resize-e,
+.term-resize-w {
+  top: 9px;
+  bottom: 9px;
+  width: 7px;
+  cursor: ew-resize;
+}
+.term-resize-e { right: 0; }
+.term-resize-w { left: 0; }
+.term-resize-ne,
+.term-resize-nw,
+.term-resize-se,
+.term-resize-sw {
+  width: 13px;
+  height: 13px;
+}
+.term-resize-ne { top: 0; right: 0; cursor: nesw-resize; }
+.term-resize-nw { top: 0; left: 0; cursor: nwse-resize; }
+.term-resize-se { right: 0; bottom: 0; cursor: nwse-resize; }
+.term-resize-sw { left: 0; bottom: 0; cursor: nesw-resize; }
+
 @keyframes term-panel-in {
   from {
     opacity: 0;
@@ -112,13 +147,16 @@
 }
 
 .term-panel-docked {
+  box-sizing: border-box;
   position: fixed !important;
   top: calc(var(--orbit-titlebar-h) + var(--orbit-term-dock-h)) !important;
   right: 0 !important;
   bottom: 0 !important;
   left: auto !important;
   width: var(--orbit-terminal-rail-w) !important;
-  height: calc(100vh - var(--orbit-titlebar-h) - var(--orbit-term-dock-h)) !important;
+  /* top + bottom definem a altura real do viewport. Evita a diferenca de
+     arredondamento/decoration de 100vh que cortava a ultima linha do xterm. */
+  height: auto !important;
   min-width: 0;
   min-height: 0;
   max-width: none;
@@ -383,6 +421,7 @@
 }
 
 .term-body {
+  box-sizing: border-box;
   flex: 1;
   padding: 8px;
   overflow: hidden;
@@ -418,19 +457,4 @@
      Comportamento visual identico (barra fina, some quando nao tem hover). */
   overflow-y: overlay !important;
   background-color: var(--orbit-terminal-bg, var(--orbit-canvas-bg)) !important;
-  scrollbar-width: thin;
-  scrollbar-color: #3a3a42 transparent;
-}
-.xterm-viewport::-webkit-scrollbar {
-  width: 9px;
-}
-.xterm-viewport::-webkit-scrollbar-track {
-  background: transparent;
-}
-.xterm-viewport::-webkit-scrollbar-thumb {
-  background: #33333a;
-  border-radius: 5px;
-}
-.xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: #4c4c56;
 }
