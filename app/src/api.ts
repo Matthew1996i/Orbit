@@ -189,6 +189,9 @@ export async function fetchUsage(
   claudeAuthenticated: boolean;
   claudePath: string | null;
   codex: CodexUsage | null;
+  codexUsageError?: string | null;
+  codexUsageErrorAtMs?: number | null;
+  codexUsageStale?: boolean;
 }> {
   const suffix = force ? '?force=1' : '';
   const res = await fetch(`${BACKEND_HTTP}/api/usage${suffix}`, { cache: 'no-store' });

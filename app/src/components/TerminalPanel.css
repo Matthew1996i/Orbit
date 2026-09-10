@@ -111,6 +111,48 @@
   display: none;
 }
 
+.term-panel-docked {
+  position: fixed !important;
+  top: calc(var(--orbit-titlebar-h) + var(--orbit-term-dock-h)) !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: auto !important;
+  width: var(--orbit-terminal-rail-w) !important;
+  height: calc(100vh - var(--orbit-titlebar-h) - var(--orbit-term-dock-h)) !important;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);
+  resize: none;
+  animation: none;
+  transform: none;
+  transition: none;
+  z-index: 1200 !important;
+}
+
+.term-panel-docked-inactive {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.term-panel-docked .term-header,
+.term-panel-docked .term-body,
+.term-panel-docked .term-body-transcript {
+  border-radius: 0;
+}
+
+.term-panel-docked .term-header {
+  display: none;
+}
+
+.term-panel-docked .term-dot-min,
+.term-panel-docked .term-dot-max {
+  display: none;
+}
+
 /* o header/body normal tem cantos arredondados pra combinar com o painel
    flutuante (que tambem e arredondado) — numa janela OS de verdade
    (popout, sem cantos) isso sobrava como um arredondado "flutuando" sem
@@ -197,7 +239,8 @@
   gap: 2px;
 }
 
-.term-popout-btn {
+.term-popout-btn,
+.term-dock-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -210,7 +253,8 @@
   cursor: pointer;
   flex-shrink: 0;
 }
-.term-popout-btn:hover {
+.term-popout-btn:hover,
+.term-dock-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #e8e8ea;
 }

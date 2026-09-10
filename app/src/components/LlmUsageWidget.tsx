@@ -105,6 +105,8 @@ export default function LlmUsageWidget({ sessions }: Props) {
   const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
   const [usage, setUsage] = useState<ClaudeUsage | null>(null);
   const [codexUsage, setCodexUsage] = useState<CodexUsage | null>(null);
+  const [codexUsageError, setCodexUsageError] = useState<string | null>(null);
+  const [codexUsageStale, setCodexUsageStale] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
@@ -165,6 +167,8 @@ export default function LlmUsageWidget({ sessions }: Props) {
       .then((response) => {
         setUsage(response.claude);
         setCodexUsage(response.codex);
+        setCodexUsageError(response.codexUsageError ?? null);
+        setCodexUsageStale(!!response.codexUsageStale);
         // status do Claude nao vem do /api/llms (essa CLI e o proprio app);
         // sobrescreve o placeholder hardcoded com o status real de
         // autenticacao ja obtido nesta mesma chamada.
@@ -194,14 +198,16 @@ export default function LlmUsageWidget({ sessions }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // O Claude e a base do app e deve continuar visivel mesmo enquanto o backend
-  // reinicia, a consulta de quota falha ou o token ainda nao foi encontrado.
-  // As demais LLMs continuam aparecendo so quando conectadas.
-  const connected = llms.filter((cli) => cli.id === 'claude' || cli.connected);
+  // Relatorios de assinatura nao dependem de haver agentes rodando. Mantemos
+  // Claude e Codex visiveis e montados em todos os estados para que o polling
+  // de uso continue ativo mesmo com a arvore completamente vazia.
+  const visibleLlms = llms.filter(
+    (cli) => cli.id === 'claude' || cli.id === 'codex' || cli.connected || cli.status === 'installed',
+  );
 
   return (
     <div className="llm-usage-widget" ref={rootRef}>
-      {connected.map((cli) => {
+      {visibleLlms.map((cli) => {
         const Logo = llmLogoFor(cli.id);
         const countable = sessions.filter(isCountableSession);
         const forThisLlm = countable.filter((s) => sessionLlmBin(s) === cli.bin);
@@ -262,7 +268,7 @@ export default function LlmUsageWidget({ sessions }: Props) {
                   <span className="llm-usage-popover-name">{cli.name}</span>
                   {(busy > 0 ||
                     (cli.id === 'claude' && usage?.source === 'anthropic') ||
-                    (cli.id === 'codex' && !!codexUsage)) && (
+                    (cli.id === 'codex' && !!codexUsage && !codexUsageStale)) && (
                     <span className="llm-usage-popover-live">
                       <span className="llm-usage-live-dot" /> ao vivo
                     </span>
@@ -419,14 +425,29 @@ export default function LlmUsageWidget({ sessions }: Props) {
                           <span className="llm-usage-live-dot muted" /> {primaryLabel}
                           {hasSecondary ? ` · ${secondaryLabel}` : ''} · créditos
                         </span>
-                        <span>{codexUsage.rateLimited ? 'limite atingido' : `${codexUsage.resetCredits} créditos`}</span>
+                        <span>
+                          {codexUsageStale
+                            ? 'cache local'
+                            : codexUsage.rateLimited
+                              ? 'limite atingido'
+                              : `${codexUsage.resetCredits} créditos`}
+                        </span>
                       </div>
+                      {codexUsageStale && (
+                        <div className="llm-usage-popover-dim">
+                          última leitura em cache; atualizar falhou
+                        </div>
+                      )}
                     </>
                   );
                 })() : null}
 
                 {SHOW_REAL_USAGE && cli.id === 'codex' && !codexUsage && !usageLoading && (
-                  <div className="llm-usage-popover-dim">uso indisponível (codex não encontrado ou não autenticado)</div>
+                  <div className="llm-usage-popover-dim">
+                    {codexUsageError
+                      ? `uso indisponível (${codexUsageError})`
+                      : 'uso indisponível (codex não encontrado ou não autenticado)'}
+                  </div>
                 )}
 
                 <div className="llm-usage-popover-sessions">

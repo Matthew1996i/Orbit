@@ -7,6 +7,13 @@
   background-size: 22px 22px;
 }
 
+.home-usage-header {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  z-index: 11;
+}
+
 ion-toolbar {
   --background: var(--orbit-canvas-bg);
   --border-color: var(--orbit-canvas-border);
@@ -30,7 +37,7 @@ ion-toolbar {
   position: fixed;
   top: var(--orbit-titlebar-h);
   left: var(--orbit-content-left, 48px);
-  right: 0;
+  right: var(--orbit-terminal-rail-w, 0px);
   height: var(--orbit-term-dock-h);
   display: flex;
   align-items: center;
@@ -40,6 +47,133 @@ ion-toolbar {
   border-bottom: 1px solid #2a2a2f;
   overflow-x: auto;
   z-index: 15;
+  transition: right 0.2s ease;
+}
+
+.term-pinned-tabs {
+  position: fixed;
+  top: var(--orbit-titlebar-h);
+  right: 0;
+  width: var(--orbit-terminal-rail-w);
+  height: var(--orbit-term-dock-h);
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 5px 6px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #18181b;
+  border-left: 1px solid #303036;
+  border-bottom: 1px solid #2a2a2f;
+  z-index: 1201;
+}
+
+.term-pinned-resize-handle {
+  position: fixed;
+  top: var(--orbit-titlebar-h);
+  bottom: 0;
+  left: calc(100vw - var(--orbit-terminal-rail-w) - 3px);
+  width: 6px;
+  z-index: 1203;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.term-pinned-resize-handle:hover,
+body.orbit-terminal-resizing .term-pinned-resize-handle {
+  background: var(--orbit-sash-hover, #5b8cff);
+}
+
+body.orbit-terminal-resizing {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+.term-pinned-tab {
+  min-width: 0;
+  max-width: 190px;
+  flex: 1 1 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: #202024;
+  color: #8f8f98;
+  font: 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: pointer;
+}
+
+.term-pinned-tab-close {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: #74747d;
+}
+
+.term-pinned-tab-close:hover {
+  color: #fff;
+  background: #c94242;
+}
+
+.term-pinned-undock {
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #8f8f98;
+  cursor: pointer;
+}
+
+.term-pinned-undock:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.term-pinned-tab:hover {
+  color: #dddde1;
+  background: #29292e;
+}
+
+.term-pinned-tab.active {
+  color: #f1f1f3;
+  background: #0d0d0f;
+  border-color: #34343a;
+}
+
+.term-pinned-tab span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.term-pinned-tab-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #55555d;
+}
+
+.term-pinned-tab-dot.busy {
+  background: #34c759;
+  box-shadow: 0 0 5px #34c759;
+}
+
+.term-pinned-tab-dot.needs-action {
+  background: #f5a623;
+  box-shadow: 0 0 5px #f5a623;
 }
 
 .term-dock-empty {

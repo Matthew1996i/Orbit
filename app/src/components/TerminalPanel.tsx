@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
-import { X, Minus, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Minus, ExternalLink, Maximize2, Minimize2, Pin, PinOff } from 'lucide-react';
 import { BACKEND_WS, SessionInfo, StepEvent } from '../api';
 import TranscriptView from './TranscriptView';
 import { getOsPlatform } from '../utils/platform';
@@ -44,6 +44,9 @@ interface Props {
   // "semaforos" de fechar/minimizar (o SO ja da esses controles na propria
   // janela).
   popout?: boolean;
+  docked?: boolean;
+  dockedActive?: boolean;
+  onToggleDock?: () => void;
   // dispara toda vez que o terminal PASSA A MOSTRAR (ou deixa de mostrar) um
   // prompt interativo esperando o usuario (permissao, escolha de modelo,
   // qualquer menu tipo "❯ 1. ..."). So o Home.tsx usa isso, pra acender o
@@ -62,6 +65,9 @@ export default function TerminalPanel({
   onFocus,
   onPopout,
   popout,
+  docked = false,
+  dockedActive = true,
+  onToggleDock,
   onNeedsAction,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -361,14 +367,14 @@ export default function TerminalPanel({
     let startTop = 0;
 
     const onPointerDown = (e: PointerEvent) => {
-      if (panel.classList.contains('term-panel-maximized') || panel.classList.contains('term-panel-popout')) return;
+      if (panel.classList.contains('term-panel-maximized') || panel.classList.contains('term-panel-popout') || panel.classList.contains('term-panel-docked')) return;
       // o botao de destacar (.term-popout-btn) mora dentro do header
       // arrastavel, igual aos semaforos (.term-dot, so no mac) e aos botoes
       // de fechar/minimizar no estilo Windows/Linux (.term-win-btn, ver
       // IS_MAC_STYLE acima) — sem excluir os tres, o preventDefault() do
       // drag abaixo engolia o click antes dele chegar no botao, e
       // fechar/minimizar/destacar nunca disparavam fora do mac.
-      if ((e.target as HTMLElement).closest('.term-dot, .term-popout-btn, .term-win-btn')) return;
+      if ((e.target as HTMLElement).closest('.term-dot, .term-popout-btn, .term-dock-btn, .term-win-btn')) return;
       // sem isso o Chromium inicia selecao de texto/drag nativo (o "fantasma"
       // de captura da tela acompanhando o cursor) ao arrastar pelo cabecalho —
       // mesmo motivo do onPointerDown do TreeCard em SessionTree.tsx.
@@ -401,7 +407,7 @@ export default function TerminalPanel({
       header.removeEventListener('pointermove', onPointerMove);
       header.removeEventListener('pointerup', onPointerUp);
     };
-  }, []);
+  }, [docked]);
 
   // Resize manual do painel interno. O handle nativo de `resize: both` fica
   // inconsistente em janelas Electron com `overflow:hidden` e elementos que
@@ -409,7 +415,7 @@ export default function TerminalPanel({
   // garante o mesmo comportamento em macOS, Windows e Linux; a janela
   // destacada continua usando o resize nativo do BrowserWindow.
   useEffect(() => {
-    if (popout) return;
+    if (popout || docked) return;
     const handle = resizeRef.current;
     const panel = panelRef.current;
     if (!handle || !panel) return;
@@ -454,7 +460,7 @@ export default function TerminalPanel({
       handle.removeEventListener('pointerup', onPointerUp);
       handle.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [popout]);
+  }, [popout, docked]);
 
   // Tamanho inicial; depois de aberto o usuario pode redimensionar o painel
   // pelas bordas como uma janela normal de terminal.
@@ -472,7 +478,7 @@ export default function TerminalPanel({
     // janela destacada: o CSS (.term-panel-popout) ja preenche a janela
     // inteira sozinho — nao precisa (e nao deve) forcar um tamanho/posicao
     // fixo em pixel por cima disso.
-    if (popout) return;
+    if (popout || docked) return;
     const panel = panelRef.current;
     if (!panel) return;
     const { w, h } = computeInitialSize();
@@ -483,12 +489,12 @@ export default function TerminalPanel({
     // espaco de sobra na tela, tipo uma janela "cortada".
     panel.style.left = `${Math.max(0, window.innerWidth - w - 56)}px`;
     panel.style.top = `${Math.max(38, (window.innerHeight - h) / 2)}px`;
-  }, [popout]);
+  }, [popout, docked]);
 
   // Ao redimensionar a janela principal, preserva o tamanho escolhido pelo
   // usuario e apenas limita/reposiciona o painel para ele continuar visivel.
   useEffect(() => {
-    if (popout) return;
+    if (popout || docked) return;
     const panel = panelRef.current;
     if (!panel) return;
     const onWindowResize = () => {
@@ -503,7 +509,7 @@ export default function TerminalPanel({
     };
     window.addEventListener('resize', onWindowResize);
     return () => window.removeEventListener('resize', onWindowResize);
-  }, [popout]);
+  }, [popout, docked]);
 
   const title = useMemo(() => session.name || session.sessionId.slice(0, 8), [session]);
 
@@ -511,7 +517,7 @@ export default function TerminalPanel({
 
   return (
     <div
-      className={`term-panel${maximized ? ' term-panel-maximized' : ''}${popout ? ' term-panel-popout' : ''}${settledHidden ? ' term-panel-minimized-hidden' : ''}${geniePhase ? ` term-panel-genie-${geniePhase}` : ''}${session.remoteControl ? ' term-panel-remote' : ''}`}
+      className={`term-panel${maximized ? ' term-panel-maximized' : ''}${popout ? ' term-panel-popout' : ''}${docked ? ' term-panel-docked' : ''}${docked && !dockedActive ? ' term-panel-docked-inactive' : ''}${settledHidden ? ' term-panel-minimized-hidden' : ''}${geniePhase ? ` term-panel-genie-${geniePhase}` : ''}${session.remoteControl ? ' term-panel-remote' : ''}`}
       style={{ zIndex }}
       ref={panelRef}
       data-session-id={session.sessionId}
@@ -547,7 +553,7 @@ export default function TerminalPanel({
           <div className="term-header-spacer" />
         ) : (
           <div className="term-header-spacer">
-            {onPopout && (
+            {onPopout && !docked && (
               <button
                 className="term-popout-btn"
                 onClick={onPopout}
@@ -557,14 +563,24 @@ export default function TerminalPanel({
                 <ExternalLink size={12} strokeWidth={2.25} />
               </button>
             )}
+            {onToggleDock && (
+              <button
+                className="term-dock-btn"
+                onClick={onToggleDock}
+                aria-label={docked ? 'Desafixar terminal' : 'Fixar terminal à direita'}
+                title={docked ? 'Desafixar terminal' : 'Fixar terminal à direita'}
+              >
+                {docked ? <PinOff size={12} strokeWidth={2.25} /> : <Pin size={12} strokeWidth={2.25} />}
+              </button>
+            )}
             {!IS_MAC_STYLE && (
               <>
-                <button className="term-win-btn" onClick={onMinimize} aria-label="Minimizar">
+                {!docked && <button className="term-win-btn" onClick={onMinimize} aria-label="Minimizar">
                   <Minus size={11} strokeWidth={2.25} />
-                </button>
-                <button className="term-win-btn" onClick={() => setMaximized((value) => !value)} aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar'}>
+                </button>}
+                {!docked && <button className="term-win-btn" onClick={() => setMaximized((value) => !value)} aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar'}>
                   {maximized ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
-                </button>
+                </button>}
                 <button className="term-win-btn term-win-btn-close" onClick={onClose} aria-label="Fechar">
                   <X size={11} strokeWidth={2.25} />
                 </button>
@@ -580,7 +596,7 @@ export default function TerminalPanel({
           <TranscriptView session={session} allSessions={allSessions} steps={replaySteps} />
         </div>
       )}
-      {!popout && <div className="term-resize-handle" ref={resizeRef} aria-label="Redimensionar terminal" />}
+      {!popout && !docked && <div className="term-resize-handle" ref={resizeRef} aria-label="Redimensionar terminal" />}
     </div>
   );
 }

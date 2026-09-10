@@ -5,9 +5,10 @@
    TerminalPanel.tsx hardcodam esse valor pro alinhamento "focar card". */
 .orbit-shell {
   position: absolute;
-  inset: var(--orbit-titlebar-h) 0 0 0;
+  inset: var(--orbit-titlebar-h) var(--orbit-terminal-rail-w, 0px) 0 0;
   display: flex;
   overflow: hidden;
+  transition: right 0.2s ease;
 }
 
 /* a Activity Bar (esquerda) anima a propria largura sozinha (ver

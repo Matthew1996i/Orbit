@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IonContent, IonFab, IonFabButton, IonPage } from '@ionic/react';
-import { Plus, Skull, ExternalLink } from 'lucide-react';
+import { Plus, Skull, ExternalLink, RotateCcw, X, PinOff } from 'lucide-react';
 import SessionTree from '../components/SessionTree';
+import LlmUsageWidget from '../components/LlmUsageWidget';
 import { llmLogoFor } from '../utils/llmLogos';
 import TerminalPanel from '../components/TerminalPanel';
 import NewAgentDialog from '../components/NewAgentDialog';
@@ -25,6 +26,8 @@ import './Home.css';
 const MAX_BUFFER_STEPS = 300;
 const BASE_Z = 1000;
 const OPEN_IDS_STORAGE_KEY = 'dashboard.openPanelIds';
+const TERMINAL_DOCKED_STORAGE_KEY = 'dashboard.terminalDocked';
+const TERMINAL_DOCKED_WIDTH_STORAGE_KEY = 'dashboard.terminalDockedWidth';
 
 export default function Home() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -36,6 +39,14 @@ export default function Home() {
   // quando o painel correspondente esta minimizado.
   const [needsActionIds, setNeedsActionIds] = useState<Set<string>>(new Set());
   const [zIndexById, setZIndexById] = useState<Record<string, number>>({});
+  const [terminalDocked, setTerminalDocked] = useState(
+    () => localStorage.getItem(TERMINAL_DOCKED_STORAGE_KEY) === 'true'
+  );
+  const [activeDockedId, setActiveDockedId] = useState<string | null>(null);
+  const [terminalDockedWidth, setTerminalDockedWidth] = useState(() => {
+    const saved = Number(localStorage.getItem(TERMINAL_DOCKED_WIDTH_STORAGE_KEY));
+    return Number.isFinite(saved) && saved >= 360 ? saved : Math.round(window.innerWidth * 0.42);
+  });
   const [replayVersion, setReplayVersion] = useState(0);
   const [showNewAgent, setShowNewAgent] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -62,6 +73,47 @@ export default function Home() {
       /* localStorage indisponível (privado/bloqueado) — sem persistência, sem problema */
     }
   }, [openIds]);
+
+  useEffect(() => {
+    localStorage.setItem(TERMINAL_DOCKED_STORAGE_KEY, String(terminalDocked));
+    const hasVisibleTerminal = openIds.some((id) => !minimizedIds.has(id));
+    const maxWidth = Math.max(360, Math.min(720, window.innerWidth - 320));
+    const effectiveWidth = Math.max(360, Math.min(maxWidth, terminalDockedWidth));
+    document.documentElement.style.setProperty(
+      '--orbit-terminal-rail-w', terminalDocked && hasVisibleTerminal ? `${effectiveWidth}px` : '0px'
+    );
+    return () => document.documentElement.style.setProperty('--orbit-terminal-rail-w', '0px');
+  }, [terminalDocked, terminalDockedWidth, openIds, minimizedIds]);
+
+  useEffect(() => {
+    localStorage.setItem(TERMINAL_DOCKED_WIDTH_STORAGE_KEY, String(terminalDockedWidth));
+  }, [terminalDockedWidth]);
+
+  const beginDockedResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = terminalDockedWidth;
+    document.body.classList.add('orbit-terminal-resizing');
+    const onMove = (moveEvent: PointerEvent) => {
+      const maxWidth = Math.max(360, Math.min(720, window.innerWidth - 320));
+      setTerminalDockedWidth(Math.max(360, Math.min(maxWidth, startWidth + startX - moveEvent.clientX)));
+    };
+    const onUp = () => {
+      document.body.classList.remove('orbit-terminal-resizing');
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  useEffect(() => {
+    if (!terminalDocked) return;
+    const visible = openIds.filter((id) => !minimizedIds.has(id));
+    if (!activeDockedId || !visible.includes(activeDockedId)) {
+      setActiveDockedId(visible.at(-1) || null);
+    }
+  }, [terminalDocked, openIds, minimizedIds, activeDockedId]);
 
   const refresh = useCallback(async () => {
     try {
@@ -157,6 +209,7 @@ export default function Home() {
       return next;
     });
     bringToFront(s.sessionId);
+    if (terminalDocked) setActiveDockedId(s.sessionId);
   };
 
   const closePanel = (id: string) => {
@@ -186,6 +239,7 @@ export default function Home() {
       return next;
     });
     bringToFront(id);
+    if (terminalDocked) setActiveDockedId(id);
   };
 
   // estimativa grosseira de rows/cols do painel padrão (ainda nao montado nesse
@@ -207,6 +261,25 @@ export default function Home() {
       setErrorMsg(res.error);
       return;
     }
+    pendingOpenAgentId.current = res.id;
+    await refresh();
+  };
+
+  const handleResumeSession = async (session: SessionInfo) => {
+    // O Orbit abre um novo PTY para a conversa encerrada. O terminal original
+    // nao existe mais, mas a CLI recebe o mesmo ID e diretorio para retomar o
+    // historico onde ele parou.
+    const llm = session.llm === 'codex' ? 'codex' : 'claude';
+    const res = await startAgent(session.cwd || '~', session.name || undefined, {
+      ...estimatePtySize(),
+      llm,
+      resumeSessionId: session.sessionId,
+    });
+    if ('error' in res) {
+      setErrorMsg(res.error);
+      return;
+    }
+    dismissedAppAgentIdsRef.current.delete(session.sessionId);
     pendingOpenAgentId.current = res.id;
     await refresh();
   };
@@ -245,6 +318,16 @@ export default function Home() {
         onClick: () => setConfirmKill(session),
       });
     }
+    // So Claude e Codex possuem um comando de retomada com ID de sessao que
+    // o backend conhece. Sessoes externas encerradas continuam legiveis, e
+    // este comando devolve a conversa a um terminal interativo do Orbit.
+    if (!session.alive && !session.appManaged && (session.llm === 'codex' || !session.llm || session.llm === 'claude')) {
+      items.push({
+        label: 'Retomar sessão',
+        icon: <RotateCcw size={14} />,
+        onClick: () => handleResumeSession(session),
+      });
+    }
     items.push({
       label: 'Abrir',
       icon: <ExternalLink size={14} />,
@@ -278,24 +361,23 @@ export default function Home() {
     .filter((id) => minimizedIds.has(id))
     .map((id) => sessionCacheRef.current.get(id))
     .filter((s): s is SessionInfo => !!s);
+  const dockedPanels = openIds
+    .filter((id) => !minimizedIds.has(id))
+    .map((id) => sessionCacheRef.current.get(id))
+    .filter((s): s is SessionInfo => !!s);
 
   return (
     <IonPage>
       <AppShell>
         <IonContent className="home-content">
-          {sessions.length === 0 ? (
-            <div className="empty-state">
-              Nenhuma sessão encontrada.
-              <br />
-              Toque em + para iniciar um agente.
-            </div>
-          ) : (
-            <SessionTree
-              sessions={[...sessions].sort((a, b) => a.startedAt - b.startedAt)}
-              onOpen={openPanel}
-              onContextMenu={handleCardContextMenu}
-            />
-          )}
+          <div className="home-usage-header">
+            <LlmUsageWidget sessions={sessions} />
+          </div>
+          <SessionTree
+            sessions={[...sessions].sort((a, b) => a.startedAt - b.startedAt)}
+            onOpen={openPanel}
+            onContextMenu={handleCardContextMenu}
+          />
 
           <IonFab vertical="bottom" horizontal="end" slot="fixed">
             <IonFabButton onClick={() => setShowNewAgent(true)}>
@@ -395,6 +477,51 @@ export default function Home() {
             onCancel={() => setConfirmKillResource(null)}
           />
 
+          {terminalDocked && dockedPanels.length > 0 && (
+            <div className="term-pinned-tabs" role="tablist" aria-label="Terminais fixados">
+              <div className="term-pinned-resize-handle" onPointerDown={beginDockedResize} aria-label="Redimensionar painel de terminais" />
+              {dockedPanels.map((s) => {
+                const Logo = llmLogoFor(s.llm || 'claude');
+                const active = s.sessionId === activeDockedId;
+                const needsAction = needsActionIds.has(s.sessionId);
+                return (
+                  <button
+                    key={s.appAgentId || s.sessionId}
+                    className={`term-pinned-tab${active ? ' active' : ''}${needsAction ? ' needs-action' : ''}`}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveDockedId(s.sessionId)}
+                    title={s.name || s.sessionId}
+                  >
+                    <Logo size={13} />
+                    <span>{s.name || s.sessionId.slice(0, 8)}</span>
+                    <span className={`term-pinned-tab-dot${needsAction ? ' needs-action' : s.status === 'busy' ? ' busy' : ''}`} />
+                    <span
+                      className="term-pinned-tab-close"
+                      role="button"
+                      aria-label={`Fechar ${s.name || s.sessionId.slice(0, 8)}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        dismissedAppAgentIdsRef.current.add(s.sessionId);
+                        closePanel(s.sessionId);
+                      }}
+                    >
+                      <X size={11} />
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                className="term-pinned-undock"
+                onClick={() => setTerminalDocked(false)}
+                aria-label="Desafixar terminais"
+                title="Desafixar terminais"
+              >
+                <PinOff size={13} />
+              </button>
+            </div>
+          )}
+
           {openIds.map((id) => {
             const session = sessionCacheRef.current.get(id);
             if (!session) return null;
@@ -420,6 +547,12 @@ export default function Home() {
                 replaySteps={steps}
                 minimized={isMinimized}
                 zIndex={zIndexById[id] ?? BASE_Z}
+                docked={terminalDocked && !isMinimized}
+                dockedActive={id === activeDockedId}
+                onToggleDock={() => {
+                  setTerminalDocked((value) => !value);
+                  setActiveDockedId(id);
+                }}
                 onClose={() => {
                   dismissedAppAgentIdsRef.current.add(id);
                   closePanel(id);

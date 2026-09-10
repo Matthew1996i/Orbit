@@ -22,7 +22,6 @@ import { SessionInfo, CostSummary, SessionCostUsage, fetchCostSummary } from '..
 import { shortCwd, formatModelEffort } from '../utils/format';
 import { llmLogoFor, llmLogoColorFor } from '../utils/llmLogos';
 import { resourceIconFor, resourceIconColorFor } from '../utils/resourceIcons';
-import LlmUsageWidget from './LlmUsageWidget';
 import CostUsageFooter, { formatTokens, formatBrl } from './CostUsageFooter';
 import { defaultPanelTop } from './TerminalPanel';
 import './SessionTree.css';
@@ -766,7 +765,6 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
   return (
     <div className={`session-tree-scroll${isPanning ? ' panning' : ''}`} ref={viewportRef}>
       <div className="session-tree-topbar">
-        <LlmUsageWidget sessions={sessions} />
         <div className="session-tree-controls">
           <button className="session-tree-control-btn" onClick={zoomOut} aria-label="Reduzir zoom">
             <Minus size={14} />
