@@ -4,11 +4,14 @@
    (--orbit-titlebar-h), que por sua vez esta travada porque SessionTree.tsx e
    TerminalPanel.tsx hardcodam esse valor pro alinhamento "focar card". */
 .orbit-shell {
+  --orbit-panel-gap: 6px;
+  --orbit-panel-radius: 5px;
   position: absolute;
   inset: var(--orbit-titlebar-h) var(--orbit-terminal-rail-w, 0px) 0 0;
   display: flex;
   overflow: hidden;
   transition: right 0.2s ease;
+  background: #101216;
 }
 
 /* a Activity Bar (esquerda) anima a propria largura sozinha (ver
@@ -64,7 +67,16 @@
   flex-shrink: 0;
   position: relative;
   z-index: 16;
-  height: 100%;
+  height: calc(100% - (var(--orbit-panel-gap) * 2));
+  margin-top: var(--orbit-panel-gap);
+  margin-bottom: var(--orbit-panel-gap);
+  margin-left: var(--orbit-panel-gap);
+}
+
+.orbit-sidebar > .sidebar-panel,
+.orbit-sidebar-preview > .sidebar-panel {
+  border-radius: var(--orbit-panel-radius);
+  overflow: hidden;
 }
 .orbit-sidebar-hidden {
   display: none;
@@ -99,9 +111,9 @@ body.orbit-resizing {
    o estado FIXADO (clique). */
 .orbit-sidebar-preview {
   position: absolute;
-  left: var(--orbit-activitybar-w);
-  top: 0;
-  bottom: 0;
+  left: calc(var(--orbit-activitybar-w) + var(--orbit-panel-gap));
+  top: var(--orbit-panel-gap);
+  bottom: var(--orbit-panel-gap);
   z-index: 20;
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
 }
@@ -117,6 +129,9 @@ body.orbit-resizing {
   min-width: 0;
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
+  margin: var(--orbit-panel-gap);
+  border-radius: var(--orbit-panel-radius);
   padding-top: var(--orbit-term-dock-h);
   background-color: var(--orbit-canvas-bg);
   background-image: radial-gradient(circle, var(--orbit-canvas-grid) 1px, transparent 1px);

@@ -35,9 +35,9 @@ ion-toolbar {
    do layout" mesmo sendo um elemento fixed por fora da arvore delas. */
 .term-dock {
   position: fixed;
-  top: var(--orbit-titlebar-h);
-  left: var(--orbit-content-left, 48px);
-  right: var(--orbit-terminal-rail-w, 0px);
+  top: calc(var(--orbit-titlebar-h) + 6px);
+  left: calc(var(--orbit-content-left, 48px) + 6px);
+  right: calc(var(--orbit-terminal-rail-w, 0px) + 6px);
   height: var(--orbit-term-dock-h);
   display: flex;
   align-items: center;
@@ -45,6 +45,7 @@ ion-toolbar {
   padding: 0 14px;
   background: #18181b;
   border-bottom: 1px solid #2a2a2f;
+  border-radius: 5px 5px 0 0;
   overflow-x: auto;
   z-index: 15;
   transition: right 0.2s ease;

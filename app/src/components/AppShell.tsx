@@ -331,7 +331,8 @@ export default function AppShell({ children }: Props) {
   // quando ele estiver aberto, cobre visualmente o pedaco do subheader por
   // baixo dele em vez de precisar deslocar o subheader inteiro.
   useEffect(() => {
-    const total = activityBarRealWidth + (sidebarOpen ? sidebarWidth : 0);
+    const panelGap = sidebarOpen ? 6 : 0;
+    const total = activityBarRealWidth + panelGap + (sidebarOpen ? sidebarWidth : 0);
     document.documentElement.style.setProperty('--orbit-content-left', `${total}px`);
   }, [sidebarOpen, sidebarWidth, activityBarRealWidth]);
 
