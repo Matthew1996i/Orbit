@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Square, Copy, X } from 'lucide-react';
+import { Minus, Square, Copy, X } from '@phosphor-icons/react';
 import { getOsPlatform } from '../utils/platform';
 import './TitleBar.css';
 
@@ -23,7 +23,6 @@ export default function TitleBar() {
 
   return createPortal(
     <div className={`title-bar ${platform}`}>
-      <span className="title-bar-name">Orbit</span>
 
       {!isMac && (
         <div className="title-bar-window-controls">
@@ -32,17 +31,17 @@ export default function TitleBar() {
             onClick={() => window.dashboardAPI?.windowMinimize()}
             aria-label="Minimizar"
           >
-            <Minus size={14} />
+            <Minus size={14} weight="bold" />
           </button>
           <button className="title-bar-btn" onClick={toggleMaximize} aria-label="Maximizar">
-            {maximized ? <Copy size={12} /> : <Square size={12} />}
+            {maximized ? <Copy size={12} weight="bold" /> : <Square size={12} weight="bold" />}
           </button>
           <button
             className="title-bar-btn title-bar-btn-close"
             onClick={() => window.dashboardAPI?.windowClose()}
             aria-label="Fechar"
           >
-            <X size={14} />
+            <X size={14} weight="bold" />
           </button>
         </div>
       )}

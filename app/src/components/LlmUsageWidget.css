@@ -28,8 +28,10 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #131316;
-  border: 1px solid #2a2a2f;
+  background: color-mix(in srgb, var(--orbit-sidebar-bg) 63%, transparent);
+  border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
+  -webkit-backdrop-filter: blur(8.3px);
+  backdrop-filter: blur(8.3px);
   border-radius: 8px;
   padding: 4px 8px;
   white-space: nowrap;
@@ -41,12 +43,18 @@
   border-color: #3a3a42;
 }
 
+/* mesmo vidro do sidebar/menus (cor do tema + blur). O popover e portado
+   pro <body> e o submenu nao existe aqui, entao o backdrop-filter pode ficar
+   no proprio elemento. */
 .llm-usage-popover {
   min-width: 220px;
-  background: #16161a;
-  border: 1px solid #2a2a2f;
+  background: var(--orbit-sidebar-glass-bg, color-mix(in srgb, var(--orbit-sidebar-bg) 63%, transparent));
+  border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
   border-radius: 10px;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  -webkit-backdrop-filter: blur(8.3px);
+  backdrop-filter: blur(8.3px);
+  animation: llm-usage-popover-enter 0.12s ease-out;
   padding: 10px 12px;
   z-index: 100000;
   white-space: normal;
@@ -83,7 +91,7 @@
 .llm-usage-popover-sessions {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #232326;
+  border-top: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
   font-size: 10.5px;
   color: #7a7a82;
 }
@@ -221,7 +229,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 6px 12px;
   padding-top: 8px;
-  border-top: 1px solid #232326;
+  border-top: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
 }
 .llm-usage-reset-grid > div {
   display: flex;
@@ -245,7 +253,7 @@
   justify-content: space-between;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #232326;
+  border-top: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
   font-size: 9.5px;
   color: #7a7a82;
 }
@@ -304,4 +312,9 @@
 .llm-usage-box.idle .llm-usage-box-pct {
   color: #f5a623;
   background: rgba(245, 166, 35, 0.12);
+}
+
+@keyframes llm-usage-popover-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }

@@ -3,12 +3,13 @@
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  background: var(--orbit-navigation-glass);
+  background: var(--orbit-sidebar-glass-bg);
   color: var(--orbit-glass-ink);
   border: 1px solid var(--orbit-glass-line);
+  border-radius: var(--orbit-sidebar-glass-radius);
   box-shadow: var(--orbit-glass-shadow);
-  -webkit-backdrop-filter: var(--orbit-glass-filter);
-  backdrop-filter: var(--orbit-glass-filter);
+  -webkit-backdrop-filter: var(--orbit-sidebar-glass-filter);
+  backdrop-filter: var(--orbit-sidebar-glass-filter);
   display: flex;
   flex-direction: column;
   /* sidebar/title bar usam a fonte de UI (nao a mono usada no resto do app) —
@@ -242,4 +243,10 @@
   background: var(--orbit-glass-hover);
   border: 1px solid var(--orbit-glass-line);
   color: var(--orbit-glass-muted);
+}
+
+.sidebar-section-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }

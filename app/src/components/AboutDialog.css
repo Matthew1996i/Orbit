@@ -1,0 +1,101 @@
+.about-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+/* mesmo vidro/tokens do sidebar e do menu de contexto */
+.about-dialog {
+  position: relative;
+  width: min(320px, 92vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 24px 24px;
+  border-radius: 16px;
+  background: var(--orbit-sidebar-bg);
+  border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  color: var(--orbit-sidebar-fg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  animation: about-enter 0.16s ease-out;
+}
+@keyframes about-enter {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.about-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--orbit-fg-muted);
+  cursor: pointer;
+}
+.about-close:hover {
+  background: color-mix(in srgb, var(--orbit-sidebar-fg) 8%, transparent);
+  color: var(--orbit-sidebar-fg);
+}
+
+.about-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  margin-bottom: 14px;
+  user-select: none;
+}
+
+.about-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.about-tagline {
+  margin: 4px 0 12px;
+  font-size: 13px;
+  color: var(--orbit-fg-muted);
+}
+
+.about-version {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--orbit-sidebar-fg);
+  background: color-mix(in srgb, var(--orbit-sidebar-fg) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
+}
+
+.about-ok {
+  margin-top: 22px;
+  width: 100%;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--orbit-accent);
+  color: var(--orbit-accent-contrast);
+}
+.about-ok:hover {
+  filter: brightness(1.08);
+}

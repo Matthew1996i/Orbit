@@ -1,38 +1,85 @@
+/* Mesmo vidro do sidebar (ver .orbit-shell em AppShell.css) e tokens do
+   tema — o menu e portado pro <body>, entao herda os tokens do <html>. */
 .context-menu {
   position: fixed;
   z-index: 100000;
   min-width: 200px;
-  background: #1a1a1e;
-  border: 1px solid #2a2a2f;
-  border-radius: 8px;
-  padding: 4px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: color-mix(in srgb, var(--orbit-sidebar-bg) 88%, transparent);
+  color: var(--orbit-sidebar-fg);
+  border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.35);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  isolation: isolate;
+  animation: context-menu-enter 0.12s ease-out;
+}
+/* blur num pseudo-elemento, NAO no .context-menu: backdrop-filter no
+   proprio menu o tornaria containing block do submenu (position: fixed),
+   que passaria a ser posicionado relativo ao menu e sumia da tela. */
+.context-menu::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  -webkit-backdrop-filter: blur(8.3px);
+  backdrop-filter: blur(8.3px);
 }
 
 .context-menu-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   background: transparent;
   border: none;
-  color: #e8e8ea;
-  font-size: 12.5px;
+  color: var(--orbit-sidebar-fg);
+  font-size: 13px;
   font-family: inherit;
   text-align: left;
-  padding: 8px 10px;
-  border-radius: 5px;
+  padding: 7px 10px;
+  border-radius: 8px;
   cursor: pointer;
+  transition: background 0.1s;
 }
 .context-menu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--orbit-sidebar-fg) 8%, transparent);
 }
-.context-menu-item.danger {
-  color: #ff8a85;
+.context-menu-icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--orbit-fg-muted);
+  flex-shrink: 0;
+}
+.context-menu-item:hover .context-menu-icon {
+  color: var(--orbit-sidebar-fg);
+}
+.context-menu-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+.context-menu-item.danger,
+.context-menu-item.danger .context-menu-icon {
+  color: var(--orbit-danger);
 }
 .context-menu-item.danger:hover {
-  background: rgba(255, 92, 87, 0.12);
+  background: color-mix(in srgb, var(--orbit-danger) 14%, transparent);
+}
+
+/* divisoria entre grupos (ex.: acoes normais | destrutivas) */
+.context-menu-row.has-separator {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
+}
+
+@keyframes context-menu-enter {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
 }
 
 .context-menu-row {

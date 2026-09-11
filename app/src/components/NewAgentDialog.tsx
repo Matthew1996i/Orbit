@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FolderOpen, Bot, ChevronDown } from 'lucide-react';
+import { FolderOpen, Robot, CaretDown } from '@phosphor-icons/react';
 import { fetchLlms, fetchUsage, LlmCli } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import './ConfirmDialog.css';
@@ -83,7 +83,7 @@ export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
     <div className="confirm-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="confirm-dialog">
         <div className="confirm-header">
-          <Bot size={18} className="confirm-icon" />
+          <span className="confirm-icon"><Robot size={18} /></span>
           <h2>Novo agente</h2>
         </div>
 
@@ -101,7 +101,7 @@ export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
           className="new-agent-input"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="nome do agente"
+          placeholder="Ex.: refatorar-checkout"
         />
 
         <label className="new-agent-label">LLM</label>
@@ -115,7 +115,7 @@ export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
               <SelectedLogo size={15} />
             </span>
             <span className="new-agent-llm-name">{selectedLlm.name}</span>
-            <ChevronDown size={14} className={`new-agent-llm-chevron ${llmMenuOpen ? 'open' : ''}`} />
+            <CaretDown size={14} className={`new-agent-llm-chevron ${llmMenuOpen ? 'open' : ''}`} />
           </button>
 
           {llmMenuOpen && (

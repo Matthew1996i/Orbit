@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Clock } from 'lucide-react';
+import { ArrowsClockwise, Clock } from '@phosphor-icons/react';
 import { fetchLlms, fetchUsage, ClaudeUsage, CodexUsage, UsageWindow, LlmCli, SessionInfo } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import './LlmUsageWidget.css';
@@ -109,6 +109,24 @@ export default function LlmUsageWidget({ sessions }: Props) {
   const [codexUsageStale, setCodexUsageStale] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // O popover e ancorado pela borda DIREITA do chip; com o chip colado a
+  // esquerda (janela estreita / sidebar recolhida) ele vazava por cima da
+  // sidebar e da borda da janela. Depois de montar, mede e — se a borda
+  // esquerda ficou antes do inicio do painel de conteudo — reancora pela
+  // esquerda, respeitando uma folga de 8px do painel.
+  useLayoutEffect(() => {
+    const el = popoverRef.current;
+    if (!el || !popoverPos) return;
+    const contentLeft = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--orbit-content-left')) || 0;
+    const minLeft = contentLeft + 6 + 8;
+    const rect = el.getBoundingClientRect();
+    if (rect.left < minLeft) {
+      el.style.right = 'auto';
+      el.style.left = `${Math.min(minLeft, Math.max(8, window.innerWidth - rect.width - 8))}px`;
+    }
+  }, [popoverPos]);
   const [usageLoading, setUsageLoading] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -260,6 +278,7 @@ export default function LlmUsageWidget({ sessions }: Props) {
                 seria cortado no eixo vertical por esse overflow. */}
             {isOpen && popoverPos && createPortal(
               <div
+                ref={popoverRef}
                 className="llm-usage-popover"
                 style={{ position: 'fixed', top: popoverPos.top, right: popoverPos.right }}
                 onMouseDown={(e) => e.stopPropagation()}
@@ -288,7 +307,7 @@ export default function LlmUsageWidget({ sessions }: Props) {
                         if (cli.id === 'claude' || cli.id === 'codex') loadUsage(false, true);
                       }}
                     >
-                      <RefreshCw size={11} className={usageLoading ? 'spinning' : ''} />
+                      <ArrowsClockwise size={11} className={usageLoading ? 'spinning' : ''} />
                     </button>
                   )}
                 </div>

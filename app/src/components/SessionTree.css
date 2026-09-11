@@ -42,7 +42,9 @@
    um rotulo pequeno estilo "legend" cortando a borda de cima. */
 .session-tree-group-box {
   position: absolute;
-  border: 1px dashed var(--orbit-canvas-border);
+  /* mais clara que --orbit-canvas-border: mistura com o texto do tema pra a
+     linha tracejada continuar visivel sobre o canvas escuro. */
+  border: 1px dashed color-mix(in srgb, var(--orbit-sidebar-fg) 28%, var(--orbit-canvas-bg));
   border-radius: 14px;
   pointer-events: none;
 }
@@ -61,10 +63,12 @@
   white-space: nowrap;
 }
 
+/* canto inferior ESQUERDO (pedido explicito), logo ACIMA do rodape de custo
+   (.cost-usage-footer, bottom 8px) — o botao "Novo agente" fica no direito. */
 .session-tree-topbar {
   position: absolute;
-  top: 12px;
-  right: 16px;
+  bottom: 30px;
+  left: 16px;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -75,10 +79,14 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  background: #131316;
-  border: 1px solid #2a2a2f;
+  /* mesmo vidro do sidebar/menus: cor do tema com transparencia + blur */
+  background: color-mix(in srgb, var(--orbit-sidebar-bg) 63%, transparent);
+  border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
   border-radius: 8px;
   padding: 3px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  -webkit-backdrop-filter: blur(8.3px);
+  backdrop-filter: blur(8.3px);
   flex-shrink: 0;
 }
 
@@ -91,13 +99,13 @@
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: #9a9aa2;
+  color: var(--orbit-fg-muted);
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
 .session-tree-control-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e8e8ea;
+  background: color-mix(in srgb, var(--orbit-sidebar-fg) 8%, transparent);
+  color: var(--orbit-sidebar-fg);
 }
 
 .tree-edge {

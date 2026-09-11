@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight } from 'lucide-react';
+import { CaretRight } from '@phosphor-icons/react';
 import './ContextMenu.css';
 
 export interface ContextMenuItem {
   label: string;
+  // linha divisoria ANTES deste item (agrupa ex.: acoes normais | destrutivas)
+  separator?: boolean;
   icon?: React.ReactNode;
   danger?: boolean;
   keepOpen?: boolean;
@@ -59,7 +61,7 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
       {items.map((item, idx) => (
         <div
           key={idx}
-          className="context-menu-row"
+          className={`context-menu-row${item.separator ? ' has-separator' : ''}`}
           onMouseEnter={(e) => {
             if (!item.items) {
               setOpenSub(null);
@@ -80,9 +82,9 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
               if (!item.keepOpen) onClose();
             }}
           >
-            {item.icon}
-            <span>{item.label}</span>
-            {item.items && <ChevronRight size={14} className="context-menu-caret" />}
+            {item.icon && <span className="context-menu-icon">{item.icon}</span>}
+            <span className="context-menu-label">{item.label}</span>
+            {item.items && <CaretRight size={14} className="context-menu-caret" />}
           </button>
 
           {item.items && openSub?.index === idx && (
@@ -99,8 +101,8 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
                     if (!sub.keepOpen) onClose();
                   }}
                 >
-                  {sub.icon}
-                  <span>{sub.label}</span>
+                  {sub.icon && <span className="context-menu-icon">{sub.icon}</span>}
+                  <span className="context-menu-label">{sub.label}</span>
                 </button>
               ))}
             </div>

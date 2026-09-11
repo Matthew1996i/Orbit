@@ -8,6 +8,10 @@
 
 :root,
 :root[data-theme='dark-plus'] {
+  /* Cor da barra de titulo e do fundo da janela atras dos paineis — FIXA na
+     cor do Dracula em todos os temas (pedido explicito); os demais tokens
+     continuam variando por tema. */
+  --orbit-chrome-bg: #191a21;
   --orbit-titlebar-h: 38px;
   --orbit-activitybar-w: 48px;
   /* altura do subheader de terminais minimizados (ver Home.css .term-dock)

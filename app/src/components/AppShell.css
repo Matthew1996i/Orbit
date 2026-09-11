@@ -13,14 +13,24 @@
   --orbit-glass-filter: blur(5px);
   /* Preserve text contrast even when a white catalog sits behind the glass. */
   --orbit-navigation-glass: color-mix(in srgb, var(--orbit-sidebar-bg) 80%, transparent);
+  /* Sidebar glass (https://css.glass): raio 10px (16 ficava redondo demais), sombra 0 4px 30px e blur
+     8.3px — mas a cor e sempre a do tema (sidebar-bg a 63%), nunca branca. */
+  --orbit-sidebar-glass-bg: color-mix(in srgb, var(--orbit-sidebar-bg) 63%, transparent);
+  --orbit-sidebar-glass-filter: blur(8.3px);
+  --orbit-sidebar-glass-radius: 10px;
   --orbit-panel-gap: 6px;
-  --orbit-panel-radius: 5px;
+  /* mesmo raio em todos os paineis (activity bar, sidebar, conteudo) —
+     antes a sidebar tinha 16px e os outros 5px, e a diferenca saltava aos olhos. */
+  --orbit-panel-radius: var(--orbit-sidebar-glass-radius);
   position: absolute;
   inset: var(--orbit-titlebar-h) var(--orbit-terminal-rail-w, 0px) 0 0;
   display: flex;
   overflow: hidden;
   transition: right 0.2s ease;
-  background: var(--orbit-canvas-bg);
+  /* Fundo da janela atras dos paineis: mesma cor da barra de titulo, pra
+     titulo e fundo virarem uma superficie continua (o canvas do conteudo
+     continua em --orbit-canvas-bg). */
+  background: var(--orbit-chrome-bg);
 }
 
 /* a Activity Bar (esquerda) anima a propria largura sozinha (ver
@@ -86,8 +96,13 @@
 
 .orbit-sidebar > .sidebar-panel,
 .orbit-sidebar-preview > .sidebar-panel {
-  border-radius: var(--orbit-panel-radius);
+  border-radius: var(--orbit-sidebar-glass-radius);
   overflow: hidden;
+}
+/* Fundo branco atras (tela cheia): vidro mais opaco na cor do tema pra
+   manter o contraste do texto claro; o fundo da tela principal nao muda. */
+.orbit-shell-light-content {
+  --orbit-sidebar-glass-bg: var(--orbit-navigation-glass);
 }
 .orbit-sidebar-hidden {
   display: none;
@@ -142,8 +157,14 @@ body.orbit-resizing {
   overflow: hidden;
   box-sizing: border-box;
   margin: var(--orbit-panel-gap);
+  /* a faixa dos agentes minimizados (.term-dock, fixed, cor do chrome) fica
+     ACIMA do painel, nao dentro dele: reservar como margin-top (em vez de
+     padding-top) mantem os 4 cantos arredondados do conteudo visiveis, com o
+     mesmo raio da activity bar e da sidebar. */
+  margin-top: calc(var(--orbit-panel-gap) + var(--orbit-term-dock-h));
+  transition: margin-top 0.2s ease;
   border-radius: var(--orbit-panel-radius);
-  padding-top: var(--orbit-term-dock-h);
+  border: 1px solid var(--orbit-glass-line);
   background-color: var(--orbit-canvas-bg);
   background-image: radial-gradient(circle, var(--orbit-canvas-grid) 1px, transparent 1px);
   background-size: 22px 22px;

@@ -151,11 +151,10 @@ export default function AppShell({ children }: Props) {
   // dispara tanto da sidebar fixada quanto do preview de hover — em ambos os
   // casos a tela cheia toma o lugar do conteudo principal, entao o painel da
   // sidebar (fixado ou preview) fecha, dando o espaço todo pra tela.
+  // Abrir uma tela cheia NAO fecha os paineis laterais — nem o preview de
+  // hover (some sozinho ao tirar o mouse) nem a sidebar fixada (pedido
+  // explicito: clicar num item do side/subside nao pode recolher nada).
   const dismissSidebar = () => {
-    clearHoverTimers();
-    setHoverSection(null);
-    setSidebarsPinned(false);
-    setSidebar((cur) => ({ ...cur, open: false }));
     writePref(SIDEBAR_OPEN_KEY, '0');
   };
   const openLlmCatalog = () => {
@@ -290,6 +289,10 @@ export default function AppShell({ children }: Props) {
       const target = e.target as Node;
       if (activityBarWrapRef.current?.contains(target)) return;
       if (previewRef.current?.contains(target)) return;
+      // menus de contexto (engrenagem > Tema etc.) sao portados pro <body>,
+      // fora da barra — clicar numa opcao deles nao pode fechar o preview.
+      if (settingsMenuOpenRef.current) return;
+      if ((target as Element).closest?.('.context-menu')) return;
       clearHoverTimers();
       setHoverSection(null);
     };
@@ -340,8 +343,10 @@ export default function AppShell({ children }: Props) {
   // Os ícones de navegação apenas trocam a seção. Recolher a sidebar é uma
   // ação explícita do botão no cabeçalho dela.
   const selectSection = (key: SectionKey) => {
+    // em modo hover, o clique so troca a secao do preview (que continua
+    // aberto); com a sidebar fixada, troca a secao fixada. Nunca fecha.
     clearHoverTimers();
-    setHoverSection(null);
+    if (!sidebarsPinned) setHoverSection(key);
     // Agentes e LLMs sao destinos de navegacao, nao filtros da Home. Abrir
     // diretamente seus catalogos evita o salto visual de volta para sessões
     // que acontecia ao clicar nesses icones da barra lateral.
@@ -383,12 +388,9 @@ export default function AppShell({ children }: Props) {
     // mesma secao (ex: clicar em "Agentes" de novo com a tela de edicao ja
     // aberta) nao fecha.
     if (fullScreenSection(fullScreen) !== null && key !== fullScreenSection(fullScreen)) setFullScreen(null);
-    setSidebar((cur) => {
-      const open = true;
-      writePref(SIDEBAR_OPEN_KEY, '1');
-      writePref(SIDEBAR_SECTION_KEY, key);
-      return { open, section: key };
-    });
+    writePref(SIDEBAR_OPEN_KEY, '1');
+    writePref(SIDEBAR_SECTION_KEY, key);
+    setSidebar({ open: true, section: key });
   };
 
   const closeSidebar = () => {
@@ -439,7 +441,10 @@ export default function AppShell({ children }: Props) {
     <>
       <TitleBar />
       <div
-        className="orbit-shell"
+        // orbit-shell-light-content: as telas cheias (catalogos, edicao) tem
+        // fundo branco fixo — nesse caso o vidro do sidebar volta a usar a cor
+        // do tema (senao vidro branco + texto claro do tema ficam ilegiveis).
+        className={`orbit-shell${fullScreen ? ' orbit-shell-light-content' : ''}`}
         style={{ '--orbit-activitybar-w': activityBarExpanded ? '208px' : '48px' } as React.CSSProperties}
       >
         <div
@@ -449,7 +454,6 @@ export default function AppShell({ children }: Props) {
         >
           <ActivityBar
             activeSection={activeSection}
-            sidebarOpen={sidebarOpen}
             expanded={activityBarExpanded}
             onSelectSection={selectSection}
             onHoverSection={handleHoverSection}
@@ -463,6 +467,7 @@ export default function AppShell({ children }: Props) {
             }}
             onGoHome={goHome}
             isHome={!fullScreen}
+            screenSection={fullScreenSection(fullScreen)}
             sidebarsPinned={sidebarsPinned}
             onToggleSidebars={toggleSidebars}
           />

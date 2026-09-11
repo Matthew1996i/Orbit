@@ -122,3 +122,11 @@
 .orbit-activitybar.expanded .orbit-activitybar-btn-footer {
   margin-top: auto;
 }
+
+/* Lineicons: SVG de 1em com fill hardcoded nos paths — recolore pra
+   acompanhar a cor do botao (normal/hover/ativo). */
+.orbit-activitybar-icon {
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+}

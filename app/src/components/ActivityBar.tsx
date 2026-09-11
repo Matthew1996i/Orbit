@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { Settings, Check, RotateCw, Info, X, Palette, Home, PanelLeft } from 'lucide-react';
+import { Check, ArrowClockwise, Info, X, Palette } from '@phosphor-icons/react';
+import { TreeStructure, Gear, SidebarSimple } from '@phosphor-icons/react';
 import ContextMenu, { ContextMenuItem } from './ContextMenu';
-import ConfirmDialog from './ConfirmDialog';
+import AboutDialog from './AboutDialog';
 import { THEMES } from '../theme/themes';
 import { SECTION_ICONS, SectionKey } from '../utils/sidebarSections';
 import './ActivityBar.css';
 
 interface Props {
   activeSection: SectionKey | null;
-  sidebarOpen: boolean;
   // fixado OU em preview de hover — controla so a exibicao do label/largura,
   // nao a marcacao "active" (essa continua so pro estado fixado de verdade).
   expanded: boolean;
@@ -23,13 +23,16 @@ interface Props {
   // a unica saida era o botao "Voltar" de dentro da propria tela.
   onGoHome: () => void;
   isHome: boolean;
+  // secao "dona" da tela cheia aberta (catalogo/edicao). E a UNICA fonte do
+  // destaque "ativo" (junto com Sessoes na Home): indica onde o usuario ESTA,
+  // nao qual secao a sidebar mostra — senao ficavam dois icones marcados.
+  screenSection: SectionKey | null;
   sidebarsPinned: boolean;
   onToggleSidebars: () => void;
 }
 
 export default function ActivityBar({
   activeSection,
-  sidebarOpen,
   expanded,
   onSelectSection,
   onHoverSection,
@@ -39,6 +42,7 @@ export default function ActivityBar({
   onSettingsMenuOpenChange,
   onGoHome,
   isHome,
+  screenSection,
   sidebarsPinned,
   onToggleSidebars,
 }: Props) {
@@ -62,7 +66,7 @@ export default function ActivityBar({
   const settingsMenuItems: ContextMenuItem[] = [
     {
       label: 'Recarregar',
-      icon: <RotateCw size={14} />,
+      icon: <ArrowClockwise size={14} />,
       onClick: () => window.dashboardAPI?.reloadApp(),
     },
     {
@@ -117,23 +121,23 @@ export default function ActivityBar({
       <button
         className={`orbit-activitybar-btn${isHome ? ' active' : ''}`}
         onClick={onGoHome}
-        aria-label="Início"
-        title="Início"
+        aria-label="Sessões"
+        title="Sessões"
       >
-        <Home size={21} strokeWidth={1.9} />
-        {expanded && <span className="orbit-activitybar-label">Início</span>}
+        <TreeStructure className="orbit-activitybar-icon" />
+        {expanded && <span className="orbit-activitybar-label">Sessões</span>}
       </button>
 
       {SECTION_ICONS.map(({ key, Icon, label }) => (
         <button
           key={key}
           data-hover-key={key}
-          className={`orbit-activitybar-btn${sidebarOpen && activeSection === key ? ' active' : ''}`}
+          className={`orbit-activitybar-btn${screenSection === key ? ' active' : ''}`}
           onClick={() => onSelectSection(key)}
           aria-label={label}
           title={label}
         >
-          <Icon size={21} strokeWidth={1.9} />
+          <Icon className="orbit-activitybar-icon" />
           {expanded && <span className="orbit-activitybar-label">{label}</span>}
         </button>
       ))}
@@ -144,7 +148,7 @@ export default function ActivityBar({
         aria-label="Configurações"
         title="Configurações"
       >
-        <Settings size={21} strokeWidth={1.9} />
+        <Gear className="orbit-activitybar-icon" />
         {expanded && <span className="orbit-activitybar-label">Configurações</span>}
       </button>
 
@@ -154,7 +158,7 @@ export default function ActivityBar({
         aria-label={sidebarsPinned ? 'Recolher painéis laterais' : 'Fixar painéis laterais'}
         title={sidebarsPinned ? 'Recolher painéis laterais' : 'Fixar painéis laterais'}
       >
-        <PanelLeft size={21} strokeWidth={1.9} />
+        <SidebarSimple className="orbit-activitybar-icon" />
         {expanded && <span className="orbit-activitybar-label">{sidebarsPinned ? 'Recolher painéis' : 'Fixar painéis'}</span>}
       </button>
 
@@ -167,15 +171,7 @@ export default function ActivityBar({
         />
       )}
 
-      <ConfirmDialog
-        open={showAbout}
-        title="Orbit"
-        message={`Dashboard de sessões de IA.\n\nVersão: ${version || '—'}`}
-        singleButton
-        confirmText="OK"
-        onConfirm={() => setShowAbout(false)}
-        onCancel={() => setShowAbout(false)}
-      />
+      <AboutDialog open={showAbout} version={version} onClose={() => setShowAbout(false)} />
     </div>
   );
 }

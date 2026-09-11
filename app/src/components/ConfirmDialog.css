@@ -1,7 +1,11 @@
 .confirm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.45);
+  /* o desfoque fica no OVERLAY, nao no dialogo: o conteudo atras some
+     suavemente e o card em si continua opaco/legivel. */
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -13,37 +17,59 @@
   z-index: 100000;
 }
 
+/* mesmos tokens do sidebar/menus — fonte de UI (nao mono), raio 16px, botao
+   principal na cor de destaque do tema. Card OPACO de proposito: com
+   transparencia o canvas (cards, linhas) vazava por tras dos campos. */
 .confirm-dialog {
-  width: min(440px, 92vw);
-  background: var(--orbit-canvas-bg);
-  border: 1px solid var(--orbit-sidebar-border);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  width: min(460px, 92vw);
+  background: var(--orbit-sidebar-bg);
+  border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
+  border-radius: 16px;
+  padding: 22px 22px 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--orbit-sidebar-fg);
+  animation: confirm-enter 0.16s ease-out;
+}
+@keyframes confirm-enter {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
 }
 
 .confirm-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 .confirm-header h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 .confirm-icon {
-  color: var(--orbit-status-warn);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--orbit-accent);
+  background: color-mix(in srgb, var(--orbit-accent) 14%, transparent);
   flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 6px;
+}
+.confirm-icon.danger,
+.confirm-header .confirm-icon-danger {
+  color: var(--orbit-danger);
+  background: color-mix(in srgb, var(--orbit-danger) 14%, transparent);
 }
 
 .confirm-message {
   margin: 0;
-  font-size: 12.5px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.55;
   color: var(--orbit-fg-muted);
   white-space: pre-line;
 }
@@ -52,43 +78,44 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 22px;
 }
 
 .confirm-btn-cancel,
 .confirm-btn-submit,
 .confirm-btn-danger {
-  padding: 8px 16px;
-  border-radius: 8px;
+  padding: 9px 16px;
+  border-radius: 10px;
   font-size: 13px;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   border: 1px solid transparent;
+  transition: background 0.12s, color 0.12s, filter 0.12s;
 }
 
 .confirm-btn-cancel {
   background: transparent;
   color: var(--orbit-fg-muted);
-  border-color: var(--orbit-sidebar-border);
+  border-color: color-mix(in srgb, var(--orbit-sidebar-fg) 12%, transparent);
 }
 .confirm-btn-cancel:hover {
   color: var(--orbit-sidebar-fg);
+  background: color-mix(in srgb, var(--orbit-sidebar-fg) 6%, transparent);
 }
 
 .confirm-btn-submit {
-  background: var(--orbit-status-warn);
-  color: var(--orbit-canvas-bg);
-  font-weight: 600;
+  background: var(--orbit-accent);
+  color: var(--orbit-accent-contrast);
 }
 .confirm-btn-submit:hover {
-  filter: brightness(1.12);
+  filter: brightness(1.08);
 }
 
 .confirm-btn-danger {
   background: var(--orbit-danger);
   color: #fff;
-  font-weight: 600;
 }
 .confirm-btn-danger:hover {
-  filter: brightness(1.12);
+  filter: brightness(1.08);
 }

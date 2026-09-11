@@ -1,4 +1,4 @@
-import { AlertTriangle } from 'lucide-react';
+import { Warning } from '@phosphor-icons/react';
 import './ConfirmDialog.css';
 
 interface Props {
@@ -30,7 +30,7 @@ export default function ConfirmDialog({
     <div className="confirm-overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="confirm-dialog">
         <div className="confirm-header">
-          {danger && <AlertTriangle size={18} className="confirm-icon" />}
+          {danger && <span className="confirm-icon danger"><Warning size={18} /></span>}
           <h2>{title}</h2>
         </div>
         <p className="confirm-message">{message}</p>
