@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Wrench, Edit3 } from 'lucide-react';
+import { Wrench, PencilSimpleLine } from '@phosphor-icons/react';
 import { ToolDef, fetchTools } from '../api';
 import CatalogScreen, { CatalogGroup } from './CatalogScreen';
 
@@ -22,11 +22,11 @@ export default function ToolsCatalogScreen({ onBack, onOpenTool }: Props) {
     itemKey={(tool) => tool.name}
     onOpenItem={(tool) => onOpenTool(tool, tools)}
     totalCount={tools.length}
-    emptyIcon={<Wrench size={20} strokeWidth={1.75} />}
+    emptyIcon={<Wrench size={20} />}
     emptyTitle="Nenhuma tool encontrada"
     emptyText="As ferramentas detectadas no ambiente aparecerão aqui."
     noResultText="Nenhuma tool corresponde à busca"
     renderCard={(tool) => <><div className="catalog-card-name-row"><span className="catalog-card-name">{tool.name}</span><span className="catalog-card-badge">{tool.enabled ? 'Ativa' : 'Desativada'}</span></div><div className={`catalog-card-desc${tool.description ? '' : ' catalog-card-desc-empty'}`}>{tool.description || 'Sem descrição'}</div><div className="catalog-card-meta">Tool gerenciada pelo Orbit</div></>}
-    cardActions={(tool) => <span role="button" tabIndex={0} className="catalog-card-action" aria-label={`Editar ${tool.name}`} title={`Editar ${tool.name}`} onClick={(event) => { event.stopPropagation(); onOpenTool(tool, tools); }} onKeyDown={(event) => { if (event.key === 'Enter') onOpenTool(tool, tools); }}><Edit3 size={14} /></span>}
+    cardActions={(tool) => <span role="button" tabIndex={0} className="catalog-card-action" aria-label={`Editar ${tool.name}`} title={`Editar ${tool.name}`} onClick={(event) => { event.stopPropagation(); onOpenTool(tool, tools); }} onKeyDown={(event) => { if (event.key === 'Enter') onOpenTool(tool, tools); }}><PencilSimpleLine size={14} /></span>}
   />;
 }

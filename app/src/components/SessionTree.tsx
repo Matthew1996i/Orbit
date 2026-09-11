@@ -1,23 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { IonBadge } from '@ionic/react';
-import {
-  Puzzle,
-  Plus,
-  Minus,
-  LocateFixed,
-  Plug,
-  Sparkles,
-  Ticket,
-  GitBranch,
-  Mail,
-  HardDrive,
-  MessageSquare,
-  LayoutGrid,
-  Database,
-  Globe,
-  Calendar,
-  Search,
-} from 'lucide-react';
+import { PuzzlePiece, Plus, Minus, Crosshair, Plug, Sparkle, Ticket, GitBranch, Envelope, HardDrive, ChatCircle, SquaresFour, Database, Globe, Calendar, MagnifyingGlass } from '@phosphor-icons/react';
 import { SessionInfo, CostSummary, SessionCostUsage, fetchCostSummary } from '../api';
 import { shortCwd, formatModelEffort } from '../utils/format';
 import { llmLogoFor, llmLogoColorFor } from '../utils/llmLogos';
@@ -73,13 +56,13 @@ function useCostSummary(): { summary: CostSummary | null; connectionError: boole
 // de cada MCP de terceiros, mas um icone semantico ja da o "onde esta
 // conectando" de relance sem precisar ler o nome.
 const MCP_ICON_RULES: [RegExp, typeof Ticket][] = [
-  [/^web search$/i, Search],
+  [/^web search$/i, MagnifyingGlass],
   [/redmine|jira|ticket|issue/i, Ticket],
   [/git(hub|lab)?/i, GitBranch],
-  [/mail|gmail|outlook/i, Mail],
+  [/mail|gmail|outlook/i, Envelope],
   [/drive|storage|s3|dropbox/i, HardDrive],
-  [/slack|discord|teams|chat/i, MessageSquare],
-  [/miro|board|canvas|figma/i, LayoutGrid],
+  [/slack|discord|teams|chat/i, ChatCircle],
+  [/miro|board|canvas|figma/i, SquaresFour],
   [/sql|database|postgres|mysql|mongo/i, Database],
   [/chrome|browser|web/i, Globe],
   [/calendar|schedule/i, Calendar],
@@ -305,15 +288,15 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
   const resourceIconColor = session.isResource ? resourceIconColorFor(session.resourceKind) : undefined;
   const badgeColor = llmLogoColor || resourceIconColor;
   const badge = LlmLogo ? (
-    <LlmLogo size={14} strokeWidth={2.25} />
+    <LlmLogo size={14} />
   ) : McpIcon ? (
-    <McpIcon size={13} strokeWidth={2.25} />
+    <McpIcon size={13} />
   ) : ResourceIcon ? (
-    <ResourceIcon size={13} strokeWidth={2.25} />
+    <ResourceIcon size={13} />
   ) : session.isSkill ? (
-    <Sparkles size={13} strokeWidth={2.25} />
+    <Sparkle size={13} />
   ) : (
-    <Puzzle size={13} strokeWidth={2.25} />
+    <PuzzlePiece size={13} />
   );
 
   return (
@@ -770,7 +753,7 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
             <Minus size={14} />
           </button>
           <button className="session-tree-control-btn" onClick={centerView} aria-label="Centralizar">
-            <LocateFixed size={14} />
+            <Crosshair size={14} />
           </button>
           <button className="session-tree-control-btn" onClick={zoomIn} aria-label="Aumentar zoom">
             <Plus size={14} />

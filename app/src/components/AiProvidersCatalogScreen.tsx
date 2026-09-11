@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Brain } from 'lucide-react';
+import { Brain } from '@phosphor-icons/react';
 import { AiProvider, fetchAiProviders } from '../api';
 import CatalogScreen, { CatalogGroup } from './CatalogScreen';
 
@@ -19,6 +19,6 @@ export default function AiProvidersCatalogScreen({ onBack, onOpenProvider }: Pro
     { key: 'openai', title: 'Formato OpenAI', items: filtered.filter((provider) => provider.provider === 'openai') },
   ].filter((group) => group.items.length);
   return <>
-    <CatalogScreen title="Provedores de IA" subtitle="Conexões usadas para gerar e refinar agentes, skills e commands." groups={groups} query={query} onQueryChange={setQuery} createLabel="Novo provedor" onCreate={() => onOpenProvider()} onBack={onBack} itemKey={(provider) => provider.id} onOpenItem={onOpenProvider} totalCount={providers.length} emptyIcon={<Brain size={20} strokeWidth={1.75} />} emptyTitle="Nenhum provedor cadastrado" emptyText="Cadastre um provedor para usar a geração com IA." noResultText="Nenhum provedor encontrado" renderCard={(provider) => <><div className="catalog-card-name-row"><span className="catalog-card-name">{provider.title}</span><span className="catalog-card-badge">{provider.provider}</span></div><div className="catalog-card-desc" title={provider.model || undefined}>{provider.model || 'Modelo padrão'}</div><div className="catalog-card-meta">{provider.baseUrl || 'Endpoint padrão do provedor'}</div></>} />
+    <CatalogScreen title="Provedores de IA" subtitle="Conexões usadas para gerar e refinar agentes, skills e commands." groups={groups} query={query} onQueryChange={setQuery} createLabel="Novo provedor" onCreate={() => onOpenProvider()} onBack={onBack} itemKey={(provider) => provider.id} onOpenItem={onOpenProvider} totalCount={providers.length} emptyIcon={<Brain size={20} />} emptyTitle="Nenhum provedor cadastrado" emptyText="Cadastre um provedor para usar a geração com IA." noResultText="Nenhum provedor encontrado" renderCard={(provider) => <><div className="catalog-card-name-row"><span className="catalog-card-name">{provider.title}</span><span className="catalog-card-badge">{provider.provider}</span></div><div className="catalog-card-desc" title={provider.model || undefined}>{provider.model || 'Modelo padrão'}</div><div className="catalog-card-meta">{provider.baseUrl || 'Endpoint padrão do provedor'}</div></>} />
   </>;
 }

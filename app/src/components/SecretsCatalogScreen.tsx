@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyRound } from 'lucide-react';
+import { Key } from '@phosphor-icons/react';
 import { fetchSecretGroups, SecretGroup } from '../api';
 import CatalogScreen, { CatalogGroup } from './CatalogScreen';
 
@@ -21,6 +21,6 @@ export default function SecretsCatalogScreen({ onBack, onOpenGroup }: Props) {
     ? [{ key: 'groups', title: 'Grupos de chaves', items: filtered }]
     : [];
   return <>
-    <CatalogScreen title="Chaves e tokens" subtitle="Credenciais locais reutilizáveis pelos seus provedores e fluxos." groups={groupsByStatus} query={query} onQueryChange={setQuery} createLabel="Novo grupo" onCreate={() => onOpenGroup()} onBack={onBack} itemKey={(group) => group.id} onOpenItem={onOpenGroup} totalCount={groups.length} emptyIcon={<KeyRound size={20} strokeWidth={1.75} />} emptyTitle="Nenhuma chave cadastrada" emptyText="Crie um grupo para organizar tokens e referências seguras." noResultText="Nenhuma chave encontrada" renderCard={(group) => <><div className="catalog-card-name-row"><span className="catalog-card-name">{group.title}</span><span className="catalog-card-badge">{group.identifier}</span></div><div className="catalog-card-desc">{group.entries.length} {group.entries.length === 1 ? 'chave' : 'chaves'}</div><div className="catalog-card-meta">Use como {'{{'}{group.identifier}.CHAVE{'}}'}</div></>} />
+    <CatalogScreen title="Chaves e tokens" subtitle="Credenciais locais reutilizáveis pelos seus provedores e fluxos." groups={groupsByStatus} query={query} onQueryChange={setQuery} createLabel="Novo grupo" onCreate={() => onOpenGroup()} onBack={onBack} itemKey={(group) => group.id} onOpenItem={onOpenGroup} totalCount={groups.length} emptyIcon={<Key size={20} />} emptyTitle="Nenhuma chave cadastrada" emptyText="Crie um grupo para organizar tokens e referências seguras." noResultText="Nenhuma chave encontrada" renderCard={(group) => <><div className="catalog-card-name-row"><span className="catalog-card-name">{group.title}</span><span className="catalog-card-badge">{group.identifier}</span></div><div className="catalog-card-desc">{group.entries.length} {group.entries.length === 1 ? 'chave' : 'chaves'}</div><div className="catalog-card-meta">Use como {'{{'}{group.identifier}.CHAVE{'}}'}</div></>} />
   </>;
 }

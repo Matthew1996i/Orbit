@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ConfigProvider, Typography, Button } from 'antd';
-import { ArrowLeft, ExternalLink, LogOut, LogIn, Copy, Check } from 'lucide-react';
+import { ArrowLeft, ArrowSquareOut, SignOut, SignIn, Copy, Check } from '@phosphor-icons/react';
 import { LlmCli, startInstall } from '../api';
 import { llmLogoFor, llmLogoColorFor } from '../utils/llmLogos';
 import { llmGuideFor, llmManualAuthHint } from '../utils/llmGuide';
@@ -163,7 +163,7 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
 
           <div className="llm-detail-identity">
             <span className="llm-logo llm-detail-logo" style={{ color: logoColor }}>
-              <Logo size={30} strokeWidth={1.5} />
+              <Logo size={30} />
             </span>
             <div className="llm-detail-heading">
               <div className="llm-detail-name">{llm.name}</div>
@@ -188,7 +188,7 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
               {llm.status === 'connected' && llm.logout ? (
                 <Button
                   className="llm-btn llm-btn-danger"
-                  icon={running ? undefined : <LogOut size={13} />}
+                  icon={running ? undefined : <SignOut size={13} />}
                   loading={running?.action === 'logout'}
                   disabled={!!running}
                   onClick={() => run('logout')}
@@ -198,7 +198,7 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
               ) : llm.status !== 'connected' && llm.login ? (
                 <Button
                   className="llm-btn llm-btn-primary"
-                  icon={running ? undefined : <LogIn size={13} />}
+                  icon={running ? undefined : <SignIn size={13} />}
                   loading={running?.action === 'login'}
                   disabled={!!running}
                   onClick={() => run('login')}
@@ -251,7 +251,7 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
                 type="link"
                 size="small"
                 className="llm-detail-docs-link"
-                icon={<ExternalLink size={12} />}
+                icon={<ArrowSquareOut size={12} />}
                 onClick={() => window.dashboardAPI?.openExternal(guide.docsUrl)}
               >
                 {guide.docsLabel}

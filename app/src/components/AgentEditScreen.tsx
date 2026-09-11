@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ConfigProvider, Button, Typography, message } from 'antd';
-import { ArrowLeft, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Sparkle, Trash } from '@phosphor-icons/react';
 import { marked } from 'marked';
 import { AgentFileKind, AiProvider, fetchAgentFile, saveAgentFile, deleteAgentFile, fetchAiProviders } from '../api';
 import { useLlmScreenTheme } from '../utils/llmScreenTheme';
@@ -228,7 +228,7 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
                 {!isNew && (
                   <Button
                     className="llm-btn llm-btn-secondary llm-btn-danger"
-                    icon={<Trash2 size={13} />}
+                    icon={<Trash size={13} />}
                     onClick={() => setConfirmingDelete(true)}
                   >
                     Excluir
@@ -236,7 +236,7 @@ export default function AgentEditScreen({ name, subtitle, kind, onBack, isNew = 
                 )}
                 <Button
                   className="llm-btn llm-btn-secondary"
-                  icon={<Sparkles size={13} />}
+                  icon={<Sparkle size={13} />}
                   onClick={() => setShowGenerate(true)}
                   disabled={aiProviders.length === 0}
                   title={aiProviders.length === 0 ? 'Cadastre um provedor de IA na sidebar primeiro' : 'Gerar com IA'}

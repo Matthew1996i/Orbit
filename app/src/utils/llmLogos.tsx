@@ -1,4 +1,9 @@
-import { Wand2, Bot, Flame } from 'lucide-react';
+import type { ComponentType } from 'react';
+import { MagicWand, Robot, Flame } from '@phosphor-icons/react';
+
+// logos (lobehub) e icones (phosphor) compartilham so `size`/`className` —
+// tipo comum minimo pra ambos caberem no mesmo mapa.
+export type LlmLogo = ComponentType<{ size?: number | string; className?: string }>;
 import {
   Codex,
   Cursor,
@@ -42,7 +47,7 @@ export const CLAUDE_LLM_OPTION: LlmCli = {
 // tem variante colorida na lib (a marca deles E monocromatica por design),
 // entao caem no "Mono" (default export) mesmo. "aider" nao tem icone
 // nenhum la, cai no generico do lucide.
-export const LLM_LOGO_BY_ID: Record<string, typeof Bot> = {
+export const LLM_LOGO_BY_ID: Record<string, LlmLogo> = {
   // ClaudeCode/GeminiCLI em vez dos logos genericos da marca (Claude/Gemini)
   // — icones dedicados a CLI de verdade, que e o que essas entradas
   // representam aqui (nao o produto/app como um todo).
@@ -50,7 +55,7 @@ export const LLM_LOGO_BY_ID: Record<string, typeof Bot> = {
   codex: Codex,
   gemini: GeminiCLI.Color,
   'cursor-agent': Cursor,
-  aider: Wand2,
+  aider: MagicWand,
   opencode: OpenCode,
   amp: Amp.Color,
   copilot: Copilot.Color,
@@ -65,12 +70,12 @@ export const LLM_LOGO_BY_ID: Record<string, typeof Bot> = {
   // agente pelo app) — pra toda outra CLI, id e bin sao iguais (ex:
   // "codex"/"codex"), mas o Antigravity e a UNICA excecao: id="antigravity",
   // bin="agy" (ver KNOWN_LLM_CLIS em server.py). Sem esse alias, uma sessao
-  // com llm:"agy" caia no icone generico do lucide (Bot) em vez do logo real.
+  // com llm:"agy" caia no icone generico do lucide (Robot) em vez do logo real.
   agy: Antigravity.Color,
 };
 
-export function llmLogoFor(id: string): typeof Bot {
-  return LLM_LOGO_BY_ID[id] || Bot;
+export function llmLogoFor(id: string): LlmLogo {
+  return LLM_LOGO_BY_ID[id] || Robot;
 }
 
 // Codex/Cursor/OpenCode/Ollama/Goose sao SVGs monocromaticos que desenham

@@ -1,5 +1,5 @@
 import { ConfigProvider, Input, Typography, Button } from 'antd';
-import { ArrowLeft, Search, SearchX, Plus, ChevronRight } from 'lucide-react';
+import { ArrowLeft, MagnifyingGlass, MagnifyingGlassMinus, Plus, CaretRight } from '@phosphor-icons/react';
 import { useLlmScreenTheme } from '../utils/llmScreenTheme';
 import './LlmScreens.css';
 import './CatalogScreen.css';
@@ -81,7 +81,7 @@ export default function CatalogScreen<T>({
           <Input
             size="large"
             className="llm-catalog-search"
-            prefix={<Search size={14} color="#a3a3ab" />}
+            prefix={<MagnifyingGlass size={14} color="#a3a3ab" />}
             placeholder={searchPlaceholder}
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
@@ -97,7 +97,7 @@ export default function CatalogScreen<T>({
         {isEmpty && (
           <div className="llm-catalog-empty">
             <span className="llm-catalog-empty-icon">
-              {totalCount === 0 ? emptyIcon : <SearchX size={20} strokeWidth={1.75} />}
+              {totalCount === 0 ? emptyIcon : <MagnifyingGlassMinus size={20} />}
             </span>
             <div className="llm-catalog-empty-title">{totalCount === 0 ? emptyTitle : noResultText}</div>
             <div className="llm-catalog-empty-text">
@@ -124,7 +124,7 @@ export default function CatalogScreen<T>({
                 <div key={itemKey(item)} className="catalog-card-wrap">
                   <button className="catalog-card" onClick={() => onOpenItem(item)}>
                     <div className="catalog-card-body">{renderCard(item)}</div>
-                    <ChevronRight size={16} className="llm-card-chevron" />
+                    <CaretRight size={16} className="llm-card-chevron" />
                   </button>
                   {cardActions?.(item)}
                 </div>

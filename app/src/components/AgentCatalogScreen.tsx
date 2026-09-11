@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bot } from 'lucide-react';
+import { Robot } from '@phosphor-icons/react';
 import { AgentDef, fetchCatalog } from '../api';
 import CatalogScreen, { CatalogGroup } from './CatalogScreen';
 
@@ -89,7 +89,7 @@ export default function AgentCatalogScreen({ onBack, onOpenAgent, onCreateAgent 
       itemKey={(agent) => agent.name}
       onOpenItem={(agent) => onOpenAgent(agent.name, agentSubtitle(agent))}
       totalCount={agents.length}
-      emptyIcon={<Bot size={20} strokeWidth={1.75} />}
+      emptyIcon={<Robot size={20} />}
       emptyTitle="Nenhum agente cadastrado"
       emptyText="Crie o primeiro agente com o botão acima."
       noResultText="Nenhum agente encontrado"

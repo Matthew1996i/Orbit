@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Puzzle, Trash2 } from 'lucide-react';
+import { PuzzlePiece, Trash } from '@phosphor-icons/react';
 import { SkillDef, deleteAgentFile, fetchCatalog } from '../api';
 import CatalogScreen, { CatalogGroup } from './CatalogScreen';
 import ConfirmDialog from './ConfirmDialog';
@@ -83,7 +83,7 @@ export default function SkillCatalogScreen({ onBack, onOpenSkill, onCreateSkill,
         itemKey={(skill) => skill.name}
         onOpenItem={(skill) => onOpenSkill(skill.name, skillSubtitle(skill))}
         totalCount={skills.length}
-        emptyIcon={<Puzzle size={20} strokeWidth={1.75} />}
+        emptyIcon={<PuzzlePiece size={20} />}
         emptyTitle="Nenhuma skill cadastrada"
         emptyText="Crie a primeira skill com o botão acima."
         noResultText="Nenhuma skill encontrada"
@@ -125,7 +125,7 @@ export default function SkillCatalogScreen({ onBack, onOpenSkill, onCreateSkill,
               }
             }}
           >
-            <Trash2 size={14} />
+            <Trash size={14} />
           </span>
         )}
       />

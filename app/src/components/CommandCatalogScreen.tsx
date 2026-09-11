@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Command, Trash2 } from 'lucide-react';
+import { Command, Trash } from '@phosphor-icons/react';
 import { CommandDef, deleteAgentFile, fetchCatalog } from '../api';
 import CatalogScreen, { CatalogGroup } from './CatalogScreen';
 import ConfirmDialog from './ConfirmDialog';
@@ -70,7 +70,7 @@ export default function CommandCatalogScreen({ onBack, onOpenCommand, onCreateCo
         itemKey={(command) => command.name}
         onOpenItem={(command) => onOpenCommand(command.name, command.description || undefined)}
         totalCount={commands.length}
-        emptyIcon={<Command size={20} strokeWidth={1.75} />}
+        emptyIcon={<Command size={20} />}
         emptyTitle="Nenhum comando cadastrado"
         emptyText="Crie o primeiro comando com o botão acima."
         noResultText="Nenhum comando encontrado"
@@ -107,7 +107,7 @@ export default function CommandCatalogScreen({ onBack, onOpenCommand, onCreateCo
               }
             }}
           >
-            <Trash2 size={14} />
+            <Trash size={14} />
           </span>
         )}
       />

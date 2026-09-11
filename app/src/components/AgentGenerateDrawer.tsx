@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Select } from 'antd';
-import { Sparkles, Check, Send } from 'lucide-react';
+import { Sparkle, Check, PaperPlaneRight } from '@phosphor-icons/react';
 import { AgentFileKind, AiChatMessage, AiProvider, generateMarkdownChat } from '../api';
 import AppDrawer from './AppDrawer';
 
@@ -97,7 +97,7 @@ export default function AgentGenerateDrawer({ open, onClose, kind, content, aiPr
       width={720}
       title="Gerar com IA"
       subtitle="Converse com o provedor cadastrado para ir ajustando o arquivo"
-      icon={<Sparkles size={16} />}
+      icon={<Sparkle size={16} />}
       footer={
         <div className="agent-screen-generate-footer">
           <Select
@@ -142,7 +142,7 @@ export default function AgentGenerateDrawer({ open, onClose, kind, content, aiPr
                 // deveria estar visivel), so a lista inteira de mensagens rola.
                 <div key={index} className="agent-chat-file-card">
                   <div className="agent-chat-file-card-head">
-                    <Sparkles size={12} /> Arquivo atualizado
+                    <Sparkle size={12} /> Arquivo atualizado
                   </div>
                   <pre className="agent-chat-file-card-code">{message.content}</pre>
                 </div>
@@ -188,7 +188,7 @@ export default function AgentGenerateDrawer({ open, onClose, kind, content, aiPr
             aria-label="Enviar"
             title={!genProviderId ? 'Escolha um provedor de IA primeiro' : 'Enviar'}
           >
-            <Send size={15} />
+            <PaperPlaneRight size={15} />
           </button>
         </div>
       </div>

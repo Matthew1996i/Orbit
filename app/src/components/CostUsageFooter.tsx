@@ -1,4 +1,4 @@
-import { WifiOff } from 'lucide-react';
+import { WifiSlash } from '@phosphor-icons/react';
 import { CostSummary } from '../api';
 import './CostUsageFooter.css';
 
@@ -33,7 +33,7 @@ export default function CostUsageFooter({ summary, connectionError }: Props) {
         className="cost-usage-footer cost-usage-footer-error"
         title="não foi possível consultar o backend agora — o custo mostrado antes pode estar desatualizado"
       >
-        <WifiOff size={12} /> sem conexão
+        <WifiSlash size={12} /> sem conexão
       </div>
     );
   }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, ConfigProvider, Typography } from 'antd';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trash } from '@phosphor-icons/react';
 import { AiProvider, AiProviderKind, SecretGroup, deleteAiProvider, fetchSecretGroups, saveAiProvider } from '../api';
 import { isSecretRef, validateSecretRef } from '../utils/secretRefs';
 import SecretRefInput from './SecretRefInput';
@@ -79,7 +79,7 @@ export default function AiProviderModal({ provider, onClose, onSaved }: Props) {
 
   return (
     <ConfigProvider theme={theme}>
-      <div className="agent-screen"><div className="agent-screen-inner"><div className="agent-screen-header"><div className="llm-screen-header agent-screen-header-section"><button className="llm-screen-back" onClick={onClose} aria-label="Voltar"><ArrowLeft size={16} /></button><div><Typography.Title level={3} className="llm-screen-title">Provedores de IA</Typography.Title><Typography.Text className="llm-screen-subtitle">Conexões usadas pela geração assistida.</Typography.Text></div></div><div className="agent-screen-title-row"><div className="agent-screen-title-block"><Typography.Title level={3} className="llm-screen-title">{provider ? provider.title : 'Novo provedor de IA'}</Typography.Title></div><div className="agent-screen-header-actions">{provider && <Button className="llm-btn llm-btn-danger" icon={<Trash2 size={13} />} onClick={remove} disabled={saving}>Excluir</Button>}<Button className="llm-btn llm-btn-primary" onClick={save} loading={saving} disabled={!valid}>{saving ? 'Salvando…' : 'Salvar'}</Button></div></div></div>
+      <div className="agent-screen"><div className="agent-screen-inner"><div className="agent-screen-header"><div className="llm-screen-header agent-screen-header-section"><button className="llm-screen-back" onClick={onClose} aria-label="Voltar"><ArrowLeft size={16} /></button><div><Typography.Title level={3} className="llm-screen-title">Provedores de IA</Typography.Title><Typography.Text className="llm-screen-subtitle">Conexões usadas pela geração assistida.</Typography.Text></div></div><div className="agent-screen-title-row"><div className="agent-screen-title-block"><Typography.Title level={3} className="llm-screen-title">{provider ? provider.title : 'Novo provedor de IA'}</Typography.Title></div><div className="agent-screen-header-actions">{provider && <Button className="llm-btn llm-btn-danger" icon={<Trash size={13} />} onClick={remove} disabled={saving}>Excluir</Button>}<Button className="llm-btn llm-btn-primary" onClick={save} loading={saving} disabled={!valid}>{saving ? 'Salvando…' : 'Salvar'}</Button></div></div></div>
         <div className="secrets-edit-form">
 
         <label className="new-agent-label">Título (identificação)</label>

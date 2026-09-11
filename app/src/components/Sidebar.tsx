@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, RefreshCw, LayoutGrid } from 'lucide-react';
+import { Plus, ArrowsClockwise, SquaresFour } from '@phosphor-icons/react';
 import { fetchCatalog, fetchSecretGroups, fetchAiProviders, CatalogResponse, LlmCli, AgentFileKind, SecretGroup, AiProvider, McpDef } from '../api';
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import { fetchAllLlms } from '../utils/llmCatalog';
@@ -108,13 +108,13 @@ export default function Sidebar({
   // navegar/escolher, entao usam o mesmo icone de grade da lista — um "+"
   // ali sugeria "criar" e confundia quem esperava um item novo aparecer.
   const onAdd: Partial<Record<SectionKey, { label: string; icon: typeof Plus; onClick: () => void }>> = {
-    llms: { label: 'Ver catálogo de LLMs', icon: LayoutGrid, onClick: () => onOpenLlmCatalog?.() },
-    agents: { label: 'Ver catálogo de agentes', icon: LayoutGrid, onClick: () => onOpenAgentCatalog?.() },
-    skills: { label: 'Ver catálogo de skills', icon: LayoutGrid, onClick: () => onOpenSkillCatalog?.() },
-    commands: { label: 'Ver catálogo de commands', icon: LayoutGrid, onClick: () => onOpenCommandCatalog?.() },
-    mcps: { label: 'Gerenciar MCPs', icon: LayoutGrid, onClick: () => onOpenMcpCatalog?.() },
-    secrets: { label: 'Gerenciar chaves e tokens', icon: LayoutGrid, onClick: () => onOpenSecretsCatalog?.() },
-    aiProviders: { label: 'Gerenciar provedores de IA', icon: LayoutGrid, onClick: () => onOpenAiProvidersCatalog?.() },
+    llms: { label: 'Ver catálogo de LLMs', icon: SquaresFour, onClick: () => onOpenLlmCatalog?.() },
+    agents: { label: 'Ver catálogo de agentes', icon: SquaresFour, onClick: () => onOpenAgentCatalog?.() },
+    skills: { label: 'Ver catálogo de skills', icon: SquaresFour, onClick: () => onOpenSkillCatalog?.() },
+    commands: { label: 'Ver catálogo de commands', icon: SquaresFour, onClick: () => onOpenCommandCatalog?.() },
+    mcps: { label: 'Gerenciar MCPs', icon: SquaresFour, onClick: () => onOpenMcpCatalog?.() },
+    secrets: { label: 'Gerenciar chaves e tokens', icon: SquaresFour, onClick: () => onOpenSecretsCatalog?.() },
+    aiProviders: { label: 'Gerenciar provedores de IA', icon: SquaresFour, onClick: () => onOpenAiProvidersCatalog?.() },
   };
   const addAction = onAdd[section];
 
@@ -295,7 +295,7 @@ export default function Sidebar({
       <div className="sidebar-panel">
         <div className="sidebar-header">
           <span className="sidebar-header-title">
-            <sectionMeta.Icon size={14} />
+            <sectionMeta.Icon className="sidebar-section-icon" />
             {SECTION_LABELS[section]}
             <span className="sidebar-header-count">{sectionCount[section] ?? ''}</span>
           </span>
@@ -317,7 +317,7 @@ export default function Sidebar({
               title="Sincronizar agentes/LLMs instalados"
               disabled={syncing}
             >
-              <RefreshCw size={14} className={syncing ? 'spinning' : ''} />
+              <ArrowsClockwise size={14} className={syncing ? 'spinning' : ''} />
             </button>
           </span>
         </div>

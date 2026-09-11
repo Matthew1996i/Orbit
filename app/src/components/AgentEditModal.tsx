@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Eye, Pencil, Sparkles } from 'lucide-react';
+import { X, Eye, PencilSimple, Sparkle } from '@phosphor-icons/react';
 import { marked } from 'marked';
 import { AgentFileKind, AiProvider, fetchAgentFile, saveAgentFile, generateMarkdown } from '../api';
 import './ConfirmDialog.css';
@@ -185,7 +185,7 @@ export default function AgentEditModal({
               title={aiProviders.length === 0 ? 'Cadastre um provedor de IA na sidebar primeiro' : 'Gerar com IA'}
               type="button"
             >
-              <Sparkles size={13} /> Gerar com IA
+              <Sparkle size={13} /> Gerar com IA
             </button>
             <div className="agent-edit-tabs">
               <button
@@ -193,7 +193,7 @@ export default function AgentEditModal({
                 onClick={() => setMode('edit')}
                 type="button"
               >
-                <Pencil size={12} /> Editar
+                <PencilSimple size={12} /> Editar
               </button>
               <button
                 className={`agent-edit-tab ${mode === 'preview' ? 'active' : ''}`}
@@ -204,7 +204,7 @@ export default function AgentEditModal({
               </button>
             </div>
             <button className="sidebar-close-btn" onClick={onClose} aria-label="Fechar">
-              <X size={16} />
+              <X size={16} weight="bold" />
             </button>
           </div>
         </div>
@@ -240,7 +240,7 @@ export default function AgentEditModal({
                 disabled={generating || !genDescription.trim()}
                 type="button"
               >
-                <Sparkles size={13} /> {generating ? 'Gerando…' : 'Gerar'}
+                <Sparkle size={13} /> {generating ? 'Gerando…' : 'Gerar'}
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Server } from 'lucide-react';
+import { HardDrives } from '@phosphor-icons/react';
 import { McpDef, fetchMcps } from '../api';
 import CatalogScreen, { CatalogGroup } from './CatalogScreen';
 
@@ -57,7 +57,7 @@ export default function McpCatalogScreen({ onBack, onOpenMcp, onCreateMcp }: Pro
         itemKey={(mcp) => mcp.name}
         onOpenItem={onOpenMcp}
         totalCount={mcps.length}
-        emptyIcon={<Server size={20} strokeWidth={1.75} />}
+        emptyIcon={<HardDrives size={20} />}
         emptyTitle="Nenhum MCP configurado"
         emptyText="Adicione o primeiro servidor que os agentes poderão usar." 
         noResultText="Nenhum MCP encontrado"

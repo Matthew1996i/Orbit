@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, ConfigProvider, Switch, Typography, message } from 'antd';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trash } from '@phosphor-icons/react';
 import { McpDef, deleteMcp, saveMcp } from '../api';
 import { useLlmScreenTheme } from '../utils/llmScreenTheme';
 import ConfirmDialog from './ConfirmDialog';
@@ -84,7 +84,7 @@ export default function McpEditScreen({ mcp, draft, onBack, onDeleted }: Props) 
               </div>
               <div className="agent-screen-header-actions">
                 {mcp && (
-                  <Button className="llm-btn llm-btn-secondary llm-btn-danger" icon={<Trash2 size={13} />} onClick={() => setConfirmingDelete(true)}>
+                  <Button className="llm-btn llm-btn-secondary llm-btn-danger" icon={<Trash size={13} />} onClick={() => setConfirmingDelete(true)}>
                     Excluir MCP
                   </Button>
                 )}

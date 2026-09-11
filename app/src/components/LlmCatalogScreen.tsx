@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ConfigProvider, Input, Tag, Typography } from 'antd';
-import { ArrowLeft, Search, Check, ChevronRight, SearchX } from 'lucide-react';
+import { ArrowLeft, MagnifyingGlass, Check, CaretRight, MagnifyingGlassMinus } from '@phosphor-icons/react';
 import { LlmCli } from '../api';
 import { llmLogoFor, llmLogoColorFor } from '../utils/llmLogos';
 import { llmPricingFor } from '../utils/llmPricing';
@@ -81,7 +81,7 @@ export default function LlmCatalogScreen({ onBack }: Props) {
           <Input
             size="large"
             className="llm-catalog-search"
-            prefix={<Search size={14} color="#a3a3ab" />}
+            prefix={<MagnifyingGlass size={14} color="#a3a3ab" />}
             placeholder="Buscar por nome ou fornecedor…"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -95,7 +95,7 @@ export default function LlmCatalogScreen({ onBack }: Props) {
         {grouped.length === 0 && (
           <div className="llm-catalog-empty">
             <span className="llm-catalog-empty-icon">
-              <SearchX size={20} strokeWidth={1.75} />
+              <MagnifyingGlassMinus size={20} />
             </span>
             <div className="llm-catalog-empty-title">Nenhuma LLM encontrada</div>
             <div className="llm-catalog-empty-text">
@@ -119,7 +119,7 @@ export default function LlmCatalogScreen({ onBack }: Props) {
                 return (
                   <button key={llm.id} className="llm-card" onClick={() => setDrawerId(llm.id)}>
                     <span className="llm-logo llm-card-logo" style={{ color: logoColor }}>
-                      <Logo size={24} strokeWidth={1.75} />
+                      <Logo size={24} />
                     </span>
                     <div className="llm-card-body">
                       <div className="llm-card-name-row">
@@ -132,14 +132,14 @@ export default function LlmCatalogScreen({ onBack }: Props) {
                     </div>
                     {llm.status === 'connected' ? (
                       <Tag className="llm-card-tag llm-card-tag-connected">
-                        <Check size={11} strokeWidth={2.5} /> Conectado
+                        <Check size={11} /> Conectado
                       </Tag>
                     ) : llm.status === 'installed' ? (
                       <Tag className="llm-card-tag llm-card-tag-installed">
                         <span className="llm-card-tag-dot" /> Instalado
                       </Tag>
                     ) : (
-                      <ChevronRight size={16} className="llm-card-chevron" />
+                      <CaretRight size={16} className="llm-card-chevron" />
                     )}
                   </button>
                 );

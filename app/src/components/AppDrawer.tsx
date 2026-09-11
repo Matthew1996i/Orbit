@@ -1,5 +1,5 @@
 import { Drawer } from 'antd';
-import { X } from 'lucide-react';
+import { X } from '@phosphor-icons/react';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import './AppDrawer.css';
 
@@ -91,7 +91,7 @@ export default function AppDrawer({
       closable={false}
       extra={
         <button className="app-drawer-close-btn" onClick={onClose} aria-label="Fechar">
-          <X size={18} color="#71717a" />
+          <X size={18} weight="bold" color="#71717a" />
         </button>
       }
       maskClosable={maskClosable}

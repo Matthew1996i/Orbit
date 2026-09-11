@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { IonPage } from '@ionic/react';
-import { Minus, X, Maximize2 } from 'lucide-react';
+import { Minus, X, ArrowsOutSimple } from '@phosphor-icons/react';
 import TerminalPanel from '../components/TerminalPanel';
 import { SessionInfo, StepEvent, connectStepStream, fetchState } from '../api';
 import { getOsPlatform } from '../utils/platform';
@@ -35,21 +35,21 @@ function PopoutTitleBar({ title }: { title: string }) {
             onClick={() => window.dashboardAPI?.windowMinimize()}
             aria-label="Minimizar"
           >
-            <Minus size={14} />
+            <Minus size={14} weight="bold" />
           </button>
           <button
             className="title-bar-btn"
             onClick={() => window.dashboardAPI?.windowToggleMaximize()}
             aria-label="Maximizar ou restaurar"
           >
-            <Maximize2 size={14} />
+            <ArrowsOutSimple size={14} />
           </button>
           <button
             className="title-bar-btn title-bar-btn-close"
             onClick={() => window.dashboardAPI?.windowClose()}
             aria-label="Fechar"
           >
-            <X size={14} />
+            <X size={14} weight="bold" />
           </button>
         </div>
       )}

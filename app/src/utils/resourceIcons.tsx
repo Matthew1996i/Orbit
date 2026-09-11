@@ -1,25 +1,25 @@
-import { Zap, Server, Database, Leaf, MemoryStick, Container, Hexagon, FileCode, Globe, Terminal, Rabbit } from 'lucide-react';
+import { Lightning, HardDrives, Database, Leaf, Memory, Package, Hexagon, FileCode, Globe, Terminal, Rabbit } from '@phosphor-icons/react';
 
 // @lobehub/icons nao tem nenhum icone de infraestrutura (a lib e focada em
 // provedores/modelos de IA) — todo icone de recurso vem do lucide-react, sem
 // logo de marca. `rabbitmq` entrou depois dos 11 originais — so aparece pra
 // container Docker classificado por imagem (host nunca ve o processo real).
-export const RESOURCE_ICON_BY_KIND: Record<string, typeof Server> = {
-  'node-dev-server': Zap,
-  'python-server': Server,
+export const RESOURCE_ICON_BY_KIND: Record<string, typeof HardDrives> = {
+  'node-dev-server': Lightning,
+  'python-server': HardDrives,
   postgres: Database,
   mysql: Database,
   mongodb: Leaf,
-  redis: MemoryStick,
+  redis: Memory,
   rabbitmq: Rabbit,
-  docker: Container,
+  docker: Package,
   node: Hexagon,
   python: FileCode,
   port: Globe,
   process: Terminal,
 };
 
-export function resourceIconFor(kind?: string): typeof Server {
+export function resourceIconFor(kind?: string): typeof HardDrives {
   return RESOURCE_ICON_BY_KIND[(kind || '').toLowerCase()] || Terminal;
 }
 
