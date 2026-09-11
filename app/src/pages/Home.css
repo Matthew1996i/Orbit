@@ -100,21 +100,36 @@ ion-toolbar {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
-.term-pinned-tabs {
+.term-pinned-backdrop {
   position: fixed;
   top: var(--orbit-titlebar-h);
   right: 0;
+  bottom: 0;
   width: var(--orbit-terminal-rail-w);
+  background: var(--orbit-chrome-bg);
+  pointer-events: none;
+  z-index: 1199;
+}
+
+.term-pinned-tabs {
+  position: fixed;
+  top: calc(var(--orbit-titlebar-h) + var(--orbit-panel-gap, 6px));
+  right: var(--orbit-panel-gap, 6px);
+  /* O conteúdo central já fornece o vão à esquerda. */
+  width: calc(var(--orbit-terminal-rail-w) - var(--orbit-panel-gap, 6px));
   /* altura propria (nao --orbit-term-dock-h, que vira 0 sem minimizados) */
-  height: 40px;
+  height: 41px;
   display: flex;
-  align-items: stretch;
+  align-items: flex-end;
   gap: 2px;
-  padding: 5px 6px 0;
+  padding: 0;
   overflow: hidden;
-  background: #18181b;
-  border-left: 1px solid #303036;
-  border-bottom: 1px solid #2a2a2f;
+  box-sizing: border-box;
+  /* O trilho não é uma segunda barra/painel: só as abas aparecem sobre o
+     chrome, e a ativa se conecta visualmente à folha abaixo. */
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   z-index: 1201;
 }
 
@@ -122,7 +137,7 @@ ion-toolbar {
   min-width: 0;
   flex: 1 1 auto;
   display: flex;
-  align-items: stretch;
+  align-items: flex-end;
   gap: 2px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -134,14 +149,30 @@ ion-toolbar {
 }
 
 .term-pinned-resize-handle {
+  /* Separador independente, ocupando só o vão entre os dois painéis. */
   position: fixed;
-  top: var(--orbit-titlebar-h);
-  bottom: 0;
-  left: calc(100vw - var(--orbit-terminal-rail-w) - 3px);
-  width: 6px;
+  top: calc(var(--orbit-titlebar-h) + var(--orbit-panel-gap, 6px));
+  bottom: var(--orbit-panel-gap, 6px);
+  left: calc(100vw - var(--orbit-terminal-rail-w) - var(--orbit-panel-gap, 6px));
+  width: var(--orbit-panel-gap, 6px);
   z-index: 1203;
   cursor: col-resize;
   touch-action: none;
+}
+
+.term-pinned-resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #85858f;
+  box-shadow: 0 -4px #85858f, 0 4px #85858f;
+  transform: translate(-50%, -50%);
+  opacity: 0.65;
+  transition: opacity 0.1s ease;
 }
 
 .term-pinned-resize-handle::after {
@@ -150,10 +181,12 @@ ion-toolbar {
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 1px;
-  background: #303036;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--orbit-sash-hover, #5b8cff);
+  opacity: 0;
   transform: translateX(-50%);
-  transition: background 0.1s ease;
+  transition: opacity 0.1s ease;
 }
 
 .term-pinned-resize-handle:hover,
@@ -161,9 +194,24 @@ body.orbit-terminal-resizing .term-pinned-resize-handle {
   background: transparent;
 }
 
-.term-pinned-resize-handle:hover::after,
+.term-pinned-resize-handle:hover::after {
+  opacity: 1;
+  transition-delay: 150ms;
+}
+
+.term-pinned-resize-handle:hover::before {
+  opacity: 0;
+  transition-delay: 150ms;
+}
+
 body.orbit-terminal-resizing .term-pinned-resize-handle::after {
-  background: var(--orbit-sash-hover, #5b8cff);
+  opacity: 1;
+  transition: none;
+}
+
+body.orbit-terminal-resizing .term-pinned-resize-handle::before {
+  opacity: 0;
+  transition: none;
 }
 
 body.orbit-terminal-resizing {
@@ -180,12 +228,13 @@ body.orbit-terminal-resizing {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 10px;
-  border: 1px solid transparent;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--orbit-glass-line, color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent));
   border-bottom: 0;
-  border-radius: 6px 6px 0 0;
-  background: #111114;
-  color: #696971;
+  border-radius: var(--orbit-panel-radius, 12px) var(--orbit-panel-radius, 12px) 0 0;
+  background: var(--orbit-chrome-bg);
+  color: #a0a0a8;
   font: 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   cursor: pointer;
 }
@@ -227,13 +276,14 @@ body.orbit-terminal-resizing {
 
 .term-pinned-tab:hover {
   color: #dddde1;
-  background: #1b1b1f;
+  background: color-mix(in srgb, var(--orbit-chrome-bg) 92%, white);
 }
 
 .term-pinned-tab.active {
+  height: 41px;
   color: var(--orbit-sidebar-fg);
-  background: var(--orbit-canvas-bg);
-  border-color: transparent var(--orbit-canvas-border) var(--orbit-canvas-border);
+  background: var(--orbit-terminal-bg, var(--orbit-canvas-bg));
+  border-color: var(--orbit-glass-line, color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent));
 }
 
 .term-pinned-tab.active .term-pinned-tab-close {

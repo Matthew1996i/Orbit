@@ -7,6 +7,7 @@ export type SectionIcon = Icon;
 // da Sidebar — mesma chave usada nos dois lados (ver ActivityBar.tsx e
 // Sidebar.tsx) pra abrir o painel ja aberto na secao certa.
 export type SectionKey =
+  | 'sessions'
   | 'llms'
   | 'agents'
   | 'skills'

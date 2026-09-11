@@ -30,6 +30,14 @@ const TERMINAL_DOCKED_STORAGE_KEY = 'dashboard.terminalDocked';
 const TERMINAL_DOCKED_WIDTH_STORAGE_KEY = 'dashboard.terminalDockedWidth';
 const TERMINAL_DROP_ZONE_WIDTH = 280;
 
+function revealDockedTab(tab: HTMLButtonElement | null) {
+  tab?.scrollIntoView({
+    block: 'nearest',
+    inline: 'nearest',
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+  });
+}
+
 export default function Home() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [openIds, setOpenIds] = useState<string[]>([]);
@@ -67,6 +75,13 @@ export default function Home() {
   const topZRef = useRef(BASE_Z);
   const restoredRef = useRef(false);
   const terminalDropTargetRef = useRef<string | null>(null);
+  const activeDockedTabRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!terminalDocked) return;
+    const frame = requestAnimationFrame(() => revealDockedTab(activeDockedTabRef.current));
+    return () => cancelAnimationFrame(frame);
+  }, [activeDockedId, terminalDocked, terminalDockedWidth, openIds, minimizedIds]);
 
   useEffect(() => {
     openIdsRef.current = openIds;
@@ -405,7 +420,7 @@ export default function Home() {
 
   return (
     <IonPage>
-      <AppShell>
+      <AppShell sessions={sessions} onOpenSession={openPanel}>
         <IonContent className="home-content">
           <div className="home-usage-header">
             <LlmUsageWidget sessions={sessions} />
@@ -523,8 +538,14 @@ export default function Home() {
           />
 
           {terminalDocked && dockedPanels.length > 0 && (
-            <div className="term-pinned-tabs" role="tablist" aria-label="Terminais fixados">
+            <>
+              <div className="term-pinned-backdrop" aria-hidden="true" />
               <div className="term-pinned-resize-handle" onPointerDown={beginDockedResize} aria-label="Redimensionar painel de terminais" />
+            </>
+          )}
+
+          {terminalDocked && dockedPanels.length > 0 && (
+            <div className="term-pinned-tabs" role="tablist" aria-label="Terminais fixados">
               <div className="term-pinned-tabs-scroll">
               {dockedPanels.map((s) => {
                 const Logo = llmLogoFor(s.llm || 'claude');
@@ -533,10 +554,14 @@ export default function Home() {
                 return (
                   <button
                     key={s.appAgentId || s.sessionId}
+                    ref={active ? activeDockedTabRef : undefined}
                     className={`term-pinned-tab${active ? ' active' : ''}${needsAction ? ' needs-action' : ''}`}
                     role="tab"
                     aria-selected={active}
-                    onClick={() => setActiveDockedId(s.sessionId)}
+                    onClick={(event) => {
+                      setActiveDockedId(s.sessionId);
+                      revealDockedTab(event.currentTarget);
+                    }}
                     title={s.name || s.sessionId}
                   >
                     <Logo size={13} />

@@ -5,8 +5,12 @@ import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import { fetchAllLlms } from '../utils/llmCatalog';
 import { SectionKey, SECTION_ICONS, SECTION_LABELS } from '../utils/sidebarSections';
 import './Sidebar.css';
+import SessionQuickAccess from './SessionQuickAccess';
+import type { SessionInfo } from '../api';
 
 interface Props {
+  sessions?: SessionInfo[];
+  onOpenSession?: (session: SessionInfo) => void;
   onClose: () => void;
   // secao escolhida na Activity Bar — a sidebar mostra SO o conteudo dessa
   // secao (como uma view do VS Code), nao um acordeao com todas juntas.
@@ -35,6 +39,8 @@ interface Props {
 }
 
 export default function Sidebar({
+  sessions = [],
+  onOpenSession,
   onClose,
   activeSection,
   onOpenLlmCatalog,
@@ -88,6 +94,9 @@ export default function Sidebar({
   const installedLlms = llms.filter((l) => l.status !== 'none');
 
   const section = activeSection ?? 'llms';
+  if (section === 'sessions') {
+    return <SessionQuickAccess sessions={sessions} onOpen={onOpenSession} />;
+  }
   const sectionMeta = SECTION_ICONS.find((s) => s.key === section) ?? SECTION_ICONS[0];
 
   const sectionCount: Partial<Record<SectionKey, number>> = {

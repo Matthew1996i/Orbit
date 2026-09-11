@@ -110,18 +110,63 @@
 
 .orbit-sash {
   position: absolute;
-  right: -2px;
+  right: calc(-1 * var(--orbit-panel-gap));
   top: 0;
   bottom: 0;
-  width: 4px;
+  width: var(--orbit-panel-gap);
   cursor: col-resize;
   z-index: 5;
   background: transparent;
-  transition: background 0.1s ease 0.15s;
+  touch-action: none;
 }
-.orbit-sash:hover,
-.orbit-sash.dragging {
-  background: var(--orbit-sash-hover);
+
+.orbit-sash::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #85858f;
+  box-shadow: 0 -4px #85858f, 0 4px #85858f;
+  transform: translate(-50%, -50%);
+  opacity: 0.65;
+  transition: opacity 0.1s ease;
+}
+
+.orbit-sash::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--orbit-sash-hover, #5b8cff);
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.orbit-sash:hover::after {
+  opacity: 1;
+  transition-delay: 150ms;
+}
+
+.orbit-sash:hover::before {
+  opacity: 0;
+  transition-delay: 150ms;
+}
+
+.orbit-sash.dragging::after {
+  opacity: 1;
+  transition: none;
+}
+
+.orbit-sash.dragging::before {
+  opacity: 0;
+  transition: none;
 }
 
 /* aplicado no <body> durante o arraste — sem isso o cursor pisca e o

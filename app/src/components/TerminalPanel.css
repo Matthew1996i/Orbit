@@ -152,11 +152,14 @@
 .term-panel-docked {
   box-sizing: border-box;
   position: fixed !important;
-  top: calc(var(--orbit-titlebar-h) + var(--orbit-term-dock-h)) !important;
-  right: 0 !important;
-  bottom: 0 !important;
+  /* As abas formam o topo visual do painel fixado. Mantemos o mesmo respiro
+     e acabamento dos demais paineis do shell, em vez de transformar o
+     terminal numa faixa reta colada às bordas da janela. */
+  top: calc(var(--orbit-titlebar-h) + var(--orbit-panel-gap, 6px) + 40px) !important;
+  right: var(--orbit-panel-gap, 6px) !important;
+  bottom: var(--orbit-panel-gap, 6px) !important;
   left: auto !important;
-  width: var(--orbit-terminal-rail-w) !important;
+  width: calc(var(--orbit-terminal-rail-w) - var(--orbit-panel-gap, 6px)) !important;
   /* top + bottom definem a altura real do viewport. Evita a diferenca de
      arredondamento/decoration de 100vh que cortava a ultima linha do xterm. */
   height: auto !important;
@@ -164,10 +167,12 @@
   min-height: 0;
   max-width: none;
   max-height: none;
-  border-width: 0 0 0 1px;
-  border-color: color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
-  border-radius: 0;
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--orbit-glass-line, color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent));
+  border-top: 1px solid var(--orbit-glass-line, color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent));
+  /* A aba ativa cobre o canto superior esquerdo; os demais cantos pertencem
+     à folha de conteúdo. */
+  border-radius: 0 var(--orbit-panel-radius, 12px) var(--orbit-panel-radius, 12px) var(--orbit-panel-radius, 12px);
+  box-shadow: none;
   resize: none;
   animation: none;
   transform: none;
@@ -183,11 +188,16 @@
 .term-panel-docked .term-header,
 .term-panel-docked .term-body,
 .term-panel-docked .term-body-transcript {
-  border-radius: 0;
+  border-radius: 0 0 var(--orbit-panel-radius, 12px) var(--orbit-panel-radius, 12px);
 }
 
 .term-panel-docked .term-header {
   display: none;
+}
+
+/* Respiro mínimo: o próprio conteúdo do terminal já inclui linhas vazias. */
+.term-panel-docked .term-body {
+  padding: 4px;
 }
 
 .term-panel-docked .term-dot-min,

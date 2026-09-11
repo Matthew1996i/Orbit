@@ -15,7 +15,7 @@ import SecretsCatalogScreen from './SecretsCatalogScreen';
 import AiProvidersCatalogScreen from './AiProvidersCatalogScreen';
 import SecretsModal from './SecretsModal';
 import AiProviderModal from './AiProviderModal';
-import { AiProvider, McpDef, SecretGroup } from '../api';
+import { AiProvider, McpDef, SecretGroup, SessionInfo } from '../api';
 import { readPref, writePref } from '../utils/uiPrefs';
 import { loadThemeId, applyTheme } from '../theme/themes';
 import { SectionKey } from '../utils/sidebarSections';
@@ -122,9 +122,11 @@ const HOVER_CLOSE_DELAY = 200;
 
 interface Props {
   children: React.ReactNode;
+  sessions: SessionInfo[];
+  onOpenSession: (session: SessionInfo) => void;
 }
 
-export default function AppShell({ children }: Props) {
+export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // aberto/secao-ativa juntos NUM SO estado (nao dois useState separados) —
   // assim o toggle "clicar no icone ja ativo fecha" sempre le os dois valores
   // do MESMO snapshot atomico dentro do updater funcional, sem risco de um
@@ -148,45 +150,31 @@ export default function AppShell({ children }: Props) {
     writePref(FULL_SCREEN_KEY, next ? JSON.stringify(next) : '');
   };
 
-  // dispara tanto da sidebar fixada quanto do preview de hover — em ambos os
-  // casos a tela cheia toma o lugar do conteudo principal, entao o painel da
-  // sidebar (fixado ou preview) fecha, dando o espaço todo pra tela.
   // Abrir uma tela cheia NAO fecha os paineis laterais — nem o preview de
   // hover (some sozinho ao tirar o mouse) nem a sidebar fixada (pedido
   // explicito: clicar num item do side/subside nao pode recolher nada).
-  const dismissSidebar = () => {
-    writePref(SIDEBAR_OPEN_KEY, '0');
-  };
   const openLlmCatalog = () => {
-    dismissSidebar();
     setFullScreen({ kind: 'llmCatalog' });
   };
   const openLlmDetail = (id: string) => {
-    dismissSidebar();
     setFullScreen({ kind: 'llmDetail', id });
   };
   const openAgentCatalog = () => {
-    dismissSidebar();
     setFullScreen({ kind: 'agentCatalog' });
   };
   const openAgentEdit = (name: string, fileKind: AgentFileKind, subtitle?: string, isNew?: boolean) => {
-    dismissSidebar();
     setFullScreen({ kind: 'agentEdit', name, fileKind, subtitle, isNew });
   };
   const openSkillCatalog = () => {
-    dismissSidebar();
     setFullScreen({ kind: 'skillCatalog' });
   };
   const openCommandCatalog = () => {
-    dismissSidebar();
     setFullScreen({ kind: 'commandCatalog' });
   };
   const openToolsCatalog = () => {
-    dismissSidebar();
     setFullScreen({ kind: 'toolsCatalog' });
   };
   const openToolsEdit = (tool: import('../api').ToolDef, allTools: import('../api').ToolDef[]) => {
-    dismissSidebar();
     setFullScreen({ kind: 'toolsEdit', tool, allTools });
   };
   // reusa a MESMA tela de edicao de agente (kind='skill'), nao existe um
@@ -196,37 +184,32 @@ export default function AppShell({ children }: Props) {
   const openCommandEdit = (name: string, subtitle?: string, isNew?: boolean) =>
     openAgentEdit(name, 'command', subtitle, isNew);
   const openMcpCatalog = () => {
-    dismissSidebar();
     setFullScreen({ kind: 'mcpCatalog' });
   };
   const openMcpPresetCatalog = () => {
-    dismissSidebar();
     setFullScreen({ kind: 'mcpPresetCatalog' });
   };
   const openMcpEdit = (mcp?: McpDef, draft?: { name: string; config: Record<string, unknown> }) => {
-    dismissSidebar();
     setFullScreen({ kind: 'mcpEdit', mcp, draft });
   };
   const openSecretsCatalog = () => {
-    dismissSidebar();
     setFullScreen({ kind: 'secretsCatalog' });
   };
   const openAiProvidersCatalog = () => {
-    dismissSidebar();
     setFullScreen({ kind: 'aiProvidersCatalog' });
   };
   const openSecretEdit = (group?: SecretGroup) => {
-    dismissSidebar();
     setFullScreen({ kind: 'secretEdit', group });
   };
   const openAiProviderEdit = (provider?: AiProvider) => {
-    dismissSidebar();
     setFullScreen({ kind: 'aiProviderEdit', provider });
   };
   const closeFullScreen = () => setFullScreen(null);
   // botao fixo "Inicio" na Activity Bar — unica saida de QUALQUER tela cheia
   // que nao depende de achar o botao "Voltar" de dentro da propria tela.
-  const goHome = () => setFullScreen(null);
+  const goHome = () => {
+    selectSection('sessions');
+  };
 
   // preview de hover: sobreposto ao conteudo, nao mexe no estado fixado
   // (sidebar/section) acima — some quando o mouse sai, sem gravar prefs.
@@ -244,10 +227,13 @@ export default function AppShell({ children }: Props) {
   };
 
   const handleHoverSection = (key: SectionKey) => {
-    if (sidebarsPinned) return;
     clearHoverTimers();
-    // ja fixado nessa secao: nao ha o que sobrepor.
-    if (sidebarOpen && activeSection === key) return;
+    // O preview também funciona sobre uma sidebar fixada. Ao voltar à
+    // seção fixada, remove qualquer preview anterior que a esteja cobrindo.
+    if (sidebarOpen && activeSection === key) {
+      setHoverSection(null);
+      return;
+    }
     // preview ja aberto (passando de um icone pro outro dentro da barra) —
     // troca na hora, sem o atraso de abertura (esse e so pra abrir do zero).
     if (hoverSection !== null) {
@@ -346,7 +332,16 @@ export default function AppShell({ children }: Props) {
     // em modo hover, o clique so troca a secao do preview (que continua
     // aberto); com a sidebar fixada, troca a secao fixada. Nunca fecha.
     clearHoverTimers();
-    if (!sidebarsPinned) setHoverSection(key);
+    setHoverSection(sidebarsPinned ? null : key);
+    // Sincroniza a sidebar antes dos retornos dos catálogos abaixo.
+    // No modo de preview, preserva a visibilidade do painel reservado.
+    setSidebar((current) => ({ open: sidebarsPinned || current.open, section: key }));
+    if (sidebarsPinned) writePref(SIDEBAR_OPEN_KEY, '1');
+    writePref(SIDEBAR_SECTION_KEY, key);
+    if (key === 'sessions') {
+      setFullScreen(null);
+      return;
+    }
     // Agentes e LLMs sao destinos de navegacao, nao filtros da Home. Abrir
     // diretamente seus catalogos evita o salto visual de volta para sessões
     // que acontecia ao clicar nesses icones da barra lateral.
@@ -404,13 +399,13 @@ export default function AppShell({ children }: Props) {
       closeSidebar();
       return;
     }
-    const section = hoverSection ?? activeSection ?? 'llms';
+    const section = hoverSection ?? activeSection ?? fullScreenSection(fullScreen) ?? 'sessions';
     clearHoverTimers();
     setHoverSection(null);
     setSidebarsPinned(true);
-    setSidebar({ open: true, section });
-    writePref(SIDEBAR_OPEN_KEY, '1');
-    writePref(SIDEBAR_SECTION_KEY, section);
+    setSidebar({ open: section !== null, section });
+    writePref(SIDEBAR_OPEN_KEY, section !== null ? '1' : '0');
+    writePref(SIDEBAR_SECTION_KEY, section ?? '');
   };
 
   const onSashPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -466,6 +461,9 @@ export default function AppShell({ children }: Props) {
               if (!open) handleHoverSectionEnd();
             }}
             onGoHome={goHome}
+            onHoverHome={() => {
+              handleHoverSection('sessions');
+            }}
             isHome={!fullScreen}
             screenSection={fullScreenSection(fullScreen)}
             sidebarsPinned={sidebarsPinned}
@@ -475,6 +473,8 @@ export default function AppShell({ children }: Props) {
         <div className={`orbit-sidebar${sidebarOpen ? '' : ' orbit-sidebar-hidden'}`} style={{ width: sidebarWidth }}>
             <Sidebar
               activeSection={activeSection}
+              sessions={sessions}
+              onOpenSession={onOpenSession}
               onClose={closeSidebar}
               onOpenLlmCatalog={openLlmCatalog}
               onOpenLlmDetail={openLlmDetail}
@@ -493,6 +493,7 @@ export default function AppShell({ children }: Props) {
             />
             <div
               className={`orbit-sash${resizing ? ' dragging' : ''}`}
+              aria-label="Redimensionar painel lateral"
               onPointerDown={onSashPointerDown}
             />
         </div>
@@ -506,6 +507,8 @@ export default function AppShell({ children }: Props) {
           >
             <Sidebar
               activeSection={hoverSection}
+              sessions={sessions}
+              onOpenSession={onOpenSession}
               onClose={() => setHoverSection(null)}
               onOpenLlmCatalog={openLlmCatalog}
               onOpenLlmDetail={openLlmDetail}

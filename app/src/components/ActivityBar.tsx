@@ -22,6 +22,7 @@ interface Props {
   // sem isso, com uma tela cheia aberta (catalogo de LLM, edicao de agente)
   // a unica saida era o botao "Voltar" de dentro da propria tela.
   onGoHome: () => void;
+  onHoverHome: () => void;
   isHome: boolean;
   // secao "dona" da tela cheia aberta (catalogo/edicao). E a UNICA fonte do
   // destaque "ativo" (junto com Sessoes na Home): indica onde o usuario ESTA,
@@ -41,6 +42,7 @@ export default function ActivityBar({
   onSelectTheme,
   onSettingsMenuOpenChange,
   onGoHome,
+  onHoverHome,
   isHome,
   screenSection,
   sidebarsPinned,
@@ -107,6 +109,10 @@ export default function ActivityBar({
   // fixada) por engano. onMouseOver delegado bubbling resolve isso: um so
   // handler, sempre olhando o elemento REAL sob o cursor.
   const handlePointerOver = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('[data-home]')) {
+      onHoverHome();
+      return;
+    }
     if ((e.target as HTMLElement).closest('.orbit-activitybar-pin-btn')) return;
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-hover-key]');
     onHoverSection((btn?.dataset.hoverKey as SectionKey | undefined) ?? fallbackSection);
@@ -121,6 +127,7 @@ export default function ActivityBar({
       <button
         className={`orbit-activitybar-btn${isHome ? ' active' : ''}`}
         onClick={onGoHome}
+        data-home="true"
         aria-label="Sessões"
         title="Sessões"
       >
