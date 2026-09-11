@@ -51,6 +51,34 @@ ion-toolbar {
   transition: right 0.2s ease;
 }
 
+/* Só é montada quando uma janela flutuante alcança a faixa direita. Ela não
+   recebe eventos porque o header do terminal mantém o pointer capture. */
+.terminal-dropzone {
+  position: fixed;
+  top: var(--orbit-titlebar-h);
+  right: 0;
+  bottom: 0;
+  width: 280px;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border-left: 1px dashed color-mix(in srgb, var(--orbit-accent, #5b8cff) 62%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--orbit-accent, #5b8cff) 3%, transparent), color-mix(in srgb, var(--orbit-accent, #5b8cff) 12%, transparent));
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.08);
+  color: var(--orbit-sidebar-fg);
+  font: 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  pointer-events: none;
+  z-index: 999;
+}
+
+.terminal-dropzone span {
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--orbit-accent, #5b8cff) 52%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--orbit-canvas-bg) 72%, transparent);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
 .term-pinned-tabs {
   position: fixed;
   top: var(--orbit-titlebar-h);

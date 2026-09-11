@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
-import { X, Minus, ExternalLink, Maximize2, Minimize2, Pin, PinOff } from 'lucide-react';
+import { X, Minus, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
 import { BACKEND_WS, SessionInfo, StepEvent } from '../api';
 import TranscriptView from './TranscriptView';
 import { getOsPlatform } from '../utils/platform';
@@ -46,7 +46,7 @@ interface Props {
   popout?: boolean;
   docked?: boolean;
   dockedActive?: boolean;
-  onToggleDock?: () => void;
+  onDragStateChange?: (dragging: boolean, clientX: number, clientY: number) => void;
   // dispara toda vez que o terminal PASSA A MOSTRAR (ou deixa de mostrar) um
   // prompt interativo esperando o usuario (permissao, escolha de modelo,
   // qualquer menu tipo "❯ 1. ..."). So o Home.tsx usa isso, pra acender o
@@ -67,7 +67,7 @@ export default function TerminalPanel({
   popout,
   docked = false,
   dockedActive = true,
-  onToggleDock,
+  onDragStateChange,
   onNeedsAction,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -83,6 +83,8 @@ export default function TerminalPanel({
   onFocusRef.current = onFocus;
   const onNeedsActionRef = useRef(onNeedsAction);
   onNeedsActionRef.current = onNeedsAction;
+  const onDragStateChangeRef = useRef(onDragStateChange);
+  onDragStateChangeRef.current = onDragStateChange;
   // o painel sempre acompanha o tamanho da JANELA do app (não só o próprio
   // conteúdo) — sem isso, redimensionar a janela do app deixa os painéis
   // "pequenos" plantados num canto, porque eles têm posição/tamanho fixos em
@@ -372,6 +374,7 @@ export default function TerminalPanel({
     let startY = 0;
     let startLeft = 0;
     let startTop = 0;
+    let moved = false;
 
     const onPointerDown = (e: PointerEvent) => {
       if (panel.classList.contains('term-panel-maximized') || panel.classList.contains('term-panel-popout') || panel.classList.contains('term-panel-docked')) return;
@@ -381,38 +384,49 @@ export default function TerminalPanel({
       // IS_MAC_STYLE acima) — sem excluir os tres, o preventDefault() do
       // drag abaixo engolia o click antes dele chegar no botao, e
       // fechar/minimizar/destacar nunca disparavam fora do mac.
-      if ((e.target as HTMLElement).closest('.term-dot, .term-popout-btn, .term-dock-btn, .term-win-btn')) return;
+      if ((e.target as HTMLElement).closest('.term-dot, .term-popout-btn, .term-win-btn')) return;
       // sem isso o Chromium inicia selecao de texto/drag nativo (o "fantasma"
       // de captura da tela acompanhando o cursor) ao arrastar pelo cabecalho —
       // mesmo motivo do onPointerDown do TreeCard em SessionTree.tsx.
       e.preventDefault();
       onFocusRef.current();
       dragging = true;
+      moved = false;
       startX = e.clientX;
       startY = e.clientY;
       const rect = panel.getBoundingClientRect();
       startLeft = rect.left;
       startTop = rect.top;
       header.setPointerCapture(e.pointerId);
+      onDragStateChangeRef.current?.(true, e.clientX, e.clientY);
     };
     const onPointerMove = (e: PointerEvent) => {
       if (!dragging) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
       panel.style.left = `${Math.max(0, startLeft + dx)}px`;
       panel.style.top = `${Math.max(0, startTop + dy)}px`;
+      onDragStateChangeRef.current?.(true, e.clientX, e.clientY);
     };
-    const onPointerUp = () => {
+    const onPointerUp = (e: PointerEvent) => {
+      if (dragging) onDragStateChangeRef.current?.(false, moved ? e.clientX : -1, moved ? e.clientY : -1);
+      dragging = false;
+    };
+    const onPointerCancel = () => {
+      if (dragging) onDragStateChangeRef.current?.(false, -1, -1);
       dragging = false;
     };
 
     header.addEventListener('pointerdown', onPointerDown);
     header.addEventListener('pointermove', onPointerMove);
     header.addEventListener('pointerup', onPointerUp);
+    header.addEventListener('pointercancel', onPointerCancel);
     return () => {
       header.removeEventListener('pointerdown', onPointerDown);
       header.removeEventListener('pointermove', onPointerMove);
       header.removeEventListener('pointerup', onPointerUp);
+      header.removeEventListener('pointercancel', onPointerCancel);
     };
   }, [docked]);
 
@@ -586,16 +600,6 @@ export default function TerminalPanel({
                 title="Abrir em janela separada"
               >
                 <ExternalLink size={12} strokeWidth={2.25} />
-              </button>
-            )}
-            {onToggleDock && (
-              <button
-                className="term-dock-btn"
-                onClick={onToggleDock}
-                aria-label={docked ? 'Desafixar terminal' : 'Fixar terminal à direita'}
-                title={docked ? 'Desafixar terminal' : 'Fixar terminal à direita'}
-              >
-                {docked ? <PinOff size={12} strokeWidth={2.25} /> : <Pin size={12} strokeWidth={2.25} />}
               </button>
             )}
             {!IS_MAC_STYLE && (

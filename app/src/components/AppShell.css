@@ -4,6 +4,15 @@
    (--orbit-titlebar-h), que por sua vez esta travada porque SessionTree.tsx e
    TerminalPanel.tsx hardcodam esse valor pro alinhamento "focar card". */
 .orbit-shell {
+  --orbit-glass-ink: var(--orbit-sidebar-fg);
+  --orbit-glass-muted: color-mix(in srgb, var(--orbit-sidebar-fg) 82%, var(--orbit-fg-muted));
+  --orbit-glass-line: color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
+  --orbit-glass-item: color-mix(in srgb, var(--orbit-sidebar-fg) 4%, transparent);
+  --orbit-glass-hover: color-mix(in srgb, var(--orbit-sidebar-fg) 8%, transparent);
+  --orbit-glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  --orbit-glass-filter: blur(5px);
+  /* Preserve text contrast even when a white catalog sits behind the glass. */
+  --orbit-navigation-glass: color-mix(in srgb, var(--orbit-sidebar-bg) 80%, transparent);
   --orbit-panel-gap: 6px;
   --orbit-panel-radius: 5px;
   position: absolute;
@@ -11,7 +20,7 @@
   display: flex;
   overflow: hidden;
   transition: right 0.2s ease;
-  background: #101216;
+  background: var(--orbit-canvas-bg);
 }
 
 /* a Activity Bar (esquerda) anima a propria largura sozinha (ver
@@ -20,7 +29,7 @@
    que e o que fazia as duas parecerem duas animacoes desencontradas. */
 .orbit-sidebar,
 .orbit-sidebar-preview {
-  animation: orbit-sidebar-enter 0.15s ease-out both;
+  animation: orbit-sidebar-enter 0.15s ease-out backwards;
   animation-delay: 0.15s;
 }
 
@@ -33,16 +42,18 @@
   height: 24px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--orbit-sidebar-border);
+  border: 1px solid var(--orbit-glass-line);
   border-radius: 5px;
-  background: var(--orbit-sidebar-bg);
-  color: var(--orbit-sidebar-fg);
-  box-shadow: 2px 3px 10px rgba(0, 0, 0, .24);
+  background: var(--orbit-navigation-glass);
+  color: var(--orbit-glass-ink);
+  box-shadow: var(--orbit-glass-shadow);
+  -webkit-backdrop-filter: var(--orbit-glass-filter);
+  backdrop-filter: var(--orbit-glass-filter);
   cursor: pointer;
 }
 .orbit-sidebar-float-toggle:hover {
-  background: var(--orbit-list-hover-bg);
-  color: var(--orbit-sidebar-fg);
+  background: var(--orbit-glass-hover);
+  color: var(--orbit-glass-ink);
 }
 
 @keyframes orbit-sidebar-enter {

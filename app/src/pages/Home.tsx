@@ -28,6 +28,7 @@ const BASE_Z = 1000;
 const OPEN_IDS_STORAGE_KEY = 'dashboard.openPanelIds';
 const TERMINAL_DOCKED_STORAGE_KEY = 'dashboard.terminalDocked';
 const TERMINAL_DOCKED_WIDTH_STORAGE_KEY = 'dashboard.terminalDockedWidth';
+const TERMINAL_DROP_ZONE_WIDTH = 280;
 
 export default function Home() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -42,6 +43,7 @@ export default function Home() {
   const [terminalDocked, setTerminalDocked] = useState(
     () => localStorage.getItem(TERMINAL_DOCKED_STORAGE_KEY) === 'true'
   );
+  const [terminalDropTargetId, setTerminalDropTargetId] = useState<string | null>(null);
   const [activeDockedId, setActiveDockedId] = useState<string | null>(null);
   const [terminalDockedWidth, setTerminalDockedWidth] = useState(() => {
     const saved = Number(localStorage.getItem(TERMINAL_DOCKED_WIDTH_STORAGE_KEY));
@@ -64,6 +66,7 @@ export default function Home() {
   const openIdsRef = useRef<string[]>([]);
   const topZRef = useRef(BASE_Z);
   const restoredRef = useRef(false);
+  const terminalDropTargetRef = useRef<string | null>(null);
 
   useEffect(() => {
     openIdsRef.current = openIds;
@@ -106,6 +109,27 @@ export default function Home() {
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   };
+
+  // A zona não captura o ponteiro: o header da janela mantém o pointer capture
+  // durante o gesto. Ela surge apenas quando o cursor alcança a borda direita.
+  const handleTerminalDrag = useCallback((id: string, dragging: boolean, clientX: number, clientY: number) => {
+    const titlebarHeight = Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue('--orbit-titlebar-h')
+    ) || 0;
+    const overDropZone = dragging
+      && clientX >= window.innerWidth - TERMINAL_DROP_ZONE_WIDTH
+      && clientY >= titlebarHeight;
+    const targetId = overDropZone ? id : null;
+    const shouldDock = !dragging && clientX >= 0 && terminalDropTargetRef.current === id;
+
+    terminalDropTargetRef.current = targetId;
+    setTerminalDropTargetId((current) => current === targetId ? current : targetId);
+
+    if (shouldDock) {
+      setTerminalDocked(true);
+      setActiveDockedId(id);
+    }
+  }, []);
 
   useEffect(() => {
     if (!terminalDocked) return;
@@ -524,6 +548,12 @@ export default function Home() {
             </div>
           )}
 
+          {terminalDropTargetId && !terminalDocked && (
+            <div className="terminal-dropzone" aria-hidden="true">
+              <span>Solte para encaixar à direita</span>
+            </div>
+          )}
+
           {openIds.map((id) => {
             const session = sessionCacheRef.current.get(id);
             if (!session) return null;
@@ -551,10 +581,7 @@ export default function Home() {
                 zIndex={zIndexById[id] ?? BASE_Z}
                 docked={terminalDocked && !isMinimized}
                 dockedActive={id === activeDockedId}
-                onToggleDock={() => {
-                  setTerminalDocked((value) => !value);
-                  setActiveDockedId(id);
-                }}
+                onDragStateChange={(dragging, clientX, clientY) => handleTerminalDrag(id, dragging, clientX, clientY)}
                 onClose={() => {
                   dismissedAppAgentIdsRef.current.add(id);
                   closePanel(id);

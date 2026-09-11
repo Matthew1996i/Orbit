@@ -1,5 +1,17 @@
 const { execFileSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
+
+function removeAppleDoubleFiles(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.name.startsWith('._')) {
+      fs.rmSync(entryPath, { force: true, recursive: true });
+      continue;
+    }
+    if (entry.isDirectory()) removeAppleDoubleFiles(entryPath);
+  }
+}
 
 // electron-builder empacota o binário pré-compilado do Electron, que já
 // carrega uma assinatura ad-hoc do upstream. Quando o bundle é reempacotado
@@ -14,6 +26,7 @@ const path = require('path');
 module.exports = async function afterPack(context) {
   if (context.electronPlatformName !== 'darwin') return;
   const appPath = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
+  removeAppleDoubleFiles(appPath);
   try {
     execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], { stdio: 'inherit' });
   } catch (error) {
