@@ -38,17 +38,38 @@ ion-toolbar {
   top: calc(var(--orbit-titlebar-h) + 6px);
   left: calc(var(--orbit-content-left, 48px) + 6px);
   right: calc(var(--orbit-terminal-rail-w, 0px) + 6px);
+  /* sempre montada: a altura vai de 0 a 40px (--orbit-term-dock-h) com
+     transicao, e .orbit-content acompanha via margin-top (AppShell.css). */
   height: var(--orbit-term-dock-h);
+  opacity: 0;
+  transition: height 0.2s ease, opacity 0.2s ease, right 0.2s ease;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
-  background: #18181b;
-  border-bottom: 1px solid #2a2a2f;
-  border-radius: 5px 5px 0 0;
+  /* scroll horizontal sem barra visivel quando ha muitos chips */
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  /* sem padding lateral: o primeiro chip alinha com a borda esquerda do
+     painel de conteudo (mesmo left = --orbit-content-left + gap). */
+  padding: 0;
+  /* mesma cor da barra de titulo/fundo da janela (--orbit-chrome-bg, fixa
+     em todos os temas) — a faixa dos agentes minimizados faz parte do chrome,
+     nao do painel de conteudo; sem borda e sem raio proprio, pra se fundir. */
+  background: var(--orbit-chrome-bg);
+  border-bottom: none;
+  border-radius: 0;
   z-index: 15;
-  transition: right 0.2s ease;
+}
+.term-dock.is-open {
+  opacity: 1;
+}
+.term-dock::-webkit-scrollbar {
+  display: none;
+}
+@keyframes term-dock-chip-enter {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: none; }
 }
 
 /* Só é montada quando uma janela flutuante alcança a faixa direita. Ela não
@@ -84,7 +105,8 @@ ion-toolbar {
   top: var(--orbit-titlebar-h);
   right: 0;
   width: var(--orbit-terminal-rail-w);
-  height: var(--orbit-term-dock-h);
+  /* altura propria (nao --orbit-term-dock-h, que vira 0 sem minimizados) */
+  height: 40px;
   display: flex;
   align-items: stretch;
   gap: 2px;
@@ -242,30 +264,30 @@ body.orbit-terminal-resizing {
   box-shadow: 0 0 5px #f5a623;
 }
 
-.term-dock-empty {
-  color: #5c5c64;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
 
 .term-dock-chip {
+  animation: term-dock-chip-enter 0.18s ease-out backwards;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: #232327;
-  border: 1px solid #2a2a2f;
-  border-radius: 7px;
+  gap: 7px;
+  background: color-mix(in srgb, var(--orbit-sidebar-bg) 63%, transparent);
+  border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
+  border-radius: 8px;
   padding: 5px 10px;
-  color: #d8d8da;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--orbit-sidebar-fg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   max-width: 200px;
+  -webkit-backdrop-filter: blur(8.3px);
+  backdrop-filter: blur(8.3px);
+  transition: border-color 0.12s, background 0.12s;
 }
 .term-dock-chip:hover {
-  border-color: #f5a623;
-  color: #fff;
+  border-color: color-mix(in srgb, var(--orbit-sidebar-fg) 25%, transparent);
+  background: color-mix(in srgb, var(--orbit-sidebar-bg) 80%, transparent);
 }
 
 /* precisa de uma resposta do usuario (permissao, escolha de modelo, etc —
@@ -332,4 +354,58 @@ body.orbit-terminal-resizing {
   font-size: 14px;
   line-height: 1.8;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* botao "Novo agente" (canto inferior direito do canvas) */
+.home-new-agent-btn {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px 0 10px;
+  border: 1px solid color-mix(in srgb, var(--orbit-accent-contrast) 18%, transparent);
+  border-radius: 999px;
+  background: var(--orbit-accent);
+  color: var(--orbit-accent-contrast);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 10px 24px color-mix(in srgb, var(--orbit-accent) 35%, transparent),
+    0 4px 30px rgba(0, 0, 0, 0.18);
+  transition: transform 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
+  z-index: 20;
+}
+.home-new-agent-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 14px 30px color-mix(in srgb, var(--orbit-accent) 42%, transparent),
+    0 4px 30px rgba(0, 0, 0, 0.2);
+}
+.home-new-agent-btn:active {
+  transform: translateY(0) scale(0.98);
+  filter: brightness(0.98);
+}
+.home-new-agent-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--orbit-accent) 35%, transparent);
+}
+.home-new-agent-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--orbit-accent-contrast) 14%, transparent);
+}
+.home-new-agent-label {
+  white-space: nowrap;
 }

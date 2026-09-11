@@ -8,16 +8,23 @@
   min-height: 220px;
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - 54px);
-  background: #0d0d0f;
-  border: 1px solid #2a2a2f;
-  border-radius: 10px;
+  /* visual "janela moderna": fundo do terminal do tema, borda de vidro,
+     raio 12px, sombra profunda + realce fino no topo (highlight inset). */
+  background: var(--orbit-terminal-bg, var(--orbit-canvas-bg));
+  border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 12%, transparent);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   resize: both;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--orbit-sidebar-fg) 6%, transparent) inset,
+    0 24px 70px rgba(0, 0, 0, 0.55),
+    0 4px 30px rgba(0, 0, 0, 0.25);
   z-index: 1000;
-  transform-origin: bottom left;
+  /* top left: a faixa dos minimizados fica em CIMA do conteudo, entao o
+     genie e sugado/restaurado a partir do canto superior esquerdo. */
+  transform-origin: top left;
   transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease;
   animation: term-panel-in 0.16s ease-out;
 }
@@ -32,11 +39,6 @@
 
 .term-panel-maximized .term-resize-handle {
   display: none;
-}
-
-.term-traffic-lights:hover .term-dot-max {
-  background: #28c840;
-  color: #095b17;
 }
 
 .term-resize-handle {
@@ -57,13 +59,14 @@
   bottom: 4px;
   width: 8px;
   height: 8px;
-  border-right: 2px solid rgba(180, 180, 190, 0.58);
-  border-bottom: 2px solid rgba(180, 180, 190, 0.58);
+  border-right: 2px solid color-mix(in srgb, var(--orbit-sidebar-fg) 45%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--orbit-sidebar-fg) 45%, transparent);
+  border-radius: 0 0 2px 0;
   opacity: 0.75;
 }
 
 .term-resize-handle:hover::after {
-  border-color: #8ab4ff;
+  border-color: var(--orbit-accent);
   opacity: 1;
 }
 
@@ -162,6 +165,7 @@
   max-width: none;
   max-height: none;
   border-width: 0 0 0 1px;
+  border-color: color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
   border-radius: 0;
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);
   resize: none;
@@ -208,13 +212,13 @@
   align-items: center;
   padding: 0 14px;
   height: 38px;
-  background: linear-gradient(#141416, #0e0e10);
-  border-bottom: 1px solid #232326;
-  border-radius: 10px 10px 0 0;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: #9a9aa2;
-  letter-spacing: 0.02em;
+  background: color-mix(in srgb, var(--orbit-sidebar-bg) 82%, var(--orbit-terminal-bg, var(--orbit-canvas-bg)));
+  border-bottom: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
+  border-radius: 12px 12px 0 0;
+  font-size: 12.5px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--orbit-fg-muted);
+  letter-spacing: -0.005em;
   cursor: default;
   user-select: none;
   flex-shrink: 0;
@@ -228,34 +232,89 @@
 }
 
 .term-dot {
+  position: relative;
   width: 13px;
   height: 13px;
   border-radius: 50%;
   border: none;
   padding: 0;
   cursor: pointer;
-  background: #5c5c5e;
-  color: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.1s, color 0.1s;
+  background: color-mix(in srgb, var(--orbit-sidebar-fg) 22%, transparent);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25) inset;
+  transition: background 0.1s;
 }
-.term-dot svg {
+.term-dot-close { background: #ff5f57; }
+.term-dot-min { background: #febc2e; }
+.term-dot-max { background: #28c840; }
+
+/* glifos em CSS, visiveis so com o mouse sobre o grupo (igual ao macOS) */
+.term-dot::before,
+.term-dot::after {
+  content: '';
+  position: absolute;
   opacity: 0;
   transition: opacity 0.1s;
 }
-.term-traffic-lights:hover .term-dot svg {
+.term-traffic-lights:hover .term-dot::before,
+.term-traffic-lights:hover .term-dot::after {
   opacity: 1;
 }
 
-.term-traffic-lights:hover .term-dot-close {
-  background: #ff5f57;
-  color: #4d0000;
+/* fechar: X de duas barras */
+.term-dot-close::before,
+.term-dot-close::after {
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: #4d0000;
 }
-.term-traffic-lights:hover .term-dot-min {
-  background: #febc2e;
-  color: #5a3d00;
+.term-dot-close::before { transform: translate(-50%, -50%) rotate(45deg); }
+.term-dot-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
+/* minimizar: uma barra */
+.term-dot-min::before {
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: #5a3d00;
+  transform: translate(-50%, -50%);
+}
+
+/* maximizar: dois triangulos apontando pros cantos (macOS "zoom") */
+.term-dot-max::before,
+.term-dot-max::after {
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+.term-dot-max::before {
+  top: 2.5px;
+  right: 2.5px;
+  border-width: 0 4px 4px 0;
+  border-color: transparent #095b17 transparent transparent;
+}
+.term-dot-max::after {
+  bottom: 2.5px;
+  left: 2.5px;
+  border-width: 4px 0 0 4px;
+  border-color: transparent transparent transparent #095b17;
+}
+/* maximizado: triangulos invertidos (apontando pro centro = restaurar) */
+.term-dot-max.is-maximized::before {
+  top: 3px;
+  right: 3px;
+  border-width: 4px 0 0 4px;
+  border-color: transparent transparent transparent #095b17;
+}
+.term-dot-max.is-maximized::after {
+  bottom: 3px;
+  left: 3px;
+  border-width: 0 4px 4px 0;
+  border-color: transparent #095b17 transparent transparent;
 }
 .term-dot:active {
   filter: brightness(0.85);
@@ -263,7 +322,8 @@
 
 .term-title {
   text-align: center;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--orbit-sidebar-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -285,14 +345,15 @@
   height: 20px;
   background: transparent;
   border: none;
-  border-radius: 5px;
-  color: #7a7a82;
+  border-radius: 6px;
+  color: var(--orbit-fg-muted);
   cursor: pointer;
   flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
 }
 .term-popout-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e8e8ea;
+  background: color-mix(in srgb, var(--orbit-sidebar-fg) 8%, transparent);
+  color: var(--orbit-sidebar-fg);
 }
 
 /* fora do mac, fechar/minimizar viram botoes de icone no canto direito (em
@@ -307,14 +368,14 @@
   background: transparent;
   border: none;
   border-radius: 4px;
-  color: #7a7a82;
+  color: var(--orbit-fg-muted);
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.1s, color 0.1s;
 }
 .term-win-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e8e8ea;
+  background: color-mix(in srgb, var(--orbit-sidebar-fg) 8%, transparent);
+  color: var(--orbit-sidebar-fg);
 }
 .term-win-btn-close:hover {
   background: #ff5c57;
@@ -334,13 +395,13 @@
   text-transform: uppercase;
   color: #1b2f22;
   background: #2ecc71;
-  border-radius: 4px;
+  border-radius: 999px;
   vertical-align: middle;
 }
 
 .term-panel-remote {
-  border-color: #2ecc71;
-  box-shadow: 0 0 18px rgba(46, 204, 113, 0.22);
+  border-color: color-mix(in srgb, #2ecc71 60%, transparent);
+  box-shadow: 0 0 0 1px rgba(46, 204, 113, 0.25), 0 24px 70px rgba(0, 0, 0, 0.55);
 }
 
 /* estado final, DEPOIS que a animacao "genie" (abaixo) termina de tocar —
@@ -348,7 +409,7 @@
    so trava o resultado final (mesmos valores do ultimo frame do genie-out)
    e tira do fluxo de clique/hit-test. */
 .term-panel-minimized-hidden {
-  transform: scale(0.02, 0.02) translate(-48%, 64%);
+  transform: scale(0.02, 0.02) translate(-48%, -64%);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -361,8 +422,8 @@
    opacity) — combinado com o canvas do xterm.js por baixo (conteudo pesado
    de redesenhar), isso travava visivelmente. scale(x,y) assimetrico +
    translate + skew ja dao a leitura de "sugado pro canto" sem custo de
-   repaint; transform-origin (bottom left, em .term-panel) ancora no canto
-   certo. */
+   repaint; transform-origin (top left, em .term-panel) ancora no canto
+   certo — a faixa de minimizados fica acima do conteudo. */
 @keyframes term-panel-genie-out {
   0% {
     opacity: 1;
@@ -370,30 +431,30 @@
   }
   35% {
     opacity: 1;
-    transform: scale(0.5, 0.55) translate(-10%, 20%) skew(-6deg, 3deg);
+    transform: scale(0.5, 0.55) translate(-10%, -20%) skew(-6deg, -3deg);
   }
   70% {
     opacity: 0.6;
-    transform: scale(0.15, 0.18) translate(-35%, 48%) skew(-9deg, 4deg);
+    transform: scale(0.15, 0.18) translate(-35%, -48%) skew(-9deg, -4deg);
   }
   100% {
     opacity: 0;
-    transform: scale(0.02, 0.02) translate(-48%, 64%) skew(0deg, 0deg);
+    transform: scale(0.02, 0.02) translate(-48%, -64%) skew(0deg, 0deg);
   }
 }
 
 @keyframes term-panel-genie-in {
   0% {
     opacity: 0;
-    transform: scale(0.02, 0.02) translate(-48%, 64%) skew(0deg, 0deg);
+    transform: scale(0.02, 0.02) translate(-48%, -64%) skew(0deg, 0deg);
   }
   30% {
     opacity: 0.6;
-    transform: scale(0.15, 0.18) translate(-35%, 48%) skew(-9deg, 4deg);
+    transform: scale(0.15, 0.18) translate(-35%, -48%) skew(-9deg, -4deg);
   }
   65% {
     opacity: 1;
-    transform: scale(0.5, 0.55) translate(-10%, 20%) skew(-6deg, 3deg);
+    transform: scale(0.5, 0.55) translate(-10%, -20%) skew(-6deg, -3deg);
   }
   /* leve overshoot no final (escala passa de 1 e volta) — da uma sensacao
      "viva"/elastica de chegada, igual ao pop de restaurar do Dock real. */
@@ -421,11 +482,11 @@
 .term-body {
   box-sizing: border-box;
   flex: 1;
-  padding: 8px;
+  padding: 10px 10px 8px;
   overflow: hidden;
   background: var(--orbit-terminal-bg, var(--orbit-canvas-bg));
   min-height: 0;
-  border-radius: 0 0 10px 10px;
+  border-radius: 0 0 12px 12px;
 }
 
 /* O elemento raiz criado pelo xterm nao recebe width/height do pacote base.
@@ -440,7 +501,7 @@
 .term-body-transcript {
   padding: 0;
   overflow: hidden;
-  border-radius: 0 0 10px 10px;
+  border-radius: 0 0 12px 12px;
 }
 
 .xterm-viewport {

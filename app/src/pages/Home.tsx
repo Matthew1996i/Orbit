@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { IonContent, IonFab, IonFabButton, IonPage } from '@ionic/react';
-import { Plus, Skull, ExternalLink, RotateCcw, X, PinOff } from 'lucide-react';
+import { IonContent, IonPage } from '@ionic/react';
+import { Plus, Skull, ArrowSquareOut, ArrowCounterClockwise, X, PushPinSlash } from '@phosphor-icons/react';
 import SessionTree from '../components/SessionTree';
 import LlmUsageWidget from '../components/LlmUsageWidget';
 import { llmLogoFor } from '../utils/llmLogos';
@@ -334,29 +334,31 @@ export default function Home() {
     // matar processo é sempre a PRIMEIRA opção, quando disponível — subagentes
     // (isSubagent) não têm processo próprio pra matar (rodam dentro da sessão
     // orquestradora), então não oferece essa opção pra eles.
-    if (!session.isSubagent && session.alive) {
-      items.push({
-        label: 'Encerrar agente e processo',
-        icon: <Skull size={14} />,
-        danger: true,
-        onClick: () => setConfirmKill(session),
-      });
-    }
     // So Claude e Codex possuem um comando de retomada com ID de sessao que
     // o backend conhece. Sessoes externas encerradas continuam legiveis, e
     // este comando devolve a conversa a um terminal interativo do Orbit.
     if (!session.alive && !session.appManaged && (session.llm === 'codex' || !session.llm || session.llm === 'claude')) {
       items.push({
         label: 'Retomar sessão',
-        icon: <RotateCcw size={14} />,
+        icon: <ArrowCounterClockwise size={14} />,
         onClick: () => handleResumeSession(session),
       });
     }
     items.push({
       label: 'Abrir',
-      icon: <ExternalLink size={14} />,
+      icon: <ArrowSquareOut size={14} />,
       onClick: () => openPanel(session),
     });
+    // destrutiva por ultimo, separada das demais (convencao de menus)
+    if (!session.isSubagent && session.alive) {
+      items.push({
+        label: 'Encerrar agente e processo',
+        icon: <Skull size={14} />,
+        danger: true,
+        separator: true,
+        onClick: () => setConfirmKill(session),
+      });
+    }
     return items;
   };
 
@@ -381,6 +383,17 @@ export default function Home() {
     await refresh();
   };
 
+  // a faixa dos minimizados so existe (e so reserva altura no layout — ver
+  // --orbit-term-dock-h em AppShell.css/.orbit-content) quando ha algum
+  // agente minimizado; sem nenhum, o conteudo sobe e ocupa o espaco.
+  const hasMinimized = [...openIds].some((id) => minimizedIds.has(id));
+  useEffect(() => {
+    document.documentElement.style.setProperty('--orbit-term-dock-h', hasMinimized ? '40px' : '0px');
+    return () => {
+      document.documentElement.style.removeProperty('--orbit-term-dock-h');
+    };
+  }, [hasMinimized]);
+
   const minimizedPanels = [...openIds]
     .filter((id) => minimizedIds.has(id))
     .map((id) => sessionCacheRef.current.get(id))
@@ -403,11 +416,21 @@ export default function Home() {
             onContextMenu={handleCardContextMenu}
           />
 
-          <IonFab vertical="bottom" horizontal="end" slot="fixed">
-            <IonFabButton onClick={() => setShowNewAgent(true)}>
-              <Plus size={22} />
-            </IonFabButton>
-          </IonFab>
+          {/* slot="fixed" do IonContent: fica ancorado no canto sem rolar
+              junto com o canvas. Botao proprio (nao IonFab): pilula com
+              label, cor de destaque do tema e mesmo vidro/raio do resto. */}
+          <button
+            className="home-new-agent-btn"
+            slot="fixed"
+            type="button"
+            onClick={() => setShowNewAgent(true)}
+            aria-label="Novo agente"
+          >
+            <span className="home-new-agent-icon">
+              <Plus size={18} />
+            </span>
+            <span className="home-new-agent-label">Novo agente</span>
+          </button>
         </IonContent>
       </AppShell>
 
@@ -420,10 +443,8 @@ export default function Home() {
           IonPage, nao importa o z-index — inclusive por cima da Sidebar
           quando ela deveria cobri-lo. Fica no MESMO contexto de
           empilhamento do resto do AppShell assim. */}
-      <div className="term-dock">
-        {minimizedPanels.length === 0 ? (
-          <span className="term-dock-empty">Nenhum agente minimizado</span>
-        ) : (
+      <div className={`term-dock${minimizedPanels.length > 0 ? ' is-open' : ''}`}>
+        {(
           minimizedPanels.map((s) => {
             const Logo = llmLogoFor(s.llm || 'claude');
             const needsAction = needsActionIds.has(s.sessionId);
@@ -531,7 +552,7 @@ export default function Home() {
                         closePanel(s.sessionId);
                       }}
                     >
-                      <X size={11} />
+                      <X size={11} weight="bold" />
                     </span>
                   </button>
                 );
@@ -543,7 +564,7 @@ export default function Home() {
                 aria-label="Desafixar terminais"
                 title="Desafixar terminais"
               >
-                <PinOff size={13} />
+                <PushPinSlash size={13} />
               </button>
             </div>
           )}

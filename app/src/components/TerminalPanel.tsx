@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
-import { X, Minus, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Minus, ArrowSquareOut, ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react';
 import { BACKEND_WS, SessionInfo, StepEvent } from '../api';
 import TranscriptView from './TranscriptView';
 import { getOsPlatform } from '../utils/platform';
@@ -571,15 +571,17 @@ export default function TerminalPanel({
           <div className="term-header-spacer" />
         ) : (
           <div className="term-traffic-lights">
-            <button className="term-dot term-dot-close" onClick={onClose} aria-label="Fechar">
-              <X size={9} strokeWidth={2.5} />
-            </button>
-            <button className="term-dot term-dot-min" onClick={onMinimize} aria-label="Minimizar">
-              <Minus size={9} strokeWidth={2.5} />
-            </button>
-            <button className="term-dot term-dot-max" onClick={() => setMaximized((value) => !value)} aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar'} title={maximized ? 'Restaurar tamanho' : 'Maximizar'}>
-              {maximized ? <Minimize2 size={9} /> : <Maximize2 size={9} />}
-            </button>
+            {/* glifos desenhados em CSS (::before/::after, ver .term-dot em
+                TerminalPanel.css), como o semaforo real do macOS — icone de
+                fonte em 8px ficava fino/descentrado. */}
+            <button className="term-dot term-dot-close" onClick={onClose} aria-label="Fechar" />
+            <button className="term-dot term-dot-min" onClick={onMinimize} aria-label="Minimizar" />
+            <button
+              className={`term-dot term-dot-max${maximized ? ' is-maximized' : ''}`}
+              onClick={() => setMaximized((value) => !value)}
+              aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar'}
+              title={maximized ? 'Restaurar tamanho' : 'Maximizar'}
+            />
           </div>
         )}
         <strong className="term-title">
@@ -599,19 +601,19 @@ export default function TerminalPanel({
                 aria-label="Abrir em janela separada"
                 title="Abrir em janela separada"
               >
-                <ExternalLink size={12} strokeWidth={2.25} />
+                <ArrowSquareOut size={13} weight="bold" />
               </button>
             )}
             {!IS_MAC_STYLE && (
               <>
                 {!docked && <button className="term-win-btn" onClick={onMinimize} aria-label="Minimizar">
-                  <Minus size={11} strokeWidth={2.25} />
+                  <Minus size={11} weight="bold" />
                 </button>}
                 {!docked && <button className="term-win-btn" onClick={() => setMaximized((value) => !value)} aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar'}>
-                  {maximized ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+                  {maximized ? <ArrowsInSimple size={11} weight="bold" /> : <ArrowsOutSimple size={11} weight="bold" />}
                 </button>}
                 <button className="term-win-btn term-win-btn-close" onClick={onClose} aria-label="Fechar">
-                  <X size={11} strokeWidth={2.25} />
+                  <X size={11} weight="bold" />
                 </button>
               </>
             )}
