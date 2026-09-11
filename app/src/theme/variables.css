@@ -1,6 +1,79 @@
 /* For information on how to create your own theme, please refer to:
 http://ionicframework.com/docs/theming/ */
 
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/switzer/switzer-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/switzer/switzer-medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/switzer/switzer-semibold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/switzer/switzer-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* fonte padrao do app inteiro — sobrescreve o default do Ionic
+   (--ion-default-font) para que todo componente ion-* e qualquer elemento
+   que herde de html/body use Switzer. */
+:root {
+  --ion-font-family: 'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Escala tipografica modular (razao ~1.125, base 12px — esse app e um
+     dashboard denso de UI, entao a "base" real de leitura e menor que a
+     base editorial de 16px). Passos abaixo da base ficam mais apertados
+     (badges/captions/labels convivem lado a lado); acima da base os saltos
+     abrem mais (titulos precisam de ancoragem visual clara, nao só +1px). */
+  --font-size-3xs: 8px; /* contadores/badges minusculos */
+  --font-size-2xs: 9px; /* tags, meta-info secundaria */
+  --font-size-xs: 10px; /* captions, timestamps */
+  --font-size-sm: 11px; /* texto denso de UI (arvores, listas, tooltips) */
+  --font-size-base: 12px; /* corpo padrao do app */
+  --font-size-md: 13px; /* corpo com enfase, inputs, botoes */
+  --font-size-lg: 14px; /* subtitulos, labels de secao */
+  --font-size-xl: 16px; /* titulos de dialogo/painel */
+  --font-size-2xl: 20px; /* titulos de tela */
+  --font-size-3xl: 26px; /* titulo hero (ex: About) */
+
+  /* Pesos Switzer disponiveis (ver @font-face acima) — nomeados por papel,
+     nao por numero, pra pareamento consistente peso<->hierarquia em vez de
+     650/600 escolhidos ad-hoc por componente. */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Ancoragem visual: titulos usam line-height mais apertado (o peso/tamanho
+     ja carregam a hierarquia, sobra de entrelinha so afasta do conteudo
+     associado); corpo/UI densa usa um respiro maior pra legibilidade em
+     blocos de texto corridos. */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.4;
+}
+
+html,
+body {
+  font-family: var(--ion-font-family);
+  font-size: var(--font-size-base);
+}
+
 /* icones (lucide/@lobehub) sao SVGs inline, que por padrao tem
    vertical-align: baseline — isso deixa uns pixels de "espaco de descida de
    texto" embaixo do SVG, entao mesmo dentro de um container flex

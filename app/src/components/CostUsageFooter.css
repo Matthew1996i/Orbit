@@ -4,7 +4,7 @@
   left: 16px;
   z-index: 5;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.01em;
   color: #f5a623;
   white-space: nowrap;

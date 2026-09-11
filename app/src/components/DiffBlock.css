@@ -3,19 +3,19 @@
 }
 
 .diff-header {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: #f6eef2;
 }
 .diff-header-file {
   color: #8a6a75;
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
 }
 
 .diff-subitem {
   display: flex;
   gap: 6px;
   color: #8a8a92;
-  font-size: 12px;
+  font-size: var(--font-size-base);
   margin: 2px 0 6px;
 }
 .diff-summary-added {
@@ -30,7 +30,7 @@
   border-radius: 6px;
   overflow-x: auto;
   background: #282a36; /* fundo oficial do tema Dracula */
-  font-size: 12px;
+  font-size: var(--font-size-base);
   line-height: 1.55;
   scrollbar-width: none; /* rolagem continua funcionando, só a barra visual some */
 }
@@ -73,7 +73,7 @@
    paleta: pink #ff79c6, yellow #f1fa8c, purple #bd93f9, comment #6272a4 */
 .code-keyword {
   color: #ff79c6;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 .code-string {
   color: #f1fa8c;

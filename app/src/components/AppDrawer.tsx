@@ -122,7 +122,7 @@ export default function AppDrawer({
         header: {
           padding: '16px 20px',
           borderBottom: '1px solid #ececef',
-          fontWeight: 600,
+          fontWeight: 'var(--font-weight-semibold)',
         },
         body: {
           padding: 0,

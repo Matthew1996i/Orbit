@@ -4,8 +4,8 @@
 
 .new-agent-label {
   display: block;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--orbit-fg-muted);
   margin: 16px 0 6px;
 }
@@ -25,7 +25,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   color: var(--orbit-sidebar-fg);
 }
 
@@ -38,8 +38,8 @@
   color: var(--orbit-accent);
   border-radius: 8px;
   padding: 7px 11px;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   font-family: inherit;
   cursor: pointer;
   flex-shrink: 0;
@@ -56,7 +56,7 @@
   border-radius: 10px;
   padding: 10px 12px;
   color: var(--orbit-sidebar-fg);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-family: inherit;
   box-sizing: border-box;
 }
@@ -132,7 +132,7 @@
   background: transparent;
   color: var(--orbit-sidebar-fg);
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   cursor: pointer;
   text-align: left;
 }
@@ -149,6 +149,6 @@
 
 .new-agent-llm-hint {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   color: var(--orbit-fg-subtle);
 }

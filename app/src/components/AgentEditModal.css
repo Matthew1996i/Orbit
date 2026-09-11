@@ -31,11 +31,11 @@
 }
 .agent-edit-header h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 .agent-edit-sub {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: #7a7a82;
 }
 
@@ -55,7 +55,7 @@
   color: var(--orbit-status-warn, #f5a623);
   border-radius: 7px;
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   font-family: inherit;
   cursor: pointer;
 }
@@ -92,7 +92,7 @@
   padding: 8px 10px;
   color: #d4d4d4;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
 }
 .agent-edit-generate-textarea:focus {
@@ -103,7 +103,7 @@
 .agent-edit-generate-error {
   flex: none;
   color: #ff5c57;
-  font-size: 11.5px;
+  font-size: var(--font-size-sm);
   justify-content: flex-start;
 }
 
@@ -132,7 +132,7 @@
   background: transparent;
   color: #7a7a82;
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 .agent-edit-tab.active {
@@ -149,7 +149,7 @@
   border-radius: 8px;
   padding: 14px 18px;
   color: #c9c9cf;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.6;
 }
 .agent-edit-preview h1,
@@ -185,7 +185,7 @@
   align-items: center;
   justify-content: center;
   color: #7a7a82;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
 }
 .agent-edit-error {
   color: #ff5c57;
@@ -201,7 +201,7 @@
   padding: 12px;
   color: #d4d4d4;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   line-height: 1.55;
 }
 .agent-edit-textarea:focus {
@@ -220,6 +220,6 @@
 
 .agent-edit-saved {
   margin-right: auto;
-  font-size: 11.5px;
+  font-size: var(--font-size-sm);
   color: #34c759;
 }

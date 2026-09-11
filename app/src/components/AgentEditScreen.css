@@ -4,7 +4,7 @@
   overflow-y: auto;
   background: #f7f7f8;
   color: #111114;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  font-family: var(--ion-font-family);
 }
 .agent-screen-inner {
   /* segue a largura toda da janela, igual as outras telas (catalogo de
@@ -67,7 +67,7 @@
 }
 
 .agent-screen-saved {
-  font-size: 11.5px;
+  font-size: var(--font-size-sm);
   color: #15803d;
 }
 
@@ -88,7 +88,7 @@
    (useLlmScreenTheme), igual aos outros inputs AntD dessas telas. */
 .agent-screen-generate-select.agent-screen-generate-select {
   width: 180px;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
 }
 
 /* corpo do drawer "Gerar com IA" — conversa (mensagens do usuario + rascunho
@@ -120,7 +120,7 @@
 }
 .agent-chat-empty {
   color: #a1a1aa;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   line-height: 1.6;
 }
 /* entrada suave — tanto as bolhas quanto o cartao de arquivo (mesma
@@ -145,7 +145,7 @@
   max-width: 90%;
   border-radius: 12px;
   padding: 8px 12px;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
   white-space: pre-wrap;
   animation: agent-chat-msg-in 0.2s ease-out both;
@@ -180,8 +180,8 @@
   background: #f4f4f5;
   border-bottom: 1px solid #ececef;
   color: #52525b;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -190,7 +190,7 @@
   padding: 12px 14px;
   color: #27272a;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11.5px;
+  font-size: var(--font-size-sm);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
@@ -252,7 +252,7 @@
   padding: 9px 12px;
   color: #111114;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   line-height: 1.4;
 }
 /* foco discreto — antes usava a mesma borda escura/grossa (#18181b) do
@@ -305,8 +305,8 @@
 
 .agent-screen-pane-label {
   flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #a1a1aa;
@@ -323,7 +323,7 @@
   padding: 16px;
   color: #111114;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   line-height: 1.6;
 }
 .agent-screen-textarea:focus {
@@ -340,7 +340,7 @@
   border-radius: 10px;
   padding: 18px 22px;
   color: #27272a;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.65;
 }
 .agent-screen-preview h1,
@@ -376,8 +376,8 @@
   height: 34px;
   padding: 0 14px;
   border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -452,7 +452,7 @@
   align-items: center;
   justify-content: center;
   color: #a1a1aa;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   margin-top: 20px;
 }
 .agent-screen-error {

@@ -21,15 +21,15 @@
 }
 
 .app-drawer-title {
-  font-size: 15px;
-  font-weight: 650;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.01em;
   color: #111114;
   line-height: 1.3;
 }
 
 .app-drawer-subtitle {
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: #71717a;
   margin-top: 1px;
 }

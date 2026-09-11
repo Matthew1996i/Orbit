@@ -4,7 +4,7 @@
   padding: 0 36px 48px;
   background: #f7f7f8;
   color: #111114;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  font-family: var(--ion-font-family);
 }
 
 /* toolbar: so o cabecalho (voltar + titulo), fixo no topo ao rolar. Busca e
@@ -45,7 +45,7 @@
   width: auto;
 }
 .llm-catalog-search.llm-catalog-search .ant-input {
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 /* mesma altura do botao (.llm-btn = 34px) — o Input `size="large"` do AntD
    por padrao fica mais baixo/desproporcional ao lado dele. */
@@ -76,13 +76,13 @@
   color: #a1a1aa;
 }
 .llm-catalog-empty-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   color: #111114;
 }
 .llm-catalog-empty-text {
   max-width: 320px;
-  font-size: 12px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
   color: #a1a1aa;
 }
@@ -105,15 +105,15 @@
   margin-bottom: 12px;
 }
 .llm-group-title {
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #52525b;
 }
 .llm-group-count {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: #c1c1c8;
   font-variant-numeric: tabular-nums;
 }
@@ -179,9 +179,9 @@
   min-width: 0;
 }
 .catalog-card-name {
-  font-size: 14px;
+  font-size: var(--font-size-lg);
   line-height: 1.5;
-  font-weight: 650;
+  font-weight: var(--font-weight-bold);
   color: #111114;
   min-width: 0;
   overflow: hidden;
@@ -190,9 +190,9 @@
 }
 .catalog-card-badge {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   line-height: 1.5;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   padding: 1px 7px;
   border-radius: 999px;
   background: #f4f4f5;
@@ -200,7 +200,7 @@
 }
 .catalog-card-desc {
   margin-top: 3px;
-  font-size: 12px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
   color: #a1a1aa;
   overflow: hidden;
@@ -215,7 +215,7 @@
 }
 .catalog-card-meta {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   color: #c1c1c8;
 }
@@ -271,8 +271,8 @@
   height: 34px;
   padding: 0 14px;
   border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   display: inline-flex;
   align-items: center;
   gap: 6px;

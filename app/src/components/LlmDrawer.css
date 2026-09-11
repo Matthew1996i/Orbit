@@ -14,13 +14,13 @@
   min-width: 0;
 }
 .llm-drawer-name {
-  font-size: 15px;
-  font-weight: 650;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.01em;
   color: #111114;
 }
 .llm-drawer-vendor {
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: #a1a1aa;
   margin-top: 1px;
 }
@@ -35,8 +35,8 @@
   gap: 6px;
   padding: 5px 10px;
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   border: 1px solid transparent;
   white-space: nowrap;
 }
@@ -88,8 +88,8 @@
 }
 
 .llm-drawer-section-title {
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #71717a;
@@ -101,7 +101,7 @@
 
 .llm-drawer-section-hint {
   margin: 0 0 12px;
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: #a1a1aa;
   line-height: 1.5;
 }
@@ -141,8 +141,8 @@
   border-radius: 50%;
   background: #f4f4f5;
   color: #71717a;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -155,14 +155,14 @@
 }
 .guide-step-text {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.5;
   color: #52525b;
 }
 .guide-step-label {
   margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #a1a1aa;
@@ -186,7 +186,7 @@
   overflow-x: auto;
   white-space: pre;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: #27272a;
 }
 .cmd-chip-copy {
@@ -209,13 +209,13 @@
 }
 .cmd-chip-note {
   margin: 4px 0 0;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: #a1a1aa;
 }
 
 .llm-drawer-docs-link.llm-drawer-docs-link {
   padding-left: 0;
-  font-size: 12px;
+  font-size: var(--font-size-base);
 }
 
 /* login/logout NAO troca o conteudo do drawer nem mostra log/terminal
@@ -246,8 +246,8 @@
   height: 34px;
   padding: 0 14px;
   border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   display: inline-flex;
   align-items: center;
   gap: 6px;

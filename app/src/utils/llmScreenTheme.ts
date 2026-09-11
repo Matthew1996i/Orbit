@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import type { ThemeConfig } from 'antd';
+import { useEffect, useState } from "react";
+import type { ThemeConfig } from "antd";
 
 // resto do app nao usa AntD (Ionic + CSS custom) — escopado so pra dentro
 // das telas cheias de LLM via <ConfigProvider theme={...}>, sem vazar pro
@@ -8,9 +8,11 @@ import type { ThemeConfig } from 'antd';
 // theme/themes.ts (--orbit-accent) em vez de um preto fixo — "todos os
 // botoes devem seguir a cor do tema selecionado" tambem vale aqui.
 function readAccent(): string {
-  if (typeof document === 'undefined') return '#18181b';
-  const v = getComputedStyle(document.documentElement).getPropertyValue('--orbit-accent').trim();
-  return v || '#18181b';
+  if (typeof document === "undefined") return "#18181b";
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue("--orbit-accent")
+    .trim();
+  return v || "#18181b";
 }
 
 // hook em vez de constante estatica — o valor precisa reagir a troca de tema
@@ -25,7 +27,10 @@ export function useLlmScreenTheme(): ThemeConfig {
     const update = () => setAccent(readAccent());
     update();
     const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
     return () => observer.disconnect();
   }, []);
 
@@ -36,11 +41,11 @@ export function useLlmScreenTheme(): ThemeConfig {
       colorLinkHover: accent,
       borderRadius: 10,
       fontFamily:
-        '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif',
-      colorBorder: '#e4e4e7',
-      colorText: '#111114',
-      colorTextSecondary: '#71717a',
-      colorTextTertiary: '#a1a1aa',
+        '"Switzer", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      colorBorder: "#e4e4e7",
+      colorText: "#111114",
+      colorTextSecondary: "#71717a",
+      colorTextTertiary: "#a1a1aa",
       controlHeightLG: 44,
       // remove o anel de foco (box-shadow colorido em volta do controle) que
       // o AntD desenha por padrao em Input/Select/Button etc — pedido

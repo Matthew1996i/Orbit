@@ -27,7 +27,7 @@
   border-radius: 16px;
   padding: 22px 22px 20px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--ion-font-family);
   color: var(--orbit-sidebar-fg);
   animation: confirm-enter 0.16s ease-out;
 }
@@ -44,8 +44,8 @@
 }
 .confirm-header h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 650;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.01em;
 }
 .confirm-icon {
@@ -68,7 +68,7 @@
 
 .confirm-message {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.55;
   color: var(--orbit-fg-muted);
   white-space: pre-line;
@@ -86,8 +86,8 @@
 .confirm-btn-danger {
   padding: 9px 16px;
   border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   font-family: inherit;
   cursor: pointer;
   border: 1px solid transparent;

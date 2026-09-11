@@ -56,7 +56,7 @@
   padding: 0 8px;
   background: var(--orbit-canvas-bg);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--orbit-fg-subtle);
@@ -184,8 +184,8 @@
   display: inline-block;
   margin-left: 7px;
   padding: 1px 6px;
-  font-size: 9px;
-  font-weight: 600;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #1b2f22;
@@ -219,7 +219,7 @@
   position: absolute;
   bottom: 6px;
   right: 8px;
-  font-size: 9.5px;
+  font-size: var(--font-size-2xs);
   font-variant-numeric: tabular-nums;
   color: #6a6a72;
   letter-spacing: 0.02em;
@@ -265,7 +265,7 @@
   position: absolute;
   top: 10px;
   right: 10px;
-  font-size: 9.5px;
+  font-size: var(--font-size-2xs);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -324,8 +324,8 @@
 }
 
 .tree-card-name {
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
   color: #e8e8ea;
   white-space: nowrap;
   overflow: hidden;
@@ -333,7 +333,7 @@
 }
 
 .tree-card-cwd {
-  font-size: 10.5px;
+  font-size: var(--font-size-xs);
   color: #7a7a82;
   white-space: nowrap;
   overflow: hidden;
@@ -342,7 +342,7 @@
 }
 
 .tree-card-effort {
-  font-size: 9.5px;
+  font-size: var(--font-size-2xs);
   color: #55555c;
   white-space: nowrap;
   overflow: hidden;
@@ -360,7 +360,7 @@
   flex-direction: column;
   gap: 1px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 8px;
+  font-size: var(--font-size-3xs);
   color: #f5a623;
   text-align: left;
   pointer-events: none;

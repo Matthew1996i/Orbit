@@ -17,5 +17,5 @@
   background: #0d0d0f;
   color: #7a7a82;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }

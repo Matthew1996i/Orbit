@@ -1,10 +1,10 @@
 .mcp-edit-form { max-width: 920px; padding: 28px 0 48px; }
-.mcp-edit-label { display: block; margin: 0 0 7px; font-size: 12px; font-weight: 600; color: #27272a; }
+.mcp-edit-label { display: block; margin: 0 0 7px; font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: #27272a; }
 .mcp-edit-input, .mcp-edit-select { width: 100%; margin-bottom: 18px; }
-.mcp-edit-input { height: 36px; box-sizing: border-box; padding: 0 11px; border: 1px solid #d4d4d8; border-radius: 8px; background: #fff; color: #111114; font: inherit; font-size: 13px; }
+.mcp-edit-input { height: 36px; box-sizing: border-box; padding: 0 11px; border: 1px solid #d4d4d8; border-radius: 8px; background: #fff; color: #111114; font: inherit; font-size: var(--font-size-md); }
 .mcp-edit-switch-row { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 22px; padding: 14px 16px; border: 1px solid #e4e4e7; border-radius: 10px; background: #fff; }
-.mcp-edit-hint { display: block; font-size: 11px; color: #71717a; }
+.mcp-edit-hint { display: block; font-size: var(--font-size-sm); color: #71717a; }
 .mcp-edit-json { width: 100%; min-height: 300px; box-sizing: border-box; resize: vertical; padding: 14px; border: 1px solid #d4d4d8; border-radius: 10px; background: #fff; color: #18181b; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .mcp-edit-json:focus, .mcp-edit-input:focus { outline: 2px solid var(--orbit-accent); outline-offset: 1px; }
-.mcp-catalog-error { position: absolute; z-index: 6; top: 10px; right: 24px; max-width: 420px; padding: 8px 10px; border: 1px solid #fecaca; border-radius: 8px; background: #fef2f2; color: #b91c1c; font-size: 12px; }
+.mcp-catalog-error { position: absolute; z-index: 6; top: 10px; right: 24px; max-width: 420px; padding: 8px 10px; border: 1px solid #fecaca; border-radius: 8px; background: #fef2f2; color: #b91c1c; font-size: var(--font-size-base); }
 .mcp-preset-card-icon { float: right; display: grid; place-items: center; width: 32px; height: 32px; margin: -2px 0 4px 12px; border-radius: 9px; background: #f4f4f5; color: var(--orbit-accent); }

@@ -7,7 +7,7 @@
   overflow-y: auto;
   background: #f7f7f8;
   color: #111114;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  font-family: var(--ion-font-family);
 }
 .llm-detail-inner {
   /* mais largo que antes (640px sobrava MUITO espaco vazio a direita em
@@ -20,14 +20,14 @@
 }
 .llm-detail-screen .llm-screen-title.llm-screen-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 650;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.01em;
 }
 
 .llm-detail-empty {
   color: #a1a1aa;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 /* bloco de identidade "solto" — sem caixa/borda, mais como um cabecalho de
@@ -53,14 +53,14 @@
 }
 
 .llm-detail-name {
-  font-size: 20px;
-  font-weight: 650;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.01em;
   color: #111114;
   line-height: 1.25;
 }
 .llm-detail-vendor {
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: #a1a1aa;
   margin-top: 2px;
 }
@@ -75,8 +75,8 @@
   gap: 6px;
   padding: 5px 10px;
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   border: 1px solid transparent;
   white-space: nowrap;
 }
@@ -112,8 +112,8 @@
 
 .llm-detail-section-title.llm-detail-section-title {
   display: block;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #a1a1aa;
@@ -129,7 +129,7 @@
 }
 .llm-detail-no-login-hint {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
   color: #a1a1aa;
 }
 
@@ -146,13 +146,13 @@
   border-bottom: 1px solid #f0f0f2;
 }
 .llm-detail-config-label {
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: #a1a1aa;
   flex-shrink: 0;
 }
 .llm-detail-config-value {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
   color: #3f3f46;
   text-align: right;
@@ -162,12 +162,12 @@
 }
 .llm-detail-config-value-plain {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .llm-detail-uninstall-text {
   margin: 0 0 16px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: #52525b;
   line-height: 1.5;
 }
@@ -207,8 +207,8 @@
   border-radius: 50%;
   background: #f4f4f5;
   color: #71717a;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -221,14 +221,14 @@
 }
 .guide-step-text {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.5;
   color: #52525b;
 }
 .guide-step-label {
   margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #a1a1aa;
@@ -252,7 +252,7 @@
   overflow-x: auto;
   white-space: pre;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: #27272a;
 }
 .cmd-chip-copy {
@@ -275,14 +275,14 @@
 }
 .cmd-chip-note {
   margin: 4px 0 0;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: #a1a1aa;
 }
 
 .llm-detail-docs-link.llm-detail-docs-link {
   padding-left: 0;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--font-size-base);
 }
 
 /* --- botoes customizados (sobrescreve o AntD Button padrao) --- */
@@ -290,8 +290,8 @@
   height: 34px;
   padding: 0 14px;
   border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   display: inline-flex;
   align-items: center;
   gap: 6px;

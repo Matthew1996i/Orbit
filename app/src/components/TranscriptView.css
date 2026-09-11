@@ -20,7 +20,7 @@
   background: var(--orbit-canvas-bg);
   color: var(--orbit-sidebar-fg);
   font-family: 'SF Mono', Menlo, Monaco, 'Cascadia Code', 'Fira Code', ui-monospace, Consolas, monospace;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.55;
   scrollbar-width: thin;
 }
@@ -74,7 +74,7 @@
 
 .transcript-bold {
   color: var(--orbit-sidebar-fg);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .transcript-text .transcript-body {
@@ -123,7 +123,7 @@
   border: 1px solid var(--orbit-accent);
   border-radius: 999px;
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: var(--font-size-sm);
   padding: 5px 12px;
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
@@ -137,7 +137,7 @@
   flex-shrink: 0;
   padding: 6px 16px 4px;
   font-family: 'SF Mono', Menlo, Monaco, 'Cascadia Code', 'Fira Code', ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-size-base);
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -187,7 +187,7 @@
   flex-shrink: 0;
   padding: 8px 16px 10px;
   font-family: 'SF Mono', Menlo, Monaco, 'Cascadia Code', 'Fira Code', ui-monospace, Consolas, monospace;
-  font-size: 12.5px;
+  font-size: var(--font-size-base);
 }
 
 .transcript-status-line {
@@ -206,7 +206,7 @@
 
 .transcript-status-highlight.busy {
   color: var(--orbit-status-warn);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .transcript-status-highlight.idle {
@@ -230,7 +230,7 @@
   display: inline-block;
   margin-left: 12px;
   color: var(--orbit-fg-muted);
-  font-size: 11px;
+  font-size: var(--font-size-sm);
 }
 .transcript-session-header dl {
   display: grid;

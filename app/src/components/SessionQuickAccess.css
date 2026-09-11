@@ -8,8 +8,8 @@
 .session-quick-group summary {
   padding: 8px 6px 10px;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--orbit-glass-muted);
 }
 .session-quick-group summary .sidebar-header-count { margin-left: 6px; }
@@ -75,9 +75,9 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.session-quick-name { font-size: 12px; }
-.session-quick-root > .session-quick-row .session-quick-name { font-weight: 500; }
-.session-quick-detail { font-size: 10px; color: var(--orbit-glass-muted); margin-top: 3px; }
+.session-quick-name { font-size: var(--font-size-base); }
+.session-quick-root > .session-quick-row .session-quick-name { font-weight: var(--font-weight-medium); }
+.session-quick-detail { font-size: var(--font-size-xs); color: var(--orbit-glass-muted); margin-top: 3px; }
 .session-quick-status { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--orbit-fg-subtle); }
 .session-quick-status.alive { background: var(--orbit-status-ok); }
 .session-quick-status.alive.busy { background: var(--orbit-status-warn); }
