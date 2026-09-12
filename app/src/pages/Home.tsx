@@ -1,5 +1,5 @@
+import { terminalDropPlacement, type TerminalPlacement } from '../utils/terminalPlacement';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { IonContent, IonPage } from '@ionic/react';
 import { Plus, Skull, ArrowSquareOut, ArrowCounterClockwise, X, PushPinSlash } from '@phosphor-icons/react';
 import SessionTree from '../components/SessionTree';
@@ -24,11 +24,13 @@ import {
 import './Home.css';
 
 const MAX_BUFFER_STEPS = 300;
-const BASE_Z = 1000;
+// O rail fixado usa z-index 1200; janelas flutuantes começam acima dele e
+// continuam subindo quando recebem foco.
+const BASE_Z = 2000;
 const OPEN_IDS_STORAGE_KEY = 'dashboard.openPanelIds';
 const TERMINAL_DOCKED_STORAGE_KEY = 'dashboard.terminalDocked';
 const TERMINAL_DOCKED_WIDTH_STORAGE_KEY = 'dashboard.terminalDockedWidth';
-const TERMINAL_DROP_ZONE_WIDTH = 280;
+const DOCKED_IDS_STORAGE_KEY = 'dashboard.dockedPanelIds';
 
 function revealDockedTab(tab: HTMLButtonElement | null) {
   tab?.scrollIntoView({
@@ -48,9 +50,30 @@ export default function Home() {
   // quando o painel correspondente esta minimizado.
   const [needsActionIds, setNeedsActionIds] = useState<Set<string>>(new Set());
   const [zIndexById, setZIndexById] = useState<Record<string, number>>({});
-  const [terminalDocked, setTerminalDocked] = useState(
-    () => localStorage.getItem(TERMINAL_DOCKED_STORAGE_KEY) === 'true'
-  );
+  const [dockedIds, setDockedIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(DOCKED_IDS_STORAGE_KEY);
+      return new Set(JSON.parse(saved ?? (localStorage.getItem(TERMINAL_DOCKED_STORAGE_KEY) === 'true'
+        ? localStorage.getItem(OPEN_IDS_STORAGE_KEY) || '[]' : '[]')));
+    } catch { return new Set(); }
+  });
+  const dockedIdsRef = useRef(dockedIds);
+  dockedIdsRef.current = dockedIds;
+  const terminalDocked = dockedIds.size > 0;
+  const [dropPlacement, setDropPlacement] = useState<TerminalPlacement>('floating');
+  const [tabInsertion, setTabInsertion] = useState<{ x: number; y: number; height: number } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ id: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    document.body.classList.toggle('orbit-terminal-dragging', dragPreview !== null);
+    return () => document.body.classList.remove('orbit-terminal-dragging');
+  }, [dragPreview]);
+  const [floatingPositions, setFloatingPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const suppressTerminalClickRef = useRef(false);
+  const tabDragCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => tabDragCleanupRef.current?.(), []);
+  useEffect(() => {
+    localStorage.setItem(DOCKED_IDS_STORAGE_KEY, JSON.stringify([...dockedIds]));
+  }, [dockedIds]);
   const [terminalDropTargetId, setTerminalDropTargetId] = useState<string | null>(null);
   const [activeDockedId, setActiveDockedId] = useState<string | null>(null);
   const [terminalDockedWidth, setTerminalDockedWidth] = useState(() => {
@@ -74,7 +97,6 @@ export default function Home() {
   const openIdsRef = useRef<string[]>([]);
   const topZRef = useRef(BASE_Z);
   const restoredRef = useRef(false);
-  const terminalDropTargetRef = useRef<string | null>(null);
   const activeDockedTabRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -94,14 +116,15 @@ export default function Home() {
 
   useEffect(() => {
     localStorage.setItem(TERMINAL_DOCKED_STORAGE_KEY, String(terminalDocked));
-    const hasVisibleTerminal = openIds.some((id) => !minimizedIds.has(id));
+    const hasVisibleTerminal = openIds.some((id) => dockedIds.has(id) && !minimizedIds.has(id));
     const maxWidth = Math.max(360, Math.min(720, window.innerWidth - 320));
     const effectiveWidth = Math.max(360, Math.min(maxWidth, terminalDockedWidth));
+    const previewingDock = dragPreview !== null && dropPlacement === 'docked';
     document.documentElement.style.setProperty(
-      '--orbit-terminal-rail-w', terminalDocked && hasVisibleTerminal ? `${effectiveWidth}px` : '0px'
+      '--orbit-terminal-rail-w', terminalDocked && hasVisibleTerminal || previewingDock ? `${effectiveWidth}px` : '0px'
     );
     return () => document.documentElement.style.setProperty('--orbit-terminal-rail-w', '0px');
-  }, [terminalDocked, terminalDockedWidth, openIds, minimizedIds]);
+  }, [terminalDocked, terminalDockedWidth, openIds, minimizedIds, dockedIds, dragPreview, dropPlacement]);
 
   useEffect(() => {
     localStorage.setItem(TERMINAL_DOCKED_WIDTH_STORAGE_KEY, String(terminalDockedWidth));
@@ -125,34 +148,155 @@ export default function Home() {
     window.addEventListener('pointerup', onUp);
   };
 
-  // A zona não captura o ponteiro: o header da janela mantém o pointer capture
-  // durante o gesto. Ela surge apenas quando o cursor alcança a borda direita.
-  const handleTerminalDrag = useCallback((id: string, dragging: boolean, clientX: number, clientY: number) => {
+  const reorderTabAtPoint = (id: string, placement: TerminalPlacement, clientX: number) => {
+    const selector = placement === 'minimized' ? '[data-terminal-tab="minimized"]' : '[data-terminal-tab="docked"]';
+    const tabs = [...document.querySelectorAll<HTMLElement>(selector)].filter((tab) => tab.dataset.sessionId !== id);
+    if (tabs.length === 0) return;
+    const target = tabs.find((tab) => clientX < tab.getBoundingClientRect().left + tab.getBoundingClientRect().width / 2);
+    const targetId = target?.dataset.sessionId;
+    setOpenIds((current) => {
+      const without = current.filter((entry) => entry !== id);
+      const groupIds = current.filter((entry) => tabs.some((tab) => tab.dataset.sessionId === entry && entry !== id));
+      const orderedGroup = targetId ? (() => {
+        const index = groupIds.indexOf(targetId);
+        const next = [...groupIds];
+        next.splice(index < 0 ? next.length : index, 0, id);
+        return next;
+      })() : [...groupIds, id];
+      const groupSet = new Set([...groupIds, id]);
+      const next: string[] = [];
+      let inserted = false;
+      without.forEach((entry) => {
+        if (groupSet.has(entry)) {
+          if (!inserted) { next.push(...orderedGroup); inserted = true; }
+        } else next.push(entry);
+      });
+      if (!inserted) next.push(...orderedGroup);
+      return next;
+    });
+  };
+
+  const handleTerminalDrag = (id: string, dragging: boolean, clientX: number, clientY: number) => {
     const titlebarHeight = Number.parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue('--orbit-titlebar-h')
-    ) || 0;
-    const overDropZone = dragging
-      && clientX >= window.innerWidth - TERMINAL_DROP_ZONE_WIDTH
-      && clientY >= titlebarHeight;
-    const targetId = overDropZone ? id : null;
-    const shouldDock = !dragging && clientX >= 0 && terminalDropTargetRef.current === id;
-
-    terminalDropTargetRef.current = targetId;
-    setTerminalDropTargetId((current) => current === targetId ? current : targetId);
-
-    if (shouldDock) {
-      setTerminalDocked(true);
-      setActiveDockedId(id);
+    ) || 38;
+    const effectiveDockedWidth = Math.max(360, Math.min(720, terminalDockedWidth, window.innerWidth - 320));
+    const placement = terminalDropPlacement(
+      clientX,
+      clientY,
+      window.innerWidth,
+      titlebarHeight,
+      effectiveDockedWidth,
+    );
+    const sourceWasFloating = !dockedIds.has(id) && !minimizedIds.has(id);
+    setTerminalDropTargetId(dragging ? id : null);
+    setDropPlacement(placement);
+    if (dragging) {
+      // O painel continua "na mão" seguindo o cursor. A zona de destino e o
+      // dropzone mostram a transformação prevista sem mover o terminal antes
+      // do soltamento.
+      setDragPreview({ id, x: clientX, y: clientY });
+      return;
     }
-  }, []);
+    setDragPreview(null);
+    if (clientX < 0) return;
+    if (placement === 'docked' || placement === 'minimized') reorderTabAtPoint(id, placement, clientX);
+    setDockedIds((current) => {
+      const next = new Set(current);
+      if (placement === 'docked') next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    setMinimizedIds((current) => {
+      const next = new Set(current);
+      if (placement === 'minimized') next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    if (placement === 'docked') setActiveDockedId(id);
+    if (placement === 'floating') {
+      bringToFront(id);
+      if (!sourceWasFloating) setFloatingPositions((current) => ({ ...current, [id]: {
+        x: Math.max(0, Math.min(window.innerWidth - 320, clientX - 150)),
+        y: Math.max(titlebarHeight + 48, Math.min(window.innerHeight - 80, clientY - 16)),
+      } }));
+    }
+  };
+
+  const beginTabDrag = (event: React.PointerEvent<HTMLButtonElement>, id: string) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('.term-pinned-tab-close')) return;
+    tabDragCleanupRef.current?.();
+    suppressTerminalClickRef.current = false;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const button = event.currentTarget;
+    const sourcePlacement = button.dataset.terminalTab as 'minimized' | 'docked';
+    const sourceStrip = sourcePlacement === 'minimized'
+      ? button.closest<HTMLElement>('.term-dock')
+      : button.closest<HTMLElement>('.term-pinned-tabs-scroll');
+    button.setPointerCapture(event.pointerId);
+    let moved = false;
+    let globalDragActive = false;
+    const isInsideSourceStrip = (x: number, y: number) => {
+      if (!sourceStrip) return false;
+      const rect = sourceStrip.getBoundingClientRect();
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    };
+    const move = (e: PointerEvent) => {
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) < 6 && !moved) return;
+      moved = true;
+      if (isInsideSourceStrip(e.clientX, e.clientY)) {
+        if (globalDragActive) {
+          handleTerminalDrag(id, false, -1, -1);
+          globalDragActive = false;
+        }
+        setDropPlacement(sourcePlacement);
+        setDragPreview({ id, x: e.clientX, y: e.clientY });
+        const tabs = [...sourceStrip!.querySelectorAll<HTMLElement>('[data-terminal-tab]')]
+          .filter((tab) => tab.dataset.sessionId !== id);
+        const target = tabs.find((tab) => {
+          const rect = tab.getBoundingClientRect();
+          return e.clientX < rect.left + rect.width / 2;
+        });
+        const rect = (target || tabs.at(-1) || button).getBoundingClientRect();
+        setTabInsertion({ x: target ? rect.left : rect.right, y: rect.top, height: rect.height });
+        return;
+      }
+      setTabInsertion(null);
+      globalDragActive = true;
+      handleTerminalDrag(id, true, e.clientX, e.clientY);
+    };
+    const cleanup = () => {
+      setTabInsertion(null);
+      setDragPreview(null);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+    };
+    const up = (e: PointerEvent) => {
+      suppressTerminalClickRef.current = moved;
+      if (moved && isInsideSourceStrip(e.clientX, e.clientY)) {
+        if (globalDragActive) handleTerminalDrag(id, false, -1, -1);
+        reorderTabAtPoint(id, sourcePlacement, e.clientX);
+      } else if (moved && globalDragActive) {
+        handleTerminalDrag(id, false, e.clientX, e.clientY);
+      }
+      cleanup();
+    };
+    const cancel = () => { handleTerminalDrag(id, false, -1, -1); cleanup(); };
+    tabDragCleanupRef.current = cleanup;
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+  };
 
   useEffect(() => {
     if (!terminalDocked) return;
-    const visible = openIds.filter((id) => !minimizedIds.has(id));
+    const visible = openIds.filter((id) => dockedIds.has(id) && !minimizedIds.has(id));
     if (!activeDockedId || !visible.includes(activeDockedId)) {
       setActiveDockedId(visible.at(-1) || null);
     }
-  }, [terminalDocked, openIds, minimizedIds, activeDockedId]);
+  }, [terminalDocked, openIds, minimizedIds, activeDockedId, dockedIds]);
 
   const refresh = useCallback(async () => {
     try {
@@ -248,10 +392,11 @@ export default function Home() {
       return next;
     });
     bringToFront(s.sessionId);
-    if (terminalDocked) setActiveDockedId(s.sessionId);
+    if (dockedIdsRef.current.has(s.sessionId)) setActiveDockedId(s.sessionId);
   };
 
   const closePanel = (id: string) => {
+    setDockedIds((cur) => { const next = new Set(cur); next.delete(id); return next; });
     setOpenIds((cur) => cur.filter((x) => x !== id));
     setMinimizedIds((cur) => {
       if (!cur.has(id)) return cur;
@@ -278,7 +423,7 @@ export default function Home() {
       return next;
     });
     bringToFront(id);
-    if (terminalDocked) setActiveDockedId(id);
+    if (dockedIdsRef.current.has(id)) setActiveDockedId(id);
   };
 
   // estimativa grosseira de rows/cols do painel padrão (ainda nao montado nesse
@@ -402,24 +547,25 @@ export default function Home() {
   // --orbit-term-dock-h em AppShell.css/.orbit-content) quando ha algum
   // agente minimizado; sem nenhum, o conteudo sobe e ocupa o espaco.
   const hasMinimized = [...openIds].some((id) => minimizedIds.has(id));
+  const previewingMinimized = dragPreview !== null && dropPlacement === 'minimized';
   useEffect(() => {
-    document.documentElement.style.setProperty('--orbit-term-dock-h', hasMinimized ? '40px' : '0px');
+    document.documentElement.style.setProperty('--orbit-term-dock-h', hasMinimized || previewingMinimized ? '40px' : '0px');
     return () => {
       document.documentElement.style.removeProperty('--orbit-term-dock-h');
     };
-  }, [hasMinimized]);
+  }, [hasMinimized, previewingMinimized]);
 
   const minimizedPanels = [...openIds]
     .filter((id) => minimizedIds.has(id))
     .map((id) => sessionCacheRef.current.get(id))
     .filter((s): s is SessionInfo => !!s);
   const dockedPanels = openIds
-    .filter((id) => !minimizedIds.has(id))
+    .filter((id) => dockedIds.has(id) && !minimizedIds.has(id))
     .map((id) => sessionCacheRef.current.get(id))
     .filter((s): s is SessionInfo => !!s);
 
   return (
-    <IonPage>
+    <IonPage className="home-page">
       <AppShell sessions={sessions} onOpenSession={openPanel}>
         <IonContent className="home-content">
           <div className="home-usage-header">
@@ -449,15 +595,8 @@ export default function Home() {
         </IonContent>
       </AppShell>
 
-      {/* NAO portado pro <body> (diferente do resto abaixo) — de proposito:
-          o IonPage (contain:layout) cria seu proprio contexto de
-          empilhamento, entao um z-index alto aqui dentro so compete contra
-          outros elementos TAMBEM dentro do IonPage (como o preview de hover
-          da Sidebar, .orbit-sidebar-preview). Portado pro <body> ele escapa
-          desse contexto e sempre teria ficado ACIMA de tudo dentro do
-          IonPage, nao importa o z-index — inclusive por cima da Sidebar
-          quando ela deveria cobri-lo. Fica no MESMO contexto de
-          empilhamento do resto do AppShell assim. */}
+      {/* Mantido dentro do IonPage para compartilhar a mesma ordem de
+          camadas da sidebar, dos terminais e do restante do AppShell. */}
       <div className={`term-dock${minimizedPanels.length > 0 ? ' is-open' : ''}`}>
         {(
           minimizedPanels.map((s) => {
@@ -468,7 +607,10 @@ export default function Home() {
               <button
                 key={s.sessionId}
                 className={`term-dock-chip${needsAction ? ' needs-action' : ''}`}
-                onClick={() => restorePanel(s.sessionId)}
+                data-terminal-tab="minimized"
+                data-session-id={s.sessionId}
+                onPointerDown={(event) => beginTabDrag(event, s.sessionId)}
+                onClick={() => { if (!suppressTerminalClickRef.current) restorePanel(s.sessionId); }}
                 title={needsAction ? 'Esperando uma resposta sua' : undefined}
               >
                 <Logo size={13} />
@@ -483,12 +625,9 @@ export default function Home() {
         )}
       </div>
 
-      {createPortal(
-        <>
-          {/* diálogos precisam estar aqui fora do IonContent — IonContent cria seu
-              próprio contexto de empilhamento (shadow DOM/transform do Ionic), então
-              nenhum z-index dentro dele consegue ficar acima de algo fora dele, tipo
-              os painéis de terminal (que já usam esse mesmo portal) */}
+      <>
+          {/* Diálogos ficam fora do IonContent para não herdarem o contexto de
+              empilhamento criado pelo shadow DOM/transform do Ionic. */}
           <NewAgentDialog
             open={showNewAgent}
             onClose={() => setShowNewAgent(false)}
@@ -556,9 +695,13 @@ export default function Home() {
                     key={s.appAgentId || s.sessionId}
                     ref={active ? activeDockedTabRef : undefined}
                     className={`term-pinned-tab${active ? ' active' : ''}${needsAction ? ' needs-action' : ''}`}
+                    data-terminal-tab="docked"
+                    data-session-id={s.sessionId}
                     role="tab"
                     aria-selected={active}
+                    onPointerDown={(event) => beginTabDrag(event, s.sessionId)}
                     onClick={(event) => {
+                      if (suppressTerminalClickRef.current) return;
                       setActiveDockedId(s.sessionId);
                       revealDockedTab(event.currentTarget);
                     }}
@@ -585,7 +728,7 @@ export default function Home() {
               </div>
               <button
                 className="term-pinned-undock"
-                onClick={() => setTerminalDocked(false)}
+                onClick={() => setDockedIds(new Set())}
                 aria-label="Desafixar terminais"
                 title="Desafixar terminais"
               >
@@ -594,16 +737,62 @@ export default function Home() {
             </div>
           )}
 
-          {terminalDropTargetId && !terminalDocked && (
-            <div className="terminal-dropzone" aria-hidden="true">
-              <span>Solte para encaixar à direita</span>
+          {terminalDropTargetId && !(dropPlacement === 'floating' && dragPreview && !dockedIds.has(dragPreview.id) && !minimizedIds.has(dragPreview.id)) && (
+            <div
+                className={`terminal-dropzone terminal-dropzone-${dropPlacement}`}
+              style={dropPlacement === 'docked'
+                ? { '--orbit-drop-width': `${Math.max(360, Math.min(720, terminalDockedWidth, window.innerWidth - 320))}px` } as React.CSSProperties
+                : dropPlacement === 'minimized'
+                  ? { '--orbit-drop-tab-left': `${14 + Math.min(minimizedPanels.length, 5) * 150}px` } as React.CSSProperties
+                : dropPlacement === 'floating' && dragPreview
+                  ? (() => {
+                    const width = Math.max(360, Math.min(920, window.innerWidth - 16));
+                    const height = Math.max(220, Math.min(619, window.innerHeight - 54));
+                    return {
+                      width,
+                      height,
+                      left: Math.max(8, Math.min(window.innerWidth - width - 8, dragPreview.x - 150)),
+                      top: Math.max(38, Math.min(window.innerHeight - height - 8, dragPreview.y - 16)),
+                      right: 'auto',
+                      bottom: 'auto',
+                    };
+                  })()
+                  : undefined}
+              aria-hidden="true"
+            >
+              <span>{dropPlacement === 'docked'
+                ? 'Solte para encaixar à direita'
+                : dropPlacement === 'minimized'
+                  ? (minimizedPanels.length > 0 ? 'Solte ao lado das abas minimizadas' : 'Solte para minimizar em uma aba')
+                  : (() => {
+                    const width = Math.max(360, Math.min(920, window.innerWidth - 16));
+                    const height = Math.max(220, Math.min(619, window.innerHeight - 54));
+                    return `Janela flutuante · ${width} × ${height}px`;
+                  })()}</span>
             </div>
           )}
+
+          {tabInsertion && <div className="terminal-tab-insertion" style={{ left: tabInsertion.x, top: tabInsertion.y, height: tabInsertion.height }} aria-hidden="true" />}
+          {dragPreview && sessionCacheRef.current.get(dragPreview.id) && (() => {
+            const session = sessionCacheRef.current.get(dragPreview.id)!;
+            const Logo = llmLogoFor(session.llm || 'claude');
+            return (
+              <div
+                className={`terminal-drag-preview terminal-drag-preview-${dropPlacement}`}
+                style={{ left: dragPreview.x + 14, top: dragPreview.y + 14 }}
+                aria-hidden="true"
+              >
+                <Logo size={13} />
+                <span>{session.name || session.sessionId.slice(0, 8)}</span>
+              </div>
+            );
+          })()}
 
           {openIds.map((id) => {
             const session = sessionCacheRef.current.get(id);
             if (!session) return null;
             const isMinimized = minimizedIds.has(id);
+            const isDocked = dockedIds.has(id) && !isMinimized;
             // copia nova a cada render: o buffer e mutado no lugar (push), entao
             // passar a MESMA referencia faria o useMemo do TranscriptView nunca
             // perceber que chegou conteudo novo (dependencia [steps] olha so a
@@ -625,7 +814,8 @@ export default function Home() {
                 replaySteps={steps}
                 minimized={isMinimized}
                 zIndex={zIndexById[id] ?? BASE_Z}
-                docked={terminalDocked && !isMinimized}
+                docked={isDocked}
+                floatingPosition={floatingPositions[id]}
                 dockedActive={id === activeDockedId}
                 onDragStateChange={(dragging, clientX, clientY) => handleTerminalDrag(id, dragging, clientX, clientY)}
                 onClose={() => {
@@ -656,9 +846,7 @@ export default function Home() {
               />
             );
           })}
-        </>,
-        document.body
-      )}
+      </>
     </IonPage>
   );
 }

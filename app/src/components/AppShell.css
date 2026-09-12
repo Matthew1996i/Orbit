@@ -107,8 +107,8 @@
    fechar/redimensionar, nunca ao hover (mesmo espirito de
    `activityBarRealWidth` no AppShell), entao o conteudo principal continua
    sem "pular" so por passar o mouse na ActivityBar.
-   z-index continua acima do subheader de terminais minimizados (portado pro
-   <body>, ver --orbit-term-dock-h no Home.css) pelo mesmo motivo de antes —
+   z-index continua acima do subheader de terminais minimizados (ver
+   --orbit-term-dock-h no Home.css) pelo mesmo motivo de antes —
    nao tem mais disputa de espaco com a ActivityBar (que nunca mais ocupa a
    mesma faixa horizontal), entao a ordem entre as duas deixou de importar. */
 .orbit-sidebar {
@@ -117,7 +117,8 @@
   left: calc(var(--orbit-activitybar-w) + var(--orbit-panel-gap));
   top: var(--orbit-panel-gap);
   bottom: var(--orbit-panel-gap);
-  z-index: 16;
+  /* a navegacao sempre fica acima dos terminais flutuantes */
+  z-index: 2100;
   height: calc(100% - (var(--orbit-panel-gap) * 2));
   transition: left 0.15s ease;
 }
@@ -213,7 +214,7 @@ body.orbit-resizing {
   left: calc(var(--orbit-activitybar-w) + var(--orbit-panel-gap));
   top: var(--orbit-panel-gap);
   bottom: var(--orbit-panel-gap);
-  z-index: 20;
+  z-index: 2200;
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
 }
 
@@ -235,8 +236,8 @@ body.orbit-resizing {
 
 /* padding-top reserva o espaco do subheader de terminais minimizados
    (--orbit-term-dock-h, ver Home.css .term-dock) — ele e position:fixed e
-   vive fora da arvore do AppShell (portado pro <body>, ver comentario em
-   Home.tsx), entao sem essa reserva ficava desenhando por cima do cabecalho
+   vive fora da arvore do AppShell, entao sem essa reserva ficava desenhando
+   por cima do cabecalho
    de QUALQUER tela renderizada aqui dentro (Home, catalogo de LLM/Agentes,
    edicao de agente) em vez de ficar acima delas como parte do layout. */
 .orbit-content {

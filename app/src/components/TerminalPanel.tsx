@@ -44,6 +44,7 @@ interface Props {
   // "semaforos" de fechar/minimizar (o SO ja da esses controles na propria
   // janela).
   popout?: boolean;
+  floatingPosition?: { x: number; y: number };
   docked?: boolean;
   dockedActive?: boolean;
   onDragStateChange?: (dragging: boolean, clientX: number, clientY: number) => void;
@@ -65,6 +66,7 @@ export default function TerminalPanel({
   onFocus,
   onPopout,
   popout,
+  floatingPosition,
   docked = false,
   dockedActive = true,
   onDragStateChange,
@@ -363,6 +365,14 @@ export default function TerminalPanel({
     // impressao de "abriu, fechou, abriu de novo" pro usuario.
   }, [isApp, session.appAgentId]);
 
+  useEffect(() => {
+    if (docked || !floatingPosition || !panelRef.current) return;
+    const width = panelRef.current.getBoundingClientRect().width;
+    panelRef.current.style.left = `${Math.max(0, Math.min(floatingPosition.x, window.innerWidth - width))}px`;
+    panelRef.current.style.top = `${floatingPosition.y}px`;
+    setMaximized(false);
+  }, [docked, floatingPosition]);
+
   // --- arrastar pelo cabecalho ---
   useEffect(() => {
     const header = headerRef.current;
@@ -377,7 +387,7 @@ export default function TerminalPanel({
     let moved = false;
 
     const onPointerDown = (e: PointerEvent) => {
-      if (panel.classList.contains('term-panel-maximized') || panel.classList.contains('term-panel-popout') || panel.classList.contains('term-panel-docked')) return;
+      if (panel.classList.contains('term-panel-maximized') || panel.classList.contains('term-panel-popout')) return;
       // o botao de destacar (.term-popout-btn) mora dentro do header
       // arrastavel, igual aos semaforos (.term-dot, so no mac) e aos botoes
       // de fechar/minimizar no estilo Windows/Linux (.term-win-btn, ver
@@ -405,8 +415,10 @@ export default function TerminalPanel({
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
-      panel.style.left = `${Math.max(0, startLeft + dx)}px`;
-      panel.style.top = `${Math.max(0, startTop + dy)}px`;
+      if (!dockedRef.current) {
+        panel.style.left = `${Math.max(0, startLeft + dx)}px`;
+        panel.style.top = `${Math.max(0, startTop + dy)}px`;
+      }
       onDragStateChangeRef.current?.(true, e.clientX, e.clientY);
     };
     const onPointerUp = (e: PointerEvent) => {

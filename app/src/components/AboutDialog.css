@@ -83,8 +83,24 @@
   border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent);
 }
 
+/* separa a versão do controle de atualização e o controle da mensagem,
+   evitando que os dois botões pareçam uma única pilha apertada. */
+.about-dialog > .orbit-update {
+  width: 100%;
+  margin-top: 14px;
+  gap: 10px;
+}
+.about-dialog > .orbit-update button {
+  padding: 8px 14px;
+  font-size: var(--font-size-md);
+}
+.about-dialog > .orbit-update span {
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
 .about-ok {
-  margin-top: 22px;
+  margin-top: 18px;
   width: 100%;
   padding: 9px 16px;
   border: none;

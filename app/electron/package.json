@@ -1,6 +1,6 @@
 {
   "name": "Orbit",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "description": "Dashboard local para acompanhar e interagir com sessões de assistentes de IA",
   "author": {
     "name": "Axyo",
@@ -15,6 +15,7 @@
   "main": "build/src/index.js",
   "scripts": {
     "build": "tsc && electron-rebuild",
+    "test": "tsc && node --test tests/*.test.cjs",
     "electron:start-live": "node ./live-runner.js",
     "electron:start": "npm run build && electron --inspect=5858 ./",
     "electron:pack": "npm run build && electron-builder build --dir -c ./electron-builder.config.json",

@@ -24,6 +24,7 @@ jobs:
         working-directory: app
         run: |
           npm install
+          npm run test.unit -- --run src/components/AppShell.test.tsx src/components/UpdateControl.test.tsx src/utils/terminalPlacement.test.ts src/pages/Home.test.tsx
           npm run build
 
       - name: Sincronizar bundle web pro Electron
@@ -37,6 +38,14 @@ jobs:
       - name: Buildar o processo principal do Electron
         working-directory: app/electron
         run: npm run build
+
+      - name: Testar atualizações
+        working-directory: app/electron
+        run: npm test
+
+      - name: Testar detecção de terminais
+        if: runner.os != 'Windows'
+        run: python -m unittest discover -s tests -v
 
       - name: Empacotar app
         working-directory: app/electron

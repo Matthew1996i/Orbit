@@ -1,3 +1,4 @@
+import UpdateControl from './UpdateControl';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Minus, Square, Copy, X } from '@phosphor-icons/react';
@@ -23,6 +24,7 @@ export default function TitleBar() {
 
   return createPortal(
     <div className={`title-bar ${platform}`}>
+      <UpdateControl compact />
 
       {!isMac && (
         <div className="title-bar-window-controls">

@@ -229,7 +229,7 @@
   font-family: var(--ion-font-family);
   color: var(--orbit-fg-muted);
   letter-spacing: -0.005em;
-  cursor: default;
+  cursor: grab;
   user-select: none;
   flex-shrink: 0;
   touch-action: none;

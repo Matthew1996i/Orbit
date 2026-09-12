@@ -1,0 +1,15 @@
+.orbit-update { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.orbit-update button {
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--orbit-glass-line, #555);
+  border-radius: 6px;
+  background: var(--orbit-list-hover-bg, #34343b);
+  color: var(--orbit-titlebar-fg, #eee);
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.orbit-update button:disabled { opacity: .7; cursor: progress; }
+.orbit-update span { font-size: 12px; max-width: 300px; }
+.orbit-update-compact { margin-left: auto; margin-right: 8px; }

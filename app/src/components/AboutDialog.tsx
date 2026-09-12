@@ -1,3 +1,4 @@
+import UpdateControl from './UpdateControl';
 import { useModalNavigation } from '../utils/modalNavigation';
 import { createPortal } from 'react-dom';
 import { X } from '@phosphor-icons/react';
@@ -25,6 +26,7 @@ export default function AboutDialog({ open, version, onClose }: Props) {
         <h2 id="about-title" className="about-name">Orbit</h2>
         <p className="about-tagline">Dashboard de sessões de IA</p>
         <span className="about-version">Versão {version || '—'}</span>
+        <UpdateControl />
         <button className="about-ok" onClick={onClose} type="button">
           OK
         </button>

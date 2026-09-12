@@ -1,3 +1,4 @@
+import { setupAppUpdates } from './appUpdates';
 import type { CapacitorElectronConfig } from '@capacitor-community/electron';
 import { getCapacitorElectronConfig, setupElectronDeepLinking } from '@capacitor-community/electron';
 import type { MenuItemConstructorOptions } from 'electron';
@@ -71,6 +72,7 @@ if (electronIsDev) {
 if (gotSingleInstanceLock) (async () => {
   // Wait for electron app to be ready.
   await app.whenReady();
+  setupAppUpdates();
   // Security - Set Content-Security-Policy based on whether or not we are in dev mode.
   setupContentSecurityPolicy(myCapacitorApp.getCustomURLScheme());
   // Sobe o backend Python (se ainda nao estiver rodando) antes de carregar a

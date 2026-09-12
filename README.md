@@ -224,3 +224,27 @@ backend não roda em Python nativo do Windows. Duas opções:
         ├── src/            # main process do Electron
         └── electron-builder.config.json  # config de empacotamento
 ```
+
+### Atualizações pelo aplicativo
+
+A partir da versão 1.0.26, o Orbit consulta a última release estável pública de
+`Matthew1996i/Orbit` ao iniciar e a cada seis horas. Também é possível verificar
+manualmente em **Configurações → Sobre → Verificar atualizações**. Um push sem
+nova release não dispara o aviso.
+
+Quando há uma versão compatível, a barra superior oferece o download com
+progresso. O arquivo é validado com o SHA-256 fornecido pelo GitHub antes de
+permitir a instalação; versões anteriores e pré-releases são ignoradas.
+
+- **macOS:** “Reiniciar e instalar” verifica o bundle, prepara a nova cópia em
+  Aplicativos, encerra o app e troca as versões, preservando um backup. Se a
+  troca falhar, o helper restaura a instalação anterior. A pasta de instalação
+  precisa permitir escrita ao usuário. O fluxo usa o DMG e a assinatura ad-hoc
+  existente do Orbit, sem depender de Squirrel.Mac. O log fica em
+  `~/Library/Application Support/Orbit/update-install.log`.
+- **Windows:** “Abrir instalador” inicia o instalador NSIS baixado.
+- **Linux:** “Mostrar arquivo baixado” revela o AppImage para substituição manual.
+
+A versão 1.0.25 e anteriores precisam de uma instalação manual inicial da
+1.0.26 para passar a exibir as próximas atualizações. Reiniciar para instalar
+encerra também o backend quando ele foi iniciado pelo próprio Orbit.

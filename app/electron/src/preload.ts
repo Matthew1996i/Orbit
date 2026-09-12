@@ -7,6 +7,15 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('dashboardAPI', {
   platform: process.platform,
+  getUpdateState: () => ipcRenderer.invoke('app-update-get'),
+  checkForUpdates: () => ipcRenderer.invoke('app-update-check'),
+  downloadUpdate: () => ipcRenderer.invoke('app-update-download'),
+  installUpdate: () => ipcRenderer.invoke('app-update-install'),
+  onUpdateState: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('app-update-state', listener);
+    return () => ipcRenderer.removeListener('app-update-state', listener);
+  },
   pickDirectory: () => ipcRenderer.invoke('pick-directory'),
   quitApp: () => ipcRenderer.invoke('quit-app'),
   reloadApp: () => ipcRenderer.invoke('reload-app'),

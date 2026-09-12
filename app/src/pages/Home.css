@@ -1,3 +1,8 @@
+.home-page {
+  /* O shell recua durante o drop; a página exposta mantém o mesmo fundo. */
+  background: var(--orbit-chrome-bg);
+}
+
 .home-content {
   --background: var(--orbit-canvas-bg);
   --color: var(--orbit-sidebar-fg);
@@ -28,8 +33,8 @@ ion-toolbar {
    pula de posicao; o preview e a Activity Bar tem z-index MAIOR (ver
    AppShell.css) e cobrem visualmente o pedaco do subheader por baixo deles
    quando abertos, em vez do subheader precisar se mover. Continua
-   position:fixed (precisa ficar por cima do IonContent, ver comentario do
-   portal em Home.tsx), mas `.orbit-content` (AppShell.css) reserva a MESMA
+   position:fixed (precisa ficar por cima do IonContent), mas
+   `.orbit-content` (AppShell.css) reserva a MESMA
    altura (--orbit-term-dock-h) como padding-top em toda tela — assim ele
    nunca cobre o cabecalho de nenhuma tela (LLMs, Agentes, etc), "faz parte
    do layout" mesmo sendo um elemento fixed por fora da arvore delas. */
@@ -91,6 +96,103 @@ ion-toolbar {
   font-family: var(--ion-font-family);
   pointer-events: none;
   z-index: 999;
+  opacity: .94;
+  animation: terminal-dropzone-fade-in .18s ease-out both;
+  transition: opacity .14s ease, background .16s ease, border-color .16s ease;
+}
+
+.terminal-dropzone::before {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  border: 1px dashed color-mix(in srgb, var(--orbit-accent, #5b8cff) 72%, transparent);
+  background: color-mix(in srgb, var(--orbit-accent, #5b8cff) 7%, transparent);
+  animation: terminal-dropzone-pulse 1.15s ease-in-out infinite;
+}
+
+@keyframes terminal-dropzone-pulse {
+  0%, 100% { opacity: .42; }
+  50% { opacity: .9; }
+}
+
+@keyframes terminal-dropzone-fade-in {
+  from { opacity: 0; }
+  to { opacity: .94; }
+}
+
+.terminal-dropzone-docked {
+  top: calc(var(--orbit-titlebar-h) + 6px);
+  left: calc(100vw - var(--orbit-drop-width, var(--orbit-terminal-rail-w, 280px)));
+  right: auto;
+  bottom: 6px;
+  width: calc(var(--orbit-drop-width, var(--orbit-terminal-rail-w, 280px)) - 6px);
+  min-width: 280px;
+  border: 1px solid color-mix(in srgb, var(--orbit-accent, #5b8cff) 55%, var(--orbit-glass-line, #555));
+  border-radius: var(--orbit-panel-radius, 10px);
+  z-index: 1305;
+  background: color-mix(in srgb, var(--orbit-accent, #5b8cff) 6%, transparent);
+  box-shadow: none;
+}
+.terminal-dropzone-docked::before {
+  display: none;
+}
+.terminal-dropzone-minimized {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--orbit-accent, #5b8cff) 14%, transparent), color-mix(in srgb, var(--orbit-accent, #5b8cff) 5%, transparent));
+}
+.terminal-dropzone-minimized::before {
+  left: var(--orbit-drop-tab-left, 5px);
+  top: 4px;
+  bottom: 4px;
+  width: 190px;
+  border-radius: 7px;
+}
+.terminal-dropzone-minimized {
+  border: 1px solid color-mix(in srgb, var(--orbit-accent, #5b8cff) 55%, var(--orbit-glass-line, #555));
+  border-radius: var(--orbit-panel-radius, 10px);
+}
+.terminal-dropzone-floating {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 2px dashed color-mix(in srgb, var(--orbit-accent, #5b8cff) 72%, transparent);
+  border-radius: var(--orbit-panel-radius, 10px);
+  background: color-mix(in srgb, var(--orbit-canvas-bg, #19191f) 72%, transparent);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .22), inset 0 0 0 1px color-mix(in srgb, var(--orbit-accent, #5b8cff) 18%, transparent);
+  animation: terminal-dropzone-fade-in .18s ease-out both;
+}
+.terminal-dropzone-floating::before {
+  inset: 0;
+  border-radius: 12px;
+}
+.terminal-dropzone-floating > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 18px;
+  border: 1px solid color-mix(in srgb, var(--orbit-accent, #5b8cff) 62%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--orbit-canvas-bg, #19191f) 90%, transparent);
+  color: var(--orbit-sidebar-fg);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+.terminal-dropzone-floating > span::after {
+  content: 'Solte para abrir como janela';
+  font-size: 11px;
+  font-weight: var(--font-weight-regular);
+  color: var(--orbit-fg-muted);
+}
+
+.terminal-dropzone > span {
+  position: relative;
+  z-index: 1;
+  animation: terminal-dropzone-label-in .18s ease-out both;
+}
+@keyframes terminal-dropzone-label-in {
+  from { opacity: 0; transform: translateY(4px) scale(.97); }
+  to { opacity: 1; transform: none; }
 }
 
 .terminal-dropzone span {
@@ -452,4 +554,77 @@ body.orbit-terminal-resizing {
 }
 .home-new-agent-label {
   white-space: nowrap;
+}
+
+.term-pinned-tab, .term-dock-chip { touch-action: none; cursor: grab; }
+.term-pinned-tab:active, .term-dock-chip:active { cursor: grabbing; }
+.terminal-dropzone-minimized {
+  top: calc(var(--orbit-titlebar-h) + 6px);
+  left: calc(var(--orbit-content-left, 48px) + 6px);
+  right: calc(var(--orbit-terminal-rail-w, 0px) + 6px);
+  bottom: auto;
+  width: auto;
+  height: 41px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  z-index: 1305;
+}
+.terminal-dropzone-minimized > span {
+  margin-left: var(--orbit-drop-tab-left, 14px);
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+.terminal-dropzone-floating {
+  top: auto;
+  right: 20px;
+  bottom: 20px;
+  width: auto;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  z-index: 200001;
+}
+
+.terminal-drag-preview {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 260px;
+  padding: 7px 10px 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--orbit-accent, #5b8cff) 55%, var(--orbit-glass-line, #555));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--orbit-canvas-bg, #19191f) 88%, transparent);
+  color: var(--orbit-sidebar-fg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .38);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* o preview acompanha a mao, mas nunca cobre a navegacao lateral */
+  z-index: 2050;
+  transform: translateZ(0);
+}
+.terminal-tab-insertion {
+  position: fixed;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--orbit-accent);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--orbit-accent) 45%, transparent);
+  transform: translateX(-2px);
+  pointer-events: none;
+  z-index: 2050;
+}
+body.orbit-terminal-dragging,
+body.orbit-terminal-dragging * {
+  cursor: grabbing !important;
+}
+
+/* O terminal que está sendo reposicionado precisa permanecer acima do rail
+   fixado; caso contrário ele continua arrastável, mas desaparece por baixo
+   da sidebar ao atravessar a área direita. */
+body.orbit-terminal-dragging .term-panel:not(.term-panel-docked):not(.term-panel-popout) {
+  z-index: 1400 !important;
 }

@@ -118,7 +118,7 @@
   border-radius: 10px;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
   padding: 4px;
-  z-index: 10;
+  z-index: 100000;
 }
 
 .new-agent-llm-option {

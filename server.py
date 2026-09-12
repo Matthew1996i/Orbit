@@ -516,9 +516,11 @@ def _proc_snapshot():
     macOS. Linhas malformadas ou com pid nao numerico sao ignoradas em
     silencio; qualquer falha do comando devolve {} (sem recursos detectados,
     nunca uma excecao)."""
+    # No macOS, comm vira um caminho truncado quando precede args.
+    # ucomm fornece o nome do executável (codex), sem o diretório.
     try:
         result = subprocess.run(
-            ["ps", "-axo", "pid=,ppid=,comm=,args="],
+            ["ps", "-ww", "-axo", "pid=,ppid=,ucomm=,args=" if sys.platform == "darwin" else "pid=,ppid=,comm=,args="],
             capture_output=True, text=True, timeout=5,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -831,7 +833,7 @@ def read_codex_sessions():
             if not payload or payload.get("cwd") != cwd:
                 continue
             used_paths.add(fpath)
-            sid = payload.get("session_id") or fpath.stem.rsplit("-", 1)[-1]
+            sid = payload.get("id") or payload.get("session_id") or fpath.stem.removeprefix("rollout-")
             started_ms = _iso_to_ms(payload.get("timestamp")) or now_ms
             updated_ms = int(fpath.stat().st_mtime * 1000)
             sessions.append({
