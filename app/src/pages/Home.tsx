@@ -442,7 +442,7 @@ export default function Home() {
             aria-label="Novo agente"
           >
             <span className="home-new-agent-icon">
-              <Plus size={18} />
+              <Plus size={18} weight="bold" />
             </span>
             <span className="home-new-agent-label">Novo agente</span>
           </button>
