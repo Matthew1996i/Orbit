@@ -36,7 +36,12 @@
 /* a Activity Bar (esquerda) anima a propria largura sozinha (ver
    ActivityBar.css, 0.15s); o painel (direita) so deve entrar DEPOIS dela
    terminar — animation-delay igual aquela duracao, em vez de aparecer junto,
-   que e o que fazia as duas parecerem duas animacoes desencontradas. */
+   que e o que fazia as duas parecerem duas animacoes desencontradas. Essa
+   animacao (re)dispara toda vez que o elemento volta de `display: none` pra
+   visivel — nao so na primeira montagem: a Sidebar FIXADA (.orbit-sidebar)
+   fica sempre presente no DOM (so alterna `.orbit-sidebar-hidden`, ver
+   AppShell.tsx), entao abrir/fechar o painel fixado (ou reabrir apos
+   fechar) tambem passa por aqui, nao so o preview de hover. */
 .orbit-sidebar,
 .orbit-sidebar-preview {
   animation: orbit-sidebar-enter 0.15s ease-out backwards;
@@ -66,32 +71,55 @@
   color: var(--orbit-glass-ink);
 }
 
+/* So opacidade, sem translateX: um deslocamento horizontal aqui (o antigo
+   "from: translateX(-8px)") faz o painel, ainda translucido (opacidade a
+   caminho de 1), invadir geometricamente a faixa da ActivityBar durante os
+   150ms de entrada, sempre que essa faixa mede so --orbit-panel-gap (6px) de
+   distancia — menor que os 8px do deslocamento. Isso criava uma sobreposicao
+   REAL, ainda que breve, das duas superficies de vidro (bug reportado ao
+   reabrir a Sidebar fixada, nao so no preview de hover). Sem transform, a
+   caixa do painel fica sempre no seu tamanho/posicao FINAL desde o primeiro
+   frame — so a opacidade anima — entao nunca ha invasao geometrica de
+   nenhuma outra caixa, em nenhum instante da animacao. */
 @keyframes orbit-sidebar-enter {
   from {
     opacity: 0;
-    transform: translateX(-8px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
   }
 }
 
-/* z-index explicito (nao so position:relative) — sem isso ela pinta na
-   camada "auto" (abaixo de qualquer elemento com z-index POSITIVO, mesmo
-   fora dessa arvore), entao o subheader de terminais minimizados (portado
-   pro <body>, z-index proprio) desenhava por cima dela quando os dois
-   ocupavam a mesma faixa (ex: hover num icone diferente com essa aqui
-   fixada). Precisa ficar ACIMA do subheader (--orbit-term-dock-h no
-   Home.css). */
+/* `position: absolute`, grudada na borda direita VISUAL/ATUAL da ActivityBar
+   (--orbit-activitybar-w) — nao na largura real reservada no flex (que so
+   muda com o pin). Antes era um item de flex (`position: relative`) some
+   posicionado logo apos o slot de largura REAL da ActivityBar; como a barra
+   pode crescer visualmente alem dessa largura real so com hover (ver
+   .orbit-activitybar), ela cobria uma fatia da Sidebar fixada por baixo —
+   as duas com fundo de vidro/blur, dando o efeito fantasma de "2 caixas
+   sobrepostas". Grudando aqui na mesma variavel que o preview de hover
+   (.orbit-sidebar-preview) ja usa, a Sidebar fixada sempre comeca EXATAMENTE
+   onde a ActivityBar termina visualmente, nunca por baixo dela — em qualquer
+   combinacao de pin/hover. O espaco que ela ocupa no layout do conteudo
+   principal (que nao esta mais reservado por ela via flex, ja que saiu do
+   fluxo) e' reposto explicitamente em `--orbit-sidebar-reserve`, aplicado
+   como margin-left extra em .orbit-content — esse sim so reage a abrir/
+   fechar/redimensionar, nunca ao hover (mesmo espirito de
+   `activityBarRealWidth` no AppShell), entao o conteudo principal continua
+   sem "pular" so por passar o mouse na ActivityBar.
+   z-index continua acima do subheader de terminais minimizados (portado pro
+   <body>, ver --orbit-term-dock-h no Home.css) pelo mesmo motivo de antes —
+   nao tem mais disputa de espaco com a ActivityBar (que nunca mais ocupa a
+   mesma faixa horizontal), entao a ordem entre as duas deixou de importar. */
 .orbit-sidebar {
   flex-shrink: 0;
-  position: relative;
+  position: absolute;
+  left: calc(var(--orbit-activitybar-w) + var(--orbit-panel-gap));
+  top: var(--orbit-panel-gap);
+  bottom: var(--orbit-panel-gap);
   z-index: 16;
   height: calc(100% - (var(--orbit-panel-gap) * 2));
-  margin-top: var(--orbit-panel-gap);
-  margin-bottom: var(--orbit-panel-gap);
-  margin-left: var(--orbit-panel-gap);
+  transition: left 0.15s ease;
 }
 
 .orbit-sidebar > .sidebar-panel,
@@ -218,12 +246,20 @@ body.orbit-resizing {
   overflow: hidden;
   box-sizing: border-box;
   margin: var(--orbit-panel-gap);
+  /* a Sidebar fixada saiu do fluxo do flex (ver .orbit-sidebar, agora
+     `position: absolute`) — o espaco que ela ocupava (gap + largura, so
+     quando aberta) precisa ser reposto aqui manualmente, senao o conteudo
+     desenharia por baixo dela. `--orbit-sidebar-reserve` (AppShell.tsx) so
+     reage a abrir/fechar/redimensionar a Sidebar, nunca ao hover da
+     ActivityBar — o conteudo principal continua sem "pular" so por passar o
+     mouse nela. */
+  margin-left: calc(var(--orbit-panel-gap) + var(--orbit-sidebar-reserve, 0px));
   /* a faixa dos agentes minimizados (.term-dock, fixed, cor do chrome) fica
      ACIMA do painel, nao dentro dele: reservar como margin-top (em vez de
      padding-top) mantem os 4 cantos arredondados do conteudo visiveis, com o
      mesmo raio da activity bar e da sidebar. */
   margin-top: calc(var(--orbit-panel-gap) + var(--orbit-term-dock-h));
-  transition: margin-top 0.2s ease;
+  transition: margin-top 0.2s ease, margin-left 0.15s ease;
   border-radius: var(--orbit-panel-radius);
   border: 1px solid var(--orbit-glass-line);
   background-color: var(--orbit-canvas-bg);

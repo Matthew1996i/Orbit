@@ -326,6 +326,21 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // expandida sempre, sem depender do mouse.
   const activityBarExpanded = sidebarsPinned || barHovered || hoverSection !== null;
   const activityBarRealWidth = sidebarsPinned ? 176 : 48;
+  // espaco que a Sidebar FIXADA (nao o preview) reserva no layout do
+  // conteudo — reage so a abrir/fechar e redimensionar, nunca ao hover da
+  // ActivityBar (mesmo espirito de `activityBarRealWidth`: o conteudo
+  // principal nao pode "pular" so por passar o mouse na barra). A Sidebar
+  // fixada em si NAO usa mais essa reserva pra se posicionar (ver
+  // .orbit-sidebar no CSS, agora `position: absolute` grudada na borda
+  // direita REAL/visual da ActivityBar, igual o preview) — e exatamente essa
+  // mudanca que elimina a sobreposicao fantasma: antes a Sidebar fixada
+  // ficava numa posicao fixa baseada em `activityBarRealWidth` (so o pin),
+  // enquanto a ActivityBar podia crescer visualmente ALEM dessa largura so
+  // com hover (--orbit-activitybar-w), cobrindo uma fatia da Sidebar fixada
+  // por baixo com o proprio vidro/blur da barra. Grudando a Sidebar na
+  // largura VISUAL atual da ActivityBar (que e sempre >= a largura real),
+  // as duas nunca mais podem ocupar a mesma faixa horizontal.
+  const sidebarReserve = sidebarOpen ? sidebarWidth + 6 : 0;
 
   // evita stale closure no listener de pointerup, que le o valor MAIS RECENTE
   // pra gravar — sem isso o handler capturava o `sidebarWidth` do momento em
@@ -466,7 +481,10 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
         // fundo branco fixo — nesse caso o vidro do sidebar volta a usar a cor
         // do tema (senao vidro branco + texto claro do tema ficam ilegiveis).
         className={`orbit-shell${fullScreen ? ' orbit-shell-light-content' : ''}`}
-        style={{ '--orbit-activitybar-w': activityBarExpanded ? '176px' : '48px' } as React.CSSProperties}
+        style={{
+          '--orbit-activitybar-w': activityBarExpanded ? '176px' : '48px',
+          '--orbit-sidebar-reserve': `${sidebarReserve}px`,
+        } as React.CSSProperties}
       >
         <div
           ref={activityBarWrapRef}
@@ -494,7 +512,10 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
             onToggleSidebars={toggleSidebars}
           />
         </div>
-        <div className={`orbit-sidebar${sidebarOpen ? '' : ' orbit-sidebar-hidden'}`} style={{ width: sidebarWidth }}>
+        <div
+          className={`orbit-sidebar${sidebarOpen && !hoverSection ? '' : ' orbit-sidebar-hidden'}`}
+          style={{ width: sidebarWidth }}
+        >
             {/* So existe UM <Sidebar> montado por vez em toda a AppShell — nunca
                 um fixado e um de preview vivos ao mesmo tempo (o que antes exigia
                 esconder um dos dois via CSS, e ainda assim empilhava o blur/vidro
@@ -502,7 +523,13 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
                 diferentes). Enquanto o preview de hover esta aberto pra uma secao
                 diferente, o <Sidebar> fixado simplesmente NAO renderiza aqui —
                 quem esta montado nesse momento e a instancia dentro do preview
-                logo abaixo. */}
+                logo abaixo. O proprio WRAPPER (esta div, dona da faixa de
+                redimensionar) tambem esconde (`orbit-sidebar-hidden`, display:none)
+                nesse caso — antes so o <Sidebar> de dentro sumia, mas o wrapper
+                continuava ocupando a MESMA faixa horizontal que o preview
+                (invisivel, sem fundo proprio, mas ainda uma segunda caixa
+                sobreposta de verdade no DOM, com a alca de redimensionar viva
+                por baixo do preview). */}
             {sidebarOpen && !hoverSection && (
               <Sidebar
                 activeSection={activeSection}
@@ -531,7 +558,17 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
               onPointerDown={onSashPointerDown}
             />
         </div>
-        {hoverSection && (
+        {/* o preview de hover (ponte + painel) so faz sentido sobre a tela
+            normal (Home) — com uma tela cheia aberta (catalogo de Agentes,
+            LLMs, etc.) ele flutuava por cima dela na mesma posicao fixa,
+            sempre sobrepondo uma fatia da tela cheia sem nenhum proposito
+            (a tela cheia JA E a visualizacao detalhada daquela secao),
+            dando a impressao de "2 paineis" simultaneos e um efeito de
+            vidro/blur duplicado sobre o conteudo por baixo. A sidebar
+            FIXADA continua junto com a tela cheia normalmente (pedido
+            explicito: abrir uma tela cheia nao recolhe nada) — so o
+            preview transitorio de hover e suprimido aqui. */}
+        {hoverSection && !fullScreen && (
           <div
             // "ponte" de hover: cobre o vao morto (var(--orbit-panel-gap), 6px)
             // entre a borda direita da ActivityBar e a borda esquerda do
@@ -546,7 +583,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
             onMouseLeave={handlePreviewPointerLeave}
           />
         )}
-        {hoverSection && (
+        {hoverSection && !fullScreen && (
           <div
             ref={previewRef}
             className="orbit-sidebar-preview"
