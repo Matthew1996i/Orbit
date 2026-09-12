@@ -104,6 +104,9 @@ export default function ActivityBar({
   // mostrar o proprio rotulo ao hover — sem isso o hover "nao fazia nada"
   // visivel nesses botoes).
   const handlePointerOver = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Portais continuam propagando eventos pela árvore React. Sobre e o
+    // menu vivem no body: o mouse neles não está sobre a barra de navegação.
+    if (!e.currentTarget.contains(e.target as Node)) return;
     onBarHover();
     if ((e.target as HTMLElement).closest('[data-home]')) {
       onHoverHome();

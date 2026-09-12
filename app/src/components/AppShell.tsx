@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { ModalNavigationContext } from '../utils/modalNavigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import TitleBar from './TitleBar';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
@@ -73,6 +74,7 @@ function fullScreenSection(fs: FullScreen | null): SectionKey | null {
 }
 
 const SIDEBAR_OPEN_KEY = 'dashboard.sidebarOpen';
+const SIDEBARS_PINNED_KEY = 'dashboard.sidebarsPinned';
 const SIDEBAR_WIDTH_KEY = 'dashboard.sidebarWidth';
 const SIDEBAR_SECTION_KEY = 'dashboard.sidebarActiveSection';
 // persiste qual tela cheia esta aberta (catalogo, ou detalhe de qual LLM) —
@@ -132,14 +134,18 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // dos dois ficar defasado por causa de como os cliques disparam re-render.
   const [sidebar, setSidebar] = useState<{ open: boolean; section: SectionKey | null }>(() => ({
     open: readPref(SIDEBAR_OPEN_KEY, '0') === '1',
-    section: (readPref(SIDEBAR_SECTION_KEY, '') as SectionKey) || null,
+    section: (readPref(SIDEBAR_SECTION_KEY, '') as SectionKey) || 'sessions',
   }));
   const sidebarOpen = sidebar.open;
   const activeSection = sidebar.section;
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Number(readPref(SIDEBAR_WIDTH_KEY, String(SIDEBAR_DEFAULT))) || SIDEBAR_DEFAULT)),
   );
-  const [sidebarsPinned, setSidebarsPinned] = useState(false);
+  // Migra a preferência antiga: painel aberto significava painéis fixados.
+  const [sidebarsPinned, setSidebarsPinned] = useState(() =>
+    readPref(SIDEBARS_PINNED_KEY, readPref(SIDEBAR_OPEN_KEY, '0')) === '1',
+  );
+  const pinnedSidebarVisible = sidebarsPinned && sidebarOpen;
   const settingsMenuOpenRef = useRef(false);
   const [resizing, setResizing] = useState(false);
   const [fullScreen, setFullScreenState] = useState<FullScreen | null>(() => readFullScreen());
@@ -148,9 +154,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
     writePref(FULL_SCREEN_KEY, next ? JSON.stringify(next) : '');
   };
 
-  // Abrir uma tela cheia NAO fecha os paineis laterais — nem o preview de
-  // hover (some sozinho ao tirar o mouse) nem a sidebar fixada (pedido
-  // explicito: clicar num item do side/subside nao pode recolher nada).
+  // Navegar entre telas mantém os painéis; apenas modais encerram o hover.
   const openLlmCatalog = () => {
     setFullScreen({ kind: 'llmCatalog' });
   };
@@ -238,23 +242,33 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   const activityBarWrapRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
-  const clearHoverTimers = () => {
+  const clearHoverTimers = useCallback(() => {
     if (hoverOpenTimer.current) clearTimeout(hoverOpenTimer.current);
     if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current);
     hoverOpenTimer.current = null;
     hoverCloseTimer.current = null;
-  };
+  }, []);
+
+  const dismissHoverNavigation = useCallback(() => {
+    clearHoverTimers();
+    setHoverSection(null);
+    setBarHovered(false);
+  }, [clearHoverTimers]);
 
   // chamado incondicionalmente pra QUALQUER ponto sob o mouse dentro da
   // ActivityBar (ver ActivityBar > handlePointerOver) — so liga a expansao
   // visual da barra, sem decisao nenhuma de conteudo/preview.
-  const handleBarHover = () => setBarHovered(true);
+  const handleBarHover = () => {
+    if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current);
+    hoverCloseTimer.current = null;
+    setBarHovered(true);
+  };
 
   const handleHoverSection = (key: SectionKey) => {
     clearHoverTimers();
     // O preview também funciona sobre uma sidebar fixada. Ao voltar à
     // seção fixada, remove qualquer preview anterior que a esteja cobrindo.
-    if (sidebarOpen && activeSection === key) {
+    if (pinnedSidebarVisible && activeSection === key) {
       setHoverSection(null);
       return;
     }
@@ -326,30 +340,8 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // expandida sempre, sem depender do mouse.
   const activityBarExpanded = sidebarsPinned || barHovered || hoverSection !== null;
   const activityBarRealWidth = sidebarsPinned ? 176 : 48;
-  // espaco que a Sidebar FIXADA (nao o preview) reserva no layout do
-  // conteudo — reage so a abrir/fechar e redimensionar, nunca ao hover da
-  // ActivityBar (mesmo espirito de `activityBarRealWidth`: o conteudo
-  // principal nao pode "pular" so por passar o mouse na barra). A Sidebar
-  // fixada em si NAO usa mais essa reserva pra se posicionar (ver
-  // .orbit-sidebar no CSS, agora `position: absolute` grudada na borda
-  // direita REAL/visual da ActivityBar, igual o preview) — e exatamente essa
-  // mudanca que elimina a sobreposicao fantasma: antes a Sidebar fixada
-  // ficava numa posicao fixa baseada em `activityBarRealWidth` (so o pin),
-  // enquanto a ActivityBar podia crescer visualmente ALEM dessa largura so
-  // com hover (--orbit-activitybar-w), cobrindo uma fatia da Sidebar fixada
-  // por baixo com o proprio vidro/blur da barra. Grudando a Sidebar na
-  // largura VISUAL atual da ActivityBar (que e sempre >= a largura real),
-  // as duas nunca mais podem ocupar a mesma faixa horizontal.
-  // Com uma tela cheia aberta (catalogo/edicao), a Sidebar fixada compacta
-  // nao tem mais papel nenhum — a tela cheia JA E a visualizacao daquela
-  // secao. `selectSection` (abaixo) marca `sidebar.open = true` como efeito
-  // colateral de QUALQUER clique de navegacao (inclusive os que abrem
-  // direto uma tela cheia, ex: "LLMs instaladas"), entao sem essa checagem
-  // o layout reservava esse espaco (deixando um vao vazio do lado da tela
-  // cheia) e a Sidebar reaparecia por cima do catalogo assim que o preview
-  // de hover (que a esconde enquanto ativo) fechava — o bug reportado de
-  // "2 componentes" reaparecendo ao tirar o mouse com uma tela cheia aberta.
-  const sidebarReserve = sidebarOpen && !fullScreen ? sidebarWidth + 6 : 0;
+  // A reserva acompanha o painel fixado em qualquer tela; hover só sobrepõe.
+  const sidebarReserve = pinnedSidebarVisible ? sidebarWidth + 6 : 0;
 
   // evita stale closure no listener de pointerup, que le o valor MAIS RECENTE
   // pra gravar — sem isso o handler capturava o `sidebarWidth` do momento em
@@ -370,10 +362,9 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // quando ele estiver aberto, cobre visualmente o pedaco do subheader por
   // baixo dele em vez de precisar deslocar o subheader inteiro.
   useEffect(() => {
-    const panelGap = sidebarOpen ? 6 : 0;
-    const total = activityBarRealWidth + panelGap + (sidebarOpen ? sidebarWidth : 0);
+    const total = activityBarRealWidth + sidebarReserve;
     document.documentElement.style.setProperty('--orbit-content-left', `${total}px`);
-  }, [sidebarOpen, sidebarWidth, activityBarRealWidth]);
+  }, [sidebarReserve, activityBarRealWidth]);
 
   // cada icone da Activity Bar = uma secao da Sidebar (ver sidebarSections.ts).
   // Os ícones de navegação apenas trocam a seção. Recolher a sidebar é uma
@@ -446,6 +437,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   const toggleSidebars = () => {
     if (sidebarsPinned) {
       setSidebarsPinned(false);
+      writePref(SIDEBARS_PINNED_KEY, '0');
       closeSidebar();
       return;
     }
@@ -453,6 +445,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
     clearHoverTimers();
     setHoverSection(null);
     setSidebarsPinned(true);
+    writePref(SIDEBARS_PINNED_KEY, '1');
     setSidebar({ open: section !== null, section });
     writePref(SIDEBAR_OPEN_KEY, section !== null ? '1' : '0');
     writePref(SIDEBAR_SECTION_KEY, section ?? '');
@@ -483,7 +476,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   };
 
   return (
-    <>
+    <ModalNavigationContext.Provider value={dismissHoverNavigation}>
       <TitleBar />
       <div
         // orbit-shell-light-content: as telas cheias (catalogos, edicao) tem
@@ -522,7 +515,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
           />
         </div>
         <div
-          className={`orbit-sidebar${sidebarOpen && !hoverSection && !fullScreen ? '' : ' orbit-sidebar-hidden'}`}
+          className={`orbit-sidebar${pinnedSidebarVisible && !hoverSection ? '' : ' orbit-sidebar-hidden'}`}
           style={{ width: sidebarWidth }}
         >
             {/* So existe UM <Sidebar> montado por vez em toda a AppShell — nunca
@@ -539,7 +532,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
                 (invisivel, sem fundo proprio, mas ainda uma segunda caixa
                 sobreposta de verdade no DOM, com a alca de redimensionar viva
                 por baixo do preview). */}
-            {sidebarOpen && !hoverSection && !fullScreen && (
+            {pinnedSidebarVisible && !hoverSection && (
               <Sidebar
                 activeSection={activeSection}
                 sessions={sessions}
@@ -567,17 +560,8 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
               onPointerDown={onSashPointerDown}
             />
         </div>
-        {/* o preview de hover (ponte + painel) so faz sentido sobre a tela
-            normal (Home) — com uma tela cheia aberta (catalogo de Agentes,
-            LLMs, etc.) ele flutuava por cima dela na mesma posicao fixa,
-            sempre sobrepondo uma fatia da tela cheia sem nenhum proposito
-            (a tela cheia JA E a visualizacao detalhada daquela secao),
-            dando a impressao de "2 paineis" simultaneos e um efeito de
-            vidro/blur duplicado sobre o conteudo por baixo. A sidebar
-            FIXADA continua junto com a tela cheia normalmente (pedido
-            explicito: abrir uma tela cheia nao recolhe nada) — so o
-            preview transitorio de hover e suprimido aqui. */}
-        {hoverSection && !fullScreen && (
+        {/* O preview permanece disponível também nos catálogos e editores. */}
+        {hoverSection && (
           <div
             // "ponte" de hover: cobre o vao morto (var(--orbit-panel-gap), 6px)
             // entre a borda direita da ActivityBar e a borda esquerda do
@@ -592,7 +576,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
             onMouseLeave={handlePreviewPointerLeave}
           />
         )}
-        {hoverSection && !fullScreen && (
+        {hoverSection && (
           <div
             ref={previewRef}
             className="orbit-sidebar-preview"
@@ -704,6 +688,6 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
           )}
         </div>
       </div>
-    </>
+    </ModalNavigationContext.Provider>
   );
 }

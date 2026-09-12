@@ -1,3 +1,4 @@
+import { useModalNavigation } from '../utils/modalNavigation';
 import { Warning } from '@phosphor-icons/react';
 import './ConfirmDialog.css';
 
@@ -24,6 +25,7 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: Props) {
+  useModalNavigation(open);
   if (!open) return null;
 
   return (

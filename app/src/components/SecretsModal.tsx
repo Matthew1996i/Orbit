@@ -14,7 +14,7 @@ interface Props {
 }
 
 // mesma normalizacao usada pro nome de arquivo de agent/skill/command (ver
-// AgentEditModal) — identificador tem que ser um slug valido pra funcionar
+// AgentEditScreen) — identificador tem que ser um slug valido pra funcionar
 // dentro de {{identificador.chave}}.
 function slugify(text: string): string {
   return text

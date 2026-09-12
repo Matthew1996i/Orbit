@@ -1,3 +1,4 @@
+import { useModalNavigation } from '../utils/modalNavigation';
 import { Drawer } from 'antd';
 import { X } from '@phosphor-icons/react';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
@@ -51,6 +52,7 @@ export default function AppDrawer({
   subtitle,
   maskClosable = true,
 }: AppDrawerProps) {
+  useModalNavigation(open);
   const [viewportWidth, setViewportWidth] = useState<number | null>(null);
 
   useEffect(() => {

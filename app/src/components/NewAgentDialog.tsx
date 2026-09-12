@@ -1,3 +1,4 @@
+import { useModalNavigation } from '../utils/modalNavigation';
 import { useEffect, useRef, useState } from 'react';
 import { FolderOpen, Robot, CaretDown } from '@phosphor-icons/react';
 import { fetchLlms, fetchUsage, LlmCli } from '../api';
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
+  useModalNavigation(open);
   const [cwd, setCwd] = useState('~');
   const [name, setName] = useState('');
   const [llm, setLlm] = useState('claude');

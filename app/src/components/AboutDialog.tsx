@@ -1,3 +1,4 @@
+import { useModalNavigation } from '../utils/modalNavigation';
 import { createPortal } from 'react-dom';
 import { X } from '@phosphor-icons/react';
 import appIcon from '../../electron/assets/appIcon.png';
@@ -12,6 +13,7 @@ interface Props {
 // Portado pro <body>: a Activity Bar (que abre este dialogo) e estreita e
 // tem overflow hidden — renderizado dentro dela o card ficava cortado.
 export default function AboutDialog({ open, version, onClose }: Props) {
+  useModalNavigation(open);
   if (!open) return null;
   return createPortal(
     <div className="about-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
