@@ -11,6 +11,11 @@ interface Props {
   // nao a marcacao "active" (essa continua so pro estado fixado de verdade).
   expanded: boolean;
   onSelectSection: (key: SectionKey) => void;
+  // qualquer ponto sob o mouse dentro da barra (icone, Configuracoes, Fixar,
+  // ou um vao sem botao) — so liga a expansao visual, sem decisao de
+  // conteudo/preview (ver onHoverSection, que so dispara pra botoes com
+  // secao de verdade).
+  onBarHover: () => void;
   onHoverSection: (key: SectionKey) => void;
   onHoverSectionEnd: () => void;
   onSettingsMenuOpenChange: (open: boolean) => void;
@@ -31,6 +36,7 @@ interface Props {
 export default function ActivityBar({
   expanded,
   onSelectSection,
+  onBarHover,
   onHoverSection,
   onHoverSectionEnd,
   onSettingsMenuOpenChange,
@@ -88,10 +94,17 @@ export default function ActivityBar({
   // disparam onHoverSection — antes caiam num fallback pra secao ATIVA
   // (activeSection), o que trocava o painel/preview pra secao selecionada so
   // por tirar o mouse de cima do item hovado mas ainda dentro da barra (bug
-  // reportado tanto fixado quanto em hover). Sem fallback, o vao e neutro:
-  // o que ja estava mostrado continua ate o mouse entrar noutro botao de
-  // verdade ou sair da barra inteira (onMouseLeave, ver onHoverSectionEnd).
+  // reportado tanto fixado quanto em hover). Sem fallback, o vao e neutro
+  // pro CONTEUDO/preview: o que ja estava mostrado continua ate o mouse
+  // entrar noutro botao de verdade ou sair da barra inteira (onMouseLeave,
+  // ver onHoverSectionEnd). Isso NAO afeta a expansao visual da barra —
+  // `onBarHover` (abaixo) dispara pra QUALQUER ponto sob o cursor aqui
+  // dentro, incluindo esses vaos e os botoes Configuracoes/Fixar (que nunca
+  // tiveram secao pra abrir preview, mas ainda devem expandir a barra e
+  // mostrar o proprio rotulo ao hover — sem isso o hover "nao fazia nada"
+  // visivel nesses botoes).
   const handlePointerOver = (e: React.MouseEvent<HTMLDivElement>) => {
+    onBarHover();
     if ((e.target as HTMLElement).closest('[data-home]')) {
       onHoverHome();
       return;

@@ -212,20 +212,27 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // preview de hover: sobreposto ao conteudo, nao mexe no estado fixado
   // (sidebar/section) acima — some quando o mouse sai, sem gravar prefs.
   const [hoverSection, setHoverSection] = useState<SectionKey | null>(null);
-  // qual icone da barra esta sob o mouse AGORA, so pra decidir a largura
-  // visual da ActivityBar (labels aparecendo) — deliberadamente SEPARADO de
-  // `hoverSection` (que so guarda a secao do PREVIEW, e fica null quando o
-  // item hovado ja e a secao fixada/ativa, pra nao abrir um preview
-  // redundante por cima do painel real). Antes a largura tambem dependia so
-  // de `hoverSection`, entao passar o mouse sobre o proprio item ja ativo
-  // (sidebarOpen && activeSection === key) zerava `hoverSection` na hora e
-  // colapsava a barra NO MEIO do hover, com o rotulo "fugindo" de baixo do
-  // cursor bem quando o usuario tentava atravessar ate o painel ao lado —
-  // esse encolhimento no meio do caminho e que deixava a transicao parecendo
-  // "perder o hover"/"o painel muda". Com essa segunda fonte, a barra so
-  // encolhe quando o mouse de fato SAI dela (handleHoverSectionEnd), nunca
-  // por causa do preview fechar.
-  const [hoveredBarSection, setHoveredBarSection] = useState<SectionKey | null>(null);
+  // true sempre que o mouse estiver sobre QUALQUER parte da ActivityBar —
+  // icone de secao, "Inicio", Configuracoes, Fixar, ou ate um vao sem botao
+  // — so pra decidir a largura visual dela (labels aparecendo).
+  // Deliberadamente SEPARADO de `hoverSection` (que so guarda a secao do
+  // PREVIEW de conteudo, e fica null quando o item hovado ja e a secao
+  // fixada/ativa, ou quando o alvo nao tem secao nenhuma — Configuracoes,
+  // Fixar, vaos vazios — pra nao abrir/trocar preview indevidamente). Sem
+  // essa segunda fonte, a largura tambem dependia so de `hoverSection`, e
+  // isso quebrava dois casos: (1) passar o mouse sobre o proprio item ja
+  // ativo zerava `hoverSection` na hora e colapsava a barra NO MEIO do
+  // hover, com o rotulo "fugindo" de baixo do cursor; (2) passar o mouse
+  // sobre Configuracoes/Fixar/um vao nunca setava `hoverSection` (nao tem
+  // secao pra abrir preview), entao a barra simplesmente nunca expandia
+  // ali, dando a impressao de que o hover "nao funciona" nesses botoes.
+  // Com `barHovered` cobrindo QUALQUER ponto da barra (ver
+  // ActivityBar > onBarHover, chamado incondicionalmente antes da logica
+  // especifica de secao), a expansao visual funciona em toda a barra,
+  // enquanto o preview de conteudo continua so respondendo a botoes com
+  // secao de verdade. So encolhe quando o mouse de fato SAI da barra
+  // (handleHoverSectionEnd), nunca por causa do preview fechar.
+  const [barHovered, setBarHovered] = useState(false);
   const hoverOpenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activityBarWrapRef = useRef<HTMLDivElement>(null);
@@ -238,12 +245,13 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
     hoverCloseTimer.current = null;
   };
 
+  // chamado incondicionalmente pra QUALQUER ponto sob o mouse dentro da
+  // ActivityBar (ver ActivityBar > handlePointerOver) — so liga a expansao
+  // visual da barra, sem decisao nenhuma de conteudo/preview.
+  const handleBarHover = () => setBarHovered(true);
+
   const handleHoverSection = (key: SectionKey) => {
     clearHoverTimers();
-    // sempre imediato (sem delay) — e so a largura/rotulos da barra, nao o
-    // conteudo pesado do preview, entao nao ha risco de flicker de dados ao
-    // passar rapido pelos icones (ver comentario na declaracao do estado).
-    setHoveredBarSection(key);
     // O preview também funciona sobre uma sidebar fixada. Ao voltar à
     // seção fixada, remove qualquer preview anterior que a esteja cobrindo.
     if (sidebarOpen && activeSection === key) {
@@ -263,7 +271,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
     if (settingsMenuOpenRef.current) return;
     // o mouse de fato saiu da barra — so agora ela pode voltar a colapsar
     // (nunca so por causa do preview fechar, ver comentario acima).
-    setHoveredBarSection(null);
+    setBarHovered(false);
     if (hoverOpenTimer.current) clearTimeout(hoverOpenTimer.current);
     hoverOpenTimer.current = null;
     hoverCloseTimer.current = setTimeout(() => setHoverSection(null), HOVER_CLOSE_DELAY);
@@ -312,11 +320,11 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // no CSS), exatamente como o proprio preview da Sidebar ja faz — por cima
   // do conteudo, sem empurrar nada.
   // A Activity Bar só mostra rótulos durante o preview OU enquanto o mouse
-  // estiver de fato sobre algum icone dela (hoveredBarSection) — inclusive
-  // quando o icone hovado ja e a secao fixada/ativa, caso em que
-  // `hoverSection` fica null de proposito (ver handleHoverSection). Com a
-  // sidebar fixada, permanece expandida sempre, sem depender do mouse.
-  const activityBarExpanded = sidebarsPinned || hoveredBarSection !== null || hoverSection !== null;
+  // estiver de fato sobre QUALQUER ponto dela (barHovered) — inclusive
+  // Configuracoes, Fixar e vaos sem botao, que nao abrem preview nenhum mas
+  // ainda devem reagir visualmente ao hover. Com a sidebar fixada, permanece
+  // expandida sempre, sem depender do mouse.
+  const activityBarExpanded = sidebarsPinned || barHovered || hoverSection !== null;
   const activityBarRealWidth = sidebarsPinned ? 176 : 48;
 
   // evita stale closure no listener de pointerup, que le o valor MAIS RECENTE
@@ -468,6 +476,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
           <ActivityBar
             expanded={activityBarExpanded}
             onSelectSection={selectSection}
+            onBarHover={handleBarHover}
             onHoverSection={handleHoverSection}
             onHoverSectionEnd={handleHoverSectionEnd}
             onSettingsMenuOpenChange={(open) => {
