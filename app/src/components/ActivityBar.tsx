@@ -1,22 +1,18 @@
 import { useState } from 'react';
-import { Check, ArrowClockwise, Info, X, Palette } from '@phosphor-icons/react';
+import { ArrowClockwise, Info, X } from '@phosphor-icons/react';
 import { TreeStructure, Gear, SidebarSimple } from '@phosphor-icons/react';
 import ContextMenu, { ContextMenuItem } from './ContextMenu';
 import AboutDialog from './AboutDialog';
-import { THEMES } from '../theme/themes';
 import { SECTION_ICONS, SectionKey } from '../utils/sidebarSections';
 import './ActivityBar.css';
 
 interface Props {
-  activeSection: SectionKey | null;
   // fixado OU em preview de hover — controla so a exibicao do label/largura,
   // nao a marcacao "active" (essa continua so pro estado fixado de verdade).
   expanded: boolean;
   onSelectSection: (key: SectionKey) => void;
   onHoverSection: (key: SectionKey) => void;
   onHoverSectionEnd: () => void;
-  themeId: string;
-  onSelectTheme: (id: string) => void;
   onSettingsMenuOpenChange: (open: boolean) => void;
   // volta pra tela inicial (sessions) fechando qualquer tela cheia aberta —
   // sem isso, com uma tela cheia aberta (catalogo de LLM, edicao de agente)
@@ -33,13 +29,10 @@ interface Props {
 }
 
 export default function ActivityBar({
-  activeSection,
   expanded,
   onSelectSection,
   onHoverSection,
   onHoverSectionEnd,
-  themeId,
-  onSelectTheme,
   onSettingsMenuOpenChange,
   onGoHome,
   onHoverHome,
@@ -58,13 +51,6 @@ export default function ActivityBar({
     onSettingsMenuOpenChange(true);
   };
 
-  const themeItems: ContextMenuItem[] = THEMES.map((t) => ({
-    label: t.label,
-    icon: t.id === themeId ? <Check size={14} /> : <span style={{ width: 14, display: 'inline-block' }} />,
-    onClick: () => onSelectTheme(t.id),
-    keepOpen: true,
-  }));
-
   const settingsMenuItems: ContextMenuItem[] = [
     {
       label: 'Recarregar',
@@ -81,23 +67,12 @@ export default function ActivityBar({
       },
     },
     {
-      label: 'Tema',
-      icon: <Palette size={14} />,
-      items: themeItems,
-    },
-    {
       label: 'Sair',
       icon: <X size={14} />,
       danger: true,
       onClick: () => window.dashboardAPI?.quitApp(),
     },
   ];
-
-  // ponto de entrada padrao quando o mouse esta sobre um vao sem icone (ex:
-  // o espaco vazio entre as secoes e o botao de config, que usa
-  // margin-top:auto, ou o proprio botao "Inicio") — sem isso, so os botoes
-  // de secao abririam o preview, nao "qualquer lugar da barra" como pedido.
-  const fallbackSection = activeSection ?? SECTION_ICONS[0].key;
 
   // fonte unica de verdade pra saber qual secao esta sob o cursor — antes
   // cada botao TINHA seu proprio onMouseEnter, competindo com o
@@ -108,6 +83,14 @@ export default function ActivityBar({
   // fazendo hover no primeiro icone abrir a segunda secao (ou a ultima
   // fixada) por engano. onMouseOver delegado bubbling resolve isso: um so
   // handler, sempre olhando o elemento REAL sob o cursor.
+  //
+  // Vaos sem icone (entre secoes, ou o espaco vazio antes do config) NAO
+  // disparam onHoverSection — antes caiam num fallback pra secao ATIVA
+  // (activeSection), o que trocava o painel/preview pra secao selecionada so
+  // por tirar o mouse de cima do item hovado mas ainda dentro da barra (bug
+  // reportado tanto fixado quanto em hover). Sem fallback, o vao e neutro:
+  // o que ja estava mostrado continua ate o mouse entrar noutro botao de
+  // verdade ou sair da barra inteira (onMouseLeave, ver onHoverSectionEnd).
   const handlePointerOver = (e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('[data-home]')) {
       onHoverHome();
@@ -115,7 +98,8 @@ export default function ActivityBar({
     }
     if ((e.target as HTMLElement).closest('.orbit-activitybar-pin-btn')) return;
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-hover-key]');
-    onHoverSection((btn?.dataset.hoverKey as SectionKey | undefined) ?? fallbackSection);
+    if (!btn) return;
+    onHoverSection(btn.dataset.hoverKey as SectionKey);
   };
 
   return (

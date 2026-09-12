@@ -17,7 +17,6 @@ import SecretsModal from './SecretsModal';
 import AiProviderModal from './AiProviderModal';
 import { AiProvider, McpDef, SecretGroup, SessionInfo } from '../api';
 import { readPref, writePref } from '../utils/uiPrefs';
-import { loadThemeId, applyTheme } from '../theme/themes';
 import { SectionKey } from '../utils/sidebarSections';
 import { AgentFileKind } from '../api';
 import './AppShell.css';
@@ -141,7 +140,6 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
     Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Number(readPref(SIDEBAR_WIDTH_KEY, String(SIDEBAR_DEFAULT))) || SIDEBAR_DEFAULT)),
   );
   const [sidebarsPinned, setSidebarsPinned] = useState(false);
-  const [themeId, setThemeId] = useState(() => loadThemeId());
   const settingsMenuOpenRef = useRef(false);
   const [resizing, setResizing] = useState(false);
   const [fullScreen, setFullScreenState] = useState<FullScreen | null>(() => readFullScreen());
@@ -214,6 +212,20 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // preview de hover: sobreposto ao conteudo, nao mexe no estado fixado
   // (sidebar/section) acima — some quando o mouse sai, sem gravar prefs.
   const [hoverSection, setHoverSection] = useState<SectionKey | null>(null);
+  // qual icone da barra esta sob o mouse AGORA, so pra decidir a largura
+  // visual da ActivityBar (labels aparecendo) — deliberadamente SEPARADO de
+  // `hoverSection` (que so guarda a secao do PREVIEW, e fica null quando o
+  // item hovado ja e a secao fixada/ativa, pra nao abrir um preview
+  // redundante por cima do painel real). Antes a largura tambem dependia so
+  // de `hoverSection`, entao passar o mouse sobre o proprio item ja ativo
+  // (sidebarOpen && activeSection === key) zerava `hoverSection` na hora e
+  // colapsava a barra NO MEIO do hover, com o rotulo "fugindo" de baixo do
+  // cursor bem quando o usuario tentava atravessar ate o painel ao lado —
+  // esse encolhimento no meio do caminho e que deixava a transicao parecendo
+  // "perder o hover"/"o painel muda". Com essa segunda fonte, a barra so
+  // encolhe quando o mouse de fato SAI dela (handleHoverSectionEnd), nunca
+  // por causa do preview fechar.
+  const [hoveredBarSection, setHoveredBarSection] = useState<SectionKey | null>(null);
   const hoverOpenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activityBarWrapRef = useRef<HTMLDivElement>(null);
@@ -228,6 +240,10 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
 
   const handleHoverSection = (key: SectionKey) => {
     clearHoverTimers();
+    // sempre imediato (sem delay) — e so a largura/rotulos da barra, nao o
+    // conteudo pesado do preview, entao nao ha risco de flicker de dados ao
+    // passar rapido pelos icones (ver comentario na declaracao do estado).
+    setHoveredBarSection(key);
     // O preview também funciona sobre uma sidebar fixada. Ao voltar à
     // seção fixada, remove qualquer preview anterior que a esteja cobrindo.
     if (sidebarOpen && activeSection === key) {
@@ -245,6 +261,9 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
 
   const handleHoverSectionEnd = () => {
     if (settingsMenuOpenRef.current) return;
+    // o mouse de fato saiu da barra — so agora ela pode voltar a colapsar
+    // (nunca so por causa do preview fechar, ver comentario acima).
+    setHoveredBarSection(null);
     if (hoverOpenTimer.current) clearTimeout(hoverOpenTimer.current);
     hoverOpenTimer.current = null;
     hoverCloseTimer.current = setTimeout(() => setHoverSection(null), HOVER_CLOSE_DELAY);
@@ -292,10 +311,13 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // cresce apenas VISUALMENTE, via position:absolute (ver .orbit-activitybar
   // no CSS), exatamente como o proprio preview da Sidebar ja faz — por cima
   // do conteudo, sem empurrar nada.
-  // A Activity Bar só mostra rótulos durante o preview. Com a sidebar fixada,
-  // permanece compacta para não criar dois níveis de navegação lado a lado.
-  const activityBarExpanded = sidebarsPinned || hoverSection !== null;
-  const activityBarRealWidth = sidebarsPinned ? 208 : 48;
+  // A Activity Bar só mostra rótulos durante o preview OU enquanto o mouse
+  // estiver de fato sobre algum icone dela (hoveredBarSection) — inclusive
+  // quando o icone hovado ja e a secao fixada/ativa, caso em que
+  // `hoverSection` fica null de proposito (ver handleHoverSection). Com a
+  // sidebar fixada, permanece expandida sempre, sem depender do mouse.
+  const activityBarExpanded = sidebarsPinned || hoveredBarSection !== null || hoverSection !== null;
+  const activityBarRealWidth = sidebarsPinned ? 176 : 48;
 
   // evita stale closure no listener de pointerup, que le o valor MAIS RECENTE
   // pra gravar — sem isso o handler capturava o `sidebarWidth` do momento em
@@ -304,10 +326,6 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   useEffect(() => {
     sidebarWidthRef.current = sidebarWidth;
   }, [sidebarWidth]);
-
-  useEffect(() => {
-    applyTheme(themeId);
-  }, [themeId]);
 
   // largura REAL (fixada, nunca hover) ocupada por Activity Bar + Sidebar —
   // exposta como variavel global no <html> pra elementos fora dessa arvore
@@ -440,7 +458,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
         // fundo branco fixo — nesse caso o vidro do sidebar volta a usar a cor
         // do tema (senao vidro branco + texto claro do tema ficam ilegiveis).
         className={`orbit-shell${fullScreen ? ' orbit-shell-light-content' : ''}`}
-        style={{ '--orbit-activitybar-w': activityBarExpanded ? '208px' : '48px' } as React.CSSProperties}
+        style={{ '--orbit-activitybar-w': activityBarExpanded ? '176px' : '48px' } as React.CSSProperties}
       >
         <div
           ref={activityBarWrapRef}
@@ -448,13 +466,10 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
           style={{ width: activityBarRealWidth }}
         >
           <ActivityBar
-            activeSection={activeSection}
             expanded={activityBarExpanded}
             onSelectSection={selectSection}
             onHoverSection={handleHoverSection}
             onHoverSectionEnd={handleHoverSectionEnd}
-            themeId={themeId}
-            onSelectTheme={setThemeId}
             onSettingsMenuOpenChange={(open) => {
               settingsMenuOpenRef.current = open;
               clearHoverTimers();
@@ -471,32 +486,57 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
           />
         </div>
         <div className={`orbit-sidebar${sidebarOpen ? '' : ' orbit-sidebar-hidden'}`} style={{ width: sidebarWidth }}>
-            <Sidebar
-              activeSection={activeSection}
-              sessions={sessions}
-              onOpenSession={onOpenSession}
-              onClose={closeSidebar}
-              onOpenLlmCatalog={openLlmCatalog}
-              onOpenLlmDetail={openLlmDetail}
-              onOpenAgentEdit={openAgentEdit}
-              onOpenAgentCatalog={openAgentCatalog}
-              onOpenSkillCatalog={openSkillCatalog}
-              onOpenSkillEdit={openSkillEdit}
-              onOpenCommandCatalog={openCommandCatalog}
-              onOpenCommandEdit={openCommandEdit}
-              onOpenMcpCatalog={openMcpCatalog}
-              onOpenMcpEdit={openMcpEdit}
-              onOpenSecretsCatalog={openSecretsCatalog}
-              onOpenSecretEdit={openSecretEdit}
-              onOpenAiProvidersCatalog={openAiProvidersCatalog}
-              onOpenAiProviderEdit={openAiProviderEdit}
-            />
+            {/* So existe UM <Sidebar> montado por vez em toda a AppShell — nunca
+                um fixado e um de preview vivos ao mesmo tempo (o que antes exigia
+                esconder um dos dois via CSS, e ainda assim empilhava o blur/vidro
+                translucido dos dois, parecendo "2 paineis" com comportamentos
+                diferentes). Enquanto o preview de hover esta aberto pra uma secao
+                diferente, o <Sidebar> fixado simplesmente NAO renderiza aqui —
+                quem esta montado nesse momento e a instancia dentro do preview
+                logo abaixo. */}
+            {sidebarOpen && !hoverSection && (
+              <Sidebar
+                activeSection={activeSection}
+                sessions={sessions}
+                onOpenSession={onOpenSession}
+                onClose={closeSidebar}
+                onOpenLlmCatalog={openLlmCatalog}
+                onOpenLlmDetail={openLlmDetail}
+                onOpenAgentEdit={openAgentEdit}
+                onOpenAgentCatalog={openAgentCatalog}
+                onOpenSkillCatalog={openSkillCatalog}
+                onOpenSkillEdit={openSkillEdit}
+                onOpenCommandCatalog={openCommandCatalog}
+                onOpenCommandEdit={openCommandEdit}
+                onOpenMcpCatalog={openMcpCatalog}
+                onOpenMcpEdit={openMcpEdit}
+                onOpenSecretsCatalog={openSecretsCatalog}
+                onOpenSecretEdit={openSecretEdit}
+                onOpenAiProvidersCatalog={openAiProvidersCatalog}
+                onOpenAiProviderEdit={openAiProviderEdit}
+              />
+            )}
             <div
               className={`orbit-sash${resizing ? ' dragging' : ''}`}
               aria-label="Redimensionar painel lateral"
               onPointerDown={onSashPointerDown}
             />
         </div>
+        {hoverSection && (
+          <div
+            // "ponte" de hover: cobre o vao morto (var(--orbit-panel-gap), 6px)
+            // entre a borda direita da ActivityBar e a borda esquerda do
+            // preview, que nao tinha listener de mouse nenhum — atravessar
+            // essa faixa (ex: movimento vertical junto a fronteira, ou so
+            // mais devagar que HOVER_CLOSE_DELAY) deixava o hoverCloseTimer
+            // disparar antes do ponteiro chegar ao preview, fechando-o cedo
+            // demais. Compartilha os mesmos handlers do preview: passar por
+            // cima mantem o fechamento cancelado exatamente como o preview.
+            className="orbit-hover-bridge"
+            onMouseEnter={handlePreviewPointerEnter}
+            onMouseLeave={handlePreviewPointerLeave}
+          />
+        )}
         {hoverSection && (
           <div
             ref={previewRef}

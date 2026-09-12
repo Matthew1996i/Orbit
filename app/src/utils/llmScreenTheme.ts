@@ -4,9 +4,8 @@ import type { ThemeConfig } from "antd";
 // resto do app nao usa AntD (Ionic + CSS custom) — escopado so pra dentro
 // das telas cheias de LLM via <ConfigProvider theme={...}>, sem vazar pro
 // resto do shell. Fundo branco fixo (pedido explicito, "estilo GitHub"), mas
-// colorPrimary/colorLink acompanham a cor de destaque do tema escolhido em
-// theme/themes.ts (--orbit-accent) em vez de um preto fixo — "todos os
-// botoes devem seguir a cor do tema selecionado" tambem vale aqui.
+// colorPrimary/colorLink acompanham a cor de destaque do tema fixo da
+// aplicacao (theme/themes.ts, --orbit-accent) em vez de um preto fixo.
 function readAccent(): string {
   if (typeof document === "undefined") return "#18181b";
   const v = getComputedStyle(document.documentElement)
@@ -15,11 +14,10 @@ function readAccent(): string {
   return v || "#18181b";
 }
 
-// hook em vez de constante estatica — o valor precisa reagir a troca de tema
-// em tempo real (ver ActivityBar > onSelectTheme), que so muda o atributo
-// data-theme no <html>; um MutationObserver nesse atributo e o jeito mais
-// simples de saber, dado que essas telas sao autocontidas e nao recebem o
-// themeId atual via prop.
+// hook em vez de constante estatica — o atributo data-theme so existe no
+// <html> depois do boot (ver main.tsx), e essas telas sao autocontidas (nao
+// recebem nenhum id de tema via prop); um MutationObserver nesse atributo
+// garante o valor certo mesmo se o accent for lido antes do boot terminar.
 export function useLlmScreenTheme(): ThemeConfig {
   const [accent, setAccent] = useState(readAccent);
 
