@@ -340,7 +340,16 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
   // por baixo com o proprio vidro/blur da barra. Grudando a Sidebar na
   // largura VISUAL atual da ActivityBar (que e sempre >= a largura real),
   // as duas nunca mais podem ocupar a mesma faixa horizontal.
-  const sidebarReserve = sidebarOpen ? sidebarWidth + 6 : 0;
+  // Com uma tela cheia aberta (catalogo/edicao), a Sidebar fixada compacta
+  // nao tem mais papel nenhum — a tela cheia JA E a visualizacao daquela
+  // secao. `selectSection` (abaixo) marca `sidebar.open = true` como efeito
+  // colateral de QUALQUER clique de navegacao (inclusive os que abrem
+  // direto uma tela cheia, ex: "LLMs instaladas"), entao sem essa checagem
+  // o layout reservava esse espaco (deixando um vao vazio do lado da tela
+  // cheia) e a Sidebar reaparecia por cima do catalogo assim que o preview
+  // de hover (que a esconde enquanto ativo) fechava — o bug reportado de
+  // "2 componentes" reaparecendo ao tirar o mouse com uma tela cheia aberta.
+  const sidebarReserve = sidebarOpen && !fullScreen ? sidebarWidth + 6 : 0;
 
   // evita stale closure no listener de pointerup, que le o valor MAIS RECENTE
   // pra gravar — sem isso o handler capturava o `sidebarWidth` do momento em
@@ -513,7 +522,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
           />
         </div>
         <div
-          className={`orbit-sidebar${sidebarOpen && !hoverSection ? '' : ' orbit-sidebar-hidden'}`}
+          className={`orbit-sidebar${sidebarOpen && !hoverSection && !fullScreen ? '' : ' orbit-sidebar-hidden'}`}
           style={{ width: sidebarWidth }}
         >
             {/* So existe UM <Sidebar> montado por vez em toda a AppShell — nunca
@@ -530,7 +539,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
                 (invisivel, sem fundo proprio, mas ainda uma segunda caixa
                 sobreposta de verdade no DOM, com a alca de redimensionar viva
                 por baixo do preview). */}
-            {sidebarOpen && !hoverSection && (
+            {sidebarOpen && !hoverSection && !fullScreen && (
               <Sidebar
                 activeSection={activeSection}
                 sessions={sessions}
