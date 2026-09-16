@@ -1,37 +1,36 @@
-import { memo, useMemo } from 'react';
+import { memo, Suspense, useMemo } from 'react';
 import { VillageTrees } from './village-trees';
 import { SceneObstacle } from './scene-obstacle';
-import { BlockBatch } from '../../../components/block-batch';
+import { GROUND_Y, Vegetation } from './vegetation';
 import { createRandom } from '../../../shared/random';
-import type { Tree } from '../../../core/world/village.types';
-import type { Block } from '../../../core/world/types';
+import { isOccupied, VILLAGE_RADIUS } from '../../../core/world/village';
+import type { Tree, Village } from '../../../core/world/village.types';
 
-export const Forest = memo(({ gardenTrees }: { gardenTrees: Tree[] }) => {
-  const forest = useMemo(() => {
+export const Forest = memo(({ village }: { village: Village }) => {
+  const trees = useMemo(() => {
     const random = createRandom(72), trees: Tree[] = [];
-    for (let index = 0; index < 52; index++) {
-      const angle = index * 2.39996, radius = 36 + random() * 26;
-      trees.push({ position: [Math.cos(angle) * radius, -1.8, Math.sin(angle) * radius - 6], height: 8 + random() * 7, radius: 2.8 + random() * 1.7 });
+    // Floresta fechada logo depois da vila, abrindo ate a borda da neblina.
+    for (let index = 0; index < 150; index++) {
+      const angle = index * 2.39996, radius = VILLAGE_RADIUS - 1 + Math.sqrt(random()) * 38;
+      const tree: Tree = { position: [Math.cos(angle) * radius, GROUND_Y, Math.sin(angle) * radius], height: 6.5 + random() * 8, radius: 2.6 + random() * 1.9 };
+      if (isOccupied(village, tree.position[0], tree.position[2], tree.radius)) continue;
+      trees.push(tree);
     }
-    const flowers: Block[] = [];
-    for (let index = 0; index < 750; index++) {
-      const x = (random() - 0.5) * 95, z = (random() - 0.5) * 95;
-      if (Math.abs(x) < 27 && z > -27 && z < 10) continue;
-      flowers.push({ position: [x, -1.67, z], scale: [0.09, 0.16 + random() * 0.25, 0.09], color: ['#a6b16b', '#e8d5a3', '#bfc48b', '#a899b8'][index % 4] });
-    }
-    return { trees, flowers };
-  }, []);
+    return trees;
+  }, [village]);
   return <>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.85, 0]} receiveShadow>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND_Y - 0.02, 0]} receiveShadow>
       <planeGeometry args={[600, 600]} /><meshStandardMaterial color="#829267" roughness={1} />
     </mesh>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.82, -6]} receiveShadow>
-      <circleGeometry args={[33, 80]} /><meshStandardMaterial color="#a6a284" roughness={1} />
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND_Y - 0.01, 0]} receiveShadow>
+      <circleGeometry args={[VILLAGE_RADIUS - 2, 80]} /><meshStandardMaterial color="#8d9868" roughness={1} />
     </mesh>
-    <BlockBatch blocks={forest.flowers} castShadow={false} />
-    {[...gardenTrees, ...forest.trees].map((tree, index) => <SceneObstacle key={index}
-      obstacle={{ position: tree.position, radius: tree.radius, height: tree.height + tree.radius }}>
-      <VillageTrees trees={[tree]} clusters={index < gardenTrees.length ? 240 : 65} />
-    </SceneObstacle>)}
+    <Suspense fallback={null}>
+      <Vegetation village={village} />
+      {[...village.trees, ...trees].map((tree, index) => <SceneObstacle key={index}
+        obstacle={{ position: tree.position, radius: tree.radius, height: tree.height + tree.radius }}>
+        <VillageTrees trees={[tree]} />
+      </SceneObstacle>)}
+    </Suspense>
   </>;
 });

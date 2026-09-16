@@ -1,26 +1,57 @@
-import { useEffect, useMemo } from 'react';
-import { ExtrudeGeometry, Shape } from 'three';
-import type { House, Village } from '../../../core/world/village.types';
-import { BlockBatch } from '../../../components/block-batch';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useThree } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
+import { InstancedMesh, MeshBasicMaterial, MeshStandardMaterial, Object3D } from 'three';
+import type { Placement, Village } from '../../../core/world/village.types';
+import { MODEL_SIZE } from '../../../core/world/village-models';
 import { SceneObstacle } from './scene-obstacle';
+import { useVillageModels, villageUrl, type MergedModel } from './kit-models';
 
-const Roof = ({ house }: { house: House }) => {
-  const geometry = useMemo(() => {
-    const shape = new Shape();
-    shape.moveTo(-house.width / 2, 0); shape.lineTo(0, house.roof);
-    shape.lineTo(house.width / 2, 0); shape.closePath();
-    return new ExtrudeGeometry(shape, { depth: house.depth, bevelEnabled: false });
-  }, [house]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  return <SceneObstacle obstacle={{ position: house.position, radius: Math.hypot(house.width, house.depth) / 2, height: house.height + house.roof + 2 }}><mesh geometry={geometry} position={[house.position[0], house.position[1] + house.height, house.position[2] - house.depth / 2]} castShadow receiveShadow>
-    <meshStandardMaterial color={house.color} roughness={0.85} />
-  </mesh></SceneObstacle>;
+const NAMES = Object.keys(MODEL_SIZE);
+NAMES.forEach((name) => useGLTF.preload(villageUrl(name)));
+const SOLID = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+const WINDOWS = new MeshBasicMaterial({ color: '#ffd28a', toneMapped: false });
+
+const Building = ({ placement, model }: { placement: Placement; model: MergedModel }) => <SceneObstacle
+  obstacle={{ position: placement.position, radius: placement.footprint, height: placement.height + 2 }}>
+  <group position={placement.position} rotation={[0, placement.rotation, 0]} scale={placement.scale}>
+    <mesh geometry={model.geometry} material={SOLID} castShadow receiveShadow />
+    {model.windows && <mesh geometry={model.windows} material={WINDOWS} />}
+  </group>
+</SceneObstacle>;
+
+// Todos os props/ladrilhos de um mesmo modelo saem num unico draw call.
+const Instanced = ({ placements, model, shadow }: { placements: Placement[]; model: MergedModel; shadow: boolean }) => {
+  const ref = useRef<InstancedMesh>(null);
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const transform = new Object3D();
+    placements.forEach((placement, index) => {
+      transform.position.set(...placement.position); transform.rotation.set(0, placement.rotation, 0);
+      transform.scale.setScalar(placement.scale); transform.updateMatrix();
+      ref.current!.setMatrixAt(index, transform.matrix);
+    });
+    ref.current.instanceMatrix.needsUpdate = true;
+    ref.current.computeBoundingSphere();
+  }, [placements]);
+  return <instancedMesh ref={ref} args={[model.geometry, SOLID, placements.length]} castShadow={shadow} receiveShadow />;
 };
 
-export const VillageBuildings = ({ village }: { village: Village }) => <>
-  <BlockBatch blocks={village.masonry} roughness={0.87} />
-  <BlockBatch blocks={village.timber} roughness={0.8} />
-  <BlockBatch blocks={village.tiles} roughness={0.65} />
-  <BlockBatch blocks={village.lights} glow />
-  {village.houses.map((house, index) => <Roof key={index} house={house} />)}
-</>;
+const groupByModel = (placements: Placement[]) => {
+  const groups = new Map<string, Placement[]>();
+  for (const placement of placements) groups.set(placement.model, [...(groups.get(placement.model) ?? []), placement]);
+  return [...groups.entries()];
+};
+
+export const VillageBuildings = ({ village }: { village: Village }) => {
+  const models = useVillageModels(NAMES);
+  const { gl, invalidate } = useThree();
+  const props = useMemo(() => groupByModel(village.props), [village]);
+  const paths = useMemo(() => groupByModel(village.paths), [village]);
+  useEffect(() => { gl.shadowMap.needsUpdate = true; invalidate(); }, [gl, invalidate, models]);
+  return <>
+    {village.buildings.map((placement, index) => <Building key={index} placement={placement} model={models[placement.model]} />)}
+    {props.map(([name, placements]) => <Instanced key={name} placements={placements} model={models[name]} shadow />)}
+    {paths.map(([name, placements]) => <Instanced key={name} placements={placements} model={models[name]} shadow={false} />)}
+  </>;
+};

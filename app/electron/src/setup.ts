@@ -238,9 +238,11 @@ export function setupContentSecurityPolicy(customScheme: string): void {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           (electronIsDev
-            ? `default-src ${customScheme}://* 'unsafe-inline' devtools://* 'unsafe-eval' data:`
-            : `default-src ${customScheme}://* 'unsafe-inline' data:`) +
-            "; connect-src 'self' " +
+            ? `default-src ${customScheme}://* 'unsafe-inline' devtools://* 'unsafe-eval' data: blob:`
+            : `default-src ${customScheme}://* 'unsafe-inline' data: blob:`) +
+            // blob: e necessario pro GLTFLoader do three.js carregar as texturas
+            // embutidas nos .glb do Astra (ele cria object URLs pras imagens).
+            "; connect-src 'self' blob: " +
             `${customScheme}://* http://localhost:8765 ws://localhost:8765` +
             (electronIsDev ? ' devtools://*' : ''),
         ],

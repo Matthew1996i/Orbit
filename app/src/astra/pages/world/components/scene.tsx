@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo } from 'react';
+import { memo, Suspense, useEffect, useMemo } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { MOUSE } from 'three';
@@ -8,7 +8,6 @@ import { AgentCharacters } from './agent-characters';
 import { VillageBuildings } from './village-buildings';
 import { VillageLanterns } from './village-lanterns';
 import { Forest } from './forest';
-import { VillageTowers } from './village-towers';
 import { startVisiblePolling } from '../../../../utils/visiblePolling';
 
 type Props = { active: boolean; sessions: SessionInfo[]; onOpenSession?: (session: SessionInfo) => void };
@@ -31,10 +30,9 @@ const SceneContent = ({ active, sessions, onOpenSession }: Props) => {
       shadow-camera-top={35} shadow-camera-bottom={-35} shadow-camera-far={100}
       shadow-bias={-0.0002} shadow-normalBias={0.06} />
     <directionalLight position={[18, 12, -20]} color="#d0e0ff" intensity={0.5} />
-    <VillageBuildings village={village} />
-    <Forest gardenTrees={village.trees} />
+    <Suspense fallback={null}><VillageBuildings village={village} /></Suspense>
+    <Forest village={village} />
     <VillageLanterns positions={village.lanterns} />
-    <VillageTowers />
     <AgentCharacters sessions={sessions} onOpenSession={onOpenSession} />
     <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={6} maxDistance={90}
       minPolarAngle={0.05} maxPolarAngle={Math.PI / 2 - 0.08} target={[0, 1, 0]}

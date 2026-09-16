@@ -1,31 +1,23 @@
-import { createVillage } from './village';
+import { createVillage, VILLAGE_RADIUS } from './village';
 import type { Position } from './types';
 
 const village = createVillage();
 const STEP = 0.5;
+export const GROUND = 0.15;
+// Os agentes circulam por toda a vila (praca, caminhos e gramado), desviando
+// do que ocupa chao: construcoes, props, arvores e lampioes.
 export const isAgentWalkable = (x: number, z: number): boolean => {
-  const central = Math.abs(x) < 8.3 && Math.abs(z) < 7.3;
-  const north = Math.abs(x) < 20.3 && z > -24.3 && z < -13.7;
-  const wings = Math.abs(x) > 14.7 && Math.abs(x) < 25.3 && Math.abs(z) < 7.3;
-  const northBridge = Math.abs(x) < 0.9 && z >= -14 && z <= -7;
-  const sideBridge = Math.abs(z) < 0.9 && Math.abs(x) >= 8 && Math.abs(x) <= 15;
-  if (!(central || north || wings || northBridge || sideBridge)) return false;
-  if (village.houses.some((house) => Math.abs(x - house.position[0]) < house.width / 2 + 0.65
-    && Math.abs(z - house.position[2]) < house.depth / 2 + 0.65)) return false;
-  if (village.trees.some((tree) => Math.hypot(x - tree.position[0], z - tree.position[2]) < 1.6)) return false;
-  if (Math.abs(z - 6) < 0.9 && Math.abs(Math.abs(x) - 4.5) < 1.9) return false;
-  return true;
+  if (Math.hypot(x, z) > VILLAGE_RADIUS - 3) return false;
+  return !village.footprints.some((footprint) => Math.hypot(x - footprint.x, z - footprint.z) < footprint.radius + 0.7);
 };
 
-export const groundHeight = (x: number, z: number): number => {
-  const along = Math.abs(x) < 1.5 && z < -7.7 && z > -13.3 ? z + 10.5
-    : Math.abs(z) < 1.5 && Math.abs(x) > 8.7 && Math.abs(x) < 14.3 ? Math.abs(x) - 11.5 : null;
-  return along === null ? 0.15 : 0.06 + Math.sin((along + 2.8) / 5.6 * Math.PI) * 0.62;
-};
+// A vila e plana; a assinatura fica pra quando houver relevo.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const groundHeight = (x: number, z: number): number => GROUND;
 
 // The graph is shared; only destination selection allocates a short path, never frame updates.
 const cells = new Map<string, Position>();
-for (let x = -25; x <= 25; x += STEP) for (let z = -24; z <= 7; z += STEP) {
+for (let x = -VILLAGE_RADIUS; x <= VILLAGE_RADIUS; x += STEP) for (let z = -VILLAGE_RADIUS; z <= VILLAGE_RADIUS; z += STEP) {
   if (isAgentWalkable(x, z)) cells.set(`${x},${z}`, [x, groundHeight(x, z), z]);
 }
 const neighbors = new Map<string, string[]>();

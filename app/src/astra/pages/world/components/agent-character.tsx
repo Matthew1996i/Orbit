@@ -6,7 +6,8 @@ import type { SessionInfo } from '../../../../api';
 import type { Position } from '../../../core/world/types';
 import { groundHeight, randomWalkPath } from '../../../core/world/navigation';
 import { createRandom } from '../../../shared/random';
-import { Robot } from './robot';
+import { KitCharacter } from './kit-character';
+import { CHARACTERS, characterHeight } from './kit-characters';
 import { agentIdentity } from '../../../core/world/agent-identity';
 
 export const AgentCharacter = ({ session, position, onOpenSession }: {
@@ -18,6 +19,7 @@ export const AgentCharacter = ({ session, position, onOpenSession }: {
   const idle = session.alive && session.status !== 'busy';
   const name = session.name || session.role || session.sessionId.slice(0, 8);
   const identity = agentIdentity(session);
+  const character = useMemo(() => CHARACTERS[Math.floor(random() * CHARACTERS.length)], [random]);
   useFrame((_, frameDelta) => {
     if (!actor.current || !facing.current) return;
     walking.current = false;
@@ -52,8 +54,8 @@ export const AgentCharacter = ({ session, position, onOpenSession }: {
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
       <circleGeometry args={[0.55, 20]} /><meshBasicMaterial color="#111a30" transparent opacity={0.25} depthWrite={false} />
     </mesh>
-    <group ref={facing}><Robot walking={walking} variant={identity.variant} /></group>
-    <Html position={[0, 2.8, 0]} center distanceFactor={28} zIndexRange={[30, 0]}>
+    <group ref={facing}><KitCharacter name={character} walking={walking} /></group>
+    <Html position={[0, characterHeight(character) + 0.8, 0]} center distanceFactor={28} zIndexRange={[30, 0]}>
       <button className="astra-agent-name" data-status={!session.alive ? 'dead' : idle ? 'idle' : 'busy'}
         title={`${name} · ${!session.alive ? 'Encerrado' : idle ? 'Ocioso' : 'Em execução'}`}
         onPointerDown={(event) => event.stopPropagation()}

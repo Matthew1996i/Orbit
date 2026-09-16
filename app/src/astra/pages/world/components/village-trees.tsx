@@ -1,36 +1,29 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
-import { Color, InstancedMesh, Object3D } from 'three';
+import { useEffect, useMemo } from 'react';
+import { useThree } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 import type { Tree } from '../../../core/world/village.types';
 import { createRandom } from '../../../shared/random';
-import { BlockBatch } from '../../../components/block-batch';
-import type { Block } from '../../../core/world/types';
+import { kitUrl, useKitMeshes } from './kit-models';
 
-export const VillageTrees = ({ trees, clusters = 240 }: { trees: Tree[]; clusters?: number }) => {
-  const canopy = useRef<InstancedMesh>(null);
-  const trunks = useMemo(() => trees.flatMap((tree): Block[] => [
-    { position: [tree.position[0], tree.position[1] + tree.height / 2, tree.position[2]], scale: [0.35, tree.height, 0.35], color: '#756451' },
-    ...[-1, 1].map((side): Block => ({ position: [tree.position[0] + side * 0.4, tree.height * 0.7, tree.position[2]],
-      scale: [0.19, tree.height * 0.5, 0.19], color: '#83725c', rotation: [0, 0, side * -0.6] })),
-  ]), [trees]);
-  useLayoutEffect(() => {
-    if (!canopy.current) return;
-    const random = createRandom(31), transform = new Object3D();
-    const colors = ['#6f8d59', '#8aa569', '#a5b97a', '#78965f', '#688054'];
-    trees.forEach((tree, treeIndex) => {
-      for (let cluster = 0; cluster < clusters; cluster++) {
-        const angle = random() * Math.PI * 2, spread = Math.sqrt(random()) * tree.radius;
-        transform.position.set(tree.position[0] + Math.cos(angle) * spread, tree.position[1] + tree.height + (random() - 0.3) * tree.radius * 1.4, tree.position[2] + Math.sin(angle) * spread);
-        const size = clusters < 100 ? 0.6 + random() * 0.65 : 0.19 + random() * 0.34;
-        transform.scale.set(size, size * 0.85, size); transform.rotation.set(random(), random(), random()); transform.updateMatrix();
-        canopy.current!.setMatrixAt(treeIndex * clusters + cluster, transform.matrix);
-        canopy.current!.setColorAt(treeIndex * clusters + cluster, new Color(colors[Math.floor(random() * colors.length)]));
-      }
-    });
-    canopy.current.instanceMatrix.needsUpdate = true;
-    if (canopy.current.instanceColor) canopy.current.instanceColor.needsUpdate = true;
-    canopy.current.computeBoundingSphere();
-  }, [trees, clusters]);
-  return <><BlockBatch blocks={trunks} /><instancedMesh ref={canopy} args={[undefined, undefined, trees.length * clusters]} castShadow={clusters >= 100} receiveShadow>
-    <icosahedronGeometry args={[1, 1]} /><meshStandardMaterial roughness={0.95} />
-  </instancedMesh></>;
+const TREE_MODELS = ['Tree_1', 'Tree_2', 'Tree_3'];
+TREE_MODELS.forEach((name) => useGLTF.preload(kitUrl(name)));
+
+// Variante e rotacao derivam da posicao, entao cada arvore fica estavel entre
+// renders mesmo quando o Forest renderiza uma <VillageTrees> por arvore.
+const seedFor = (tree: Tree) => Math.floor(Math.abs(tree.position[0] * 7919 + tree.position[2] * 104729 + tree.height * 31)) >>> 0;
+
+export const VillageTrees = ({ trees }: { trees: Tree[] }) => {
+  const { meshes, material } = useKitMeshes(TREE_MODELS);
+  const { gl, invalidate } = useThree();
+  const placements = useMemo(() => trees.map((tree) => {
+    const random = createRandom(seedFor(tree));
+    const variant = meshes[Math.floor(random() * meshes.length)];
+    return { tree, variant, scale: tree.height / variant.height, rotation: random() * Math.PI * 2 };
+  }), [trees, meshes]);
+  // O shadow map e estatico (autoUpdate=false); as arvores chegam depois do
+  // primeiro frame, entao pedimos um novo mapa de sombras quando montam.
+  useEffect(() => { gl.shadowMap.needsUpdate = true; invalidate(); }, [gl, invalidate, placements]);
+  return <>{placements.map(({ tree, variant, scale, rotation }, index) => <mesh key={index}
+    geometry={variant.geometry} material={material} position={tree.position}
+    rotation={[0, rotation, 0]} scale={scale} castShadow receiveShadow />)}</>;
 };

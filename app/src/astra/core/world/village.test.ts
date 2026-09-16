@@ -1,24 +1,36 @@
 import { expect, it } from 'vitest';
-import { createVillage } from './village';
+import { createVillage, isOccupied } from './village';
 
-it('generates a deterministic village with finite, positive geometry', () => {
+it('generates a deterministic village with finite geometry', () => {
   const village = createVillage();
   expect(createVillage()).toEqual(village);
-  expect(village.houses.length).toBeGreaterThan(0);
-  for (const blocks of [village.masonry, village.timber, village.tiles, village.lights]) {
-    for (const block of blocks) {
-      expect(block.position.every(Number.isFinite)).toBe(true);
-      expect(block.scale.every((value) => Number.isFinite(value) && value > 0)).toBe(true);
-    }
+  expect(village.buildings.length).toBeGreaterThan(5);
+  for (const placement of [...village.buildings, ...village.props, ...village.paths]) {
+    expect(placement.position.every(Number.isFinite)).toBe(true);
+    expect(placement.scale).toBeGreaterThan(0);
+    expect(placement.footprint).toBeGreaterThan(0);
   }
 });
 
-it('keeps buildings and trees outside the central agent gathering area', () => {
+it('keeps buildings, props and trees outside the central plaza where agents gather', () => {
   const village = createVillage();
-  for (const house of village.houses) {
-    const overlapsLobby = Math.abs(house.position[0]) - house.width / 2 < 7
-      && Math.abs(house.position[2]) - house.depth / 2 < 7;
-    expect(overlapsLobby).toBe(false);
+  for (const placement of [...village.buildings, ...village.props.filter((prop) => !/Bench|Bonfire/.test(prop.model))]) {
+    expect(Math.hypot(placement.position[0], placement.position[2])).toBeGreaterThan(village.plazaRadius);
   }
-  for (const tree of village.trees) expect(Math.abs(tree.position[0])).toBeGreaterThan(7);
+  for (const tree of village.trees) expect(Math.hypot(tree.position[0], tree.position[2])).toBeGreaterThan(village.plazaRadius + 2);
+});
+
+it('never places one model inside another', () => {
+  const village = createVillage();
+  const solids = [...village.buildings, ...village.props];
+  for (let first = 0; first < solids.length; first++) for (let second = first + 1; second < solids.length; second++) {
+    const a = solids[first], b = solids[second];
+    const distance = Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2]);
+    // Props ficam encostados nas construcoes, mas nunca dentro do nucleo delas.
+    expect(distance).toBeGreaterThan(Math.min(a.footprint, b.footprint) * 0.5);
+  }
+  for (const tree of village.trees) for (const building of village.buildings) {
+    expect(Math.hypot(tree.position[0] - building.position[0], tree.position[2] - building.position[2])).toBeGreaterThan(building.footprint * 0.8);
+  }
+  for (const building of village.buildings) expect(isOccupied(village, building.position[0], building.position[2], 0.1)).toBe(true);
 });

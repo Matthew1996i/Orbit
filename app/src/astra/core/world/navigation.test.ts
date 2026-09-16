@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { groundHeight, isAgentWalkable, randomWalkPath } from './navigation';
 import { createRandom } from '../../shared/random';
+import { createVillage } from './village';
 import { agentIdentity } from './agent-identity';
 import type { SessionInfo } from '../../../api';
 import { obstructsView } from './occlusion';
@@ -18,8 +19,10 @@ it('routes idle agents through connected ground without crossing houses, trees o
       [x, , z] = point;
     }
   }
-  expect(isAgentWalkable(20, 4)).toBe(false);
-  expect(isAgentWalkable(11.5, 4)).toBe(false);
+  expect(isAgentWalkable(0, 1)).toBe(true);
+  expect(isAgentWalkable(60, 0)).toBe(false);
+  const village = createVillage();
+  for (const building of village.buildings) expect(isAgentWalkable(building.position[0], building.position[2])).toBe(false);
 });
 
 it('identifies Claude and Codex without labelling another provider as Claude', () => {
