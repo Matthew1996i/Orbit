@@ -21,9 +21,16 @@ export const useBatchOcclusion = (mesh: RefObject<InstancedMesh | null>, blocks:
     for (const [obstacle, group] of groups) {
       const hidden = obstructsView(camera.position, target, obstacle);
       if (hidden === group.hidden) continue;
-      if (!group.original) group.original = new Float32Array(mesh.current.instanceMatrix.array);
+      if (!group.original) {
+        // Store only this obstacle's matrices, not a copy of the entire village
+        // for every obstacle that has ever crossed the camera.
+        group.original = new Float32Array(group.indices.length * 16);
+        group.indices.forEach((index, offset) => {
+          scratch.matrix.fromArray(mesh.current!.instanceMatrix.array, index * 16).toArray(group.original!, offset * 16);
+        });
+      }
       group.hidden = hidden;
-      for (const index of group.indices) mesh.current.setMatrixAt(index, hidden ? scratch.hidden : scratch.matrix.fromArray(group.original, index * 16));
+      group.indices.forEach((index, offset) => mesh.current!.setMatrixAt(index, hidden ? scratch.hidden : scratch.matrix.fromArray(group.original!, offset * 16)));
       mesh.current.instanceMatrix.needsUpdate = true;
     }
   });

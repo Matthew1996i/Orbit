@@ -21,7 +21,7 @@ it('loads Astra in the second tab and keeps the external panels visible', async 
   expect(screen.getAllByText('Indicadores de uso')).toHaveLength(1);
 });
 
-it('preserves agent state and pauses Astra on returning to agents', async () => {
+it('preserves agent state and releases Astra on returning to agents', async () => {
   const mounted = vi.fn(), unmounted = vi.fn();
   const Agents = () => {
     const [zoom, setZoom] = useState(100);
@@ -36,7 +36,8 @@ it('preserves agent state and pauses Astra on returning to agents', async () => 
   expect(screen.getByRole('button', { name: 'Zoom 125' })).toBeVisible();
   expect(mounted).toHaveBeenCalledTimes(1);
   expect(unmounted).not.toHaveBeenCalled();
-  expect(screen.getByText('Astra pausado')).not.toBeVisible();
+  expect(screen.queryByText('Astra pausado')).not.toBeInTheDocument();
+  expect(screen.queryByText('Astra ativo')).not.toBeInTheDocument();
 });
 
 it('supports keyboard selection and moves focus to the selected tab', () => {

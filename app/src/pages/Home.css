@@ -529,7 +529,7 @@ body.orbit-terminal-resizing {
   cursor: pointer;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
   transition: box-shadow 0.14s ease, filter 0.14s ease;
-  z-index: 20;
+  z-index: 100;
 }
 .home-new-agent-btn:hover {
   filter: brightness(1.08);
@@ -547,6 +547,12 @@ body.orbit-terminal-resizing {
 }
 .home-new-agent-label {
   white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .home-new-agent-btn {
+    bottom: 84px;
+  }
 }
 
 .term-pinned-tab, .term-dock-chip { touch-action: none; cursor: grab; }

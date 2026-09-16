@@ -11,11 +11,9 @@ const MODES = [
   { label: 'Astra', Icon: SquaresFour },
 ] as const;
 
-const ContentWorkspace = ({ children, sessions = NO_SESSIONS, onOpenSession }: { children: ReactNode; sessions?: SessionInfo[]; onOpenSession?: (session: SessionInfo) => void }) => {
+const ContentWorkspace = ({ children, actions, sessions = NO_SESSIONS, onOpenSession }: { children: ReactNode; actions?: ReactNode; sessions?: SessionInfo[]; onOpenSession?: (session: SessionInfo) => void }) => {
   const [selected, setSelected] = useState(0);
-  const [astraVisited, setAstraVisited] = useState(false);
   const select = (index: number) => {
-    if (index === 1) setAstraVisited(true);
     setSelected(index);
   };
   const id = useId();
@@ -41,10 +39,11 @@ const ContentWorkspace = ({ children, sessions = NO_SESSIONS, onOpenSession }: {
       </div>
       <div className="orbit-workspace-panel" role="tabpanel" id={`${id}-panel-1`}
         aria-labelledby={`${id}-tab-1`} hidden={selected !== 1} tabIndex={0}>
-        {astraVisited && <Suspense fallback={<div role="status">Carregando Astra…</div>}>
+        {selected === 1 && <Suspense fallback={<div role="status">Carregando Astra…</div>}>
           <AstraWorkspace active={selected === 1} sessions={sessions} onOpenSession={onOpenSession} />
         </Suspense>}
       </div>
+      {actions}
       <div className="orbit-content-switch" role="tablist" aria-label="Visualização do conteúdo">
         <span className="orbit-content-switch-indicator" data-selected={selected} aria-hidden="true" />
         {MODES.map(({ label, Icon }, index) => (

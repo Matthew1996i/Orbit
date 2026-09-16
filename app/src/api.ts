@@ -487,7 +487,7 @@ export interface StepEvent {
 
 const STREAM_STALE_MS = 6000; // backend manda um ping a cada 1s; sem nada nesse tempo, a conexao esta morta de verdade
 
-export function connectStepStream(onStep: (step: StepEvent) => void): () => void {
+export const connectStepStream = (onStep: (step: StepEvent) => void, sessionId?: string): (() => void) => {
   let es: EventSource | null = null;
   let stopped = false;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -495,15 +495,17 @@ export function connectStepStream(onStep: (step: StepEvent) => void): () => void
   let lastMessageAt = Date.now();
 
   const reconnect = () => {
+    if (retryTimer !== null) clearTimeout(retryTimer);
     es?.close();
     es = null;
     if (!stopped) retryTimer = setTimeout(connect, 1500);
   };
 
   const connect = () => {
+    retryTimer = null;
     if (stopped) return;
     lastMessageAt = Date.now();
-    es = new EventSource(`${BACKEND_HTTP}/api/stream`);
+    es = new EventSource(`${BACKEND_HTTP}/api/stream${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`);
     es.onmessage = (ev) => {
       lastMessageAt = Date.now();
       try {
@@ -522,7 +524,7 @@ export function connectStepStream(onStep: (step: StepEvent) => void): () => void
   // onde a conexao morre sem disparar onerror (ex: backend reiniciado de
   // forma abrupta, thread do servidor caindo sem fechar o socket direito).
   watchdogTimer = setInterval(() => {
-    if (!stopped && Date.now() - lastMessageAt > STREAM_STALE_MS) {
+    if (!stopped && retryTimer === null && !document.hidden && Date.now() - lastMessageAt > STREAM_STALE_MS) {
       reconnect();
     }
   }, 2000);
@@ -533,4 +535,4 @@ export function connectStepStream(onStep: (step: StepEvent) => void): () => void
     if (watchdogTimer) clearInterval(watchdogTimer);
     es?.close();
   };
-}
+};

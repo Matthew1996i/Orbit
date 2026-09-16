@@ -58,6 +58,41 @@ ORBIT_MANAGED_MARKER = "# Managed by Orbit. Changes will be overwritten."
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_SCROLLBACK = 300_000  # bytes de buffer mantidos por agente
 
+
+def _reverse_file_lines(stream, end, block_size=65536):
+    """Read newest lines first without loading the entire append-only log."""
+    pending = b""
+    while end:
+        start = max(0, end - block_size)
+        stream.seek(start)
+        parts = (stream.read(end - start) + pending).split(b"\n")
+        pending = parts[0]
+        yield from reversed(parts[1:])
+        end = start
+    if pending:
+        yield pending
+
+
+def _read_step_backlog(path, parser):
+    """Keep the existing event limit, stopping as soon as its tail is found.
+
+    A trailing incomplete line stays unread until the producer finishes it.
+    The returned offset belongs to the same snapshot used to read the backlog.
+    """
+    recent = deque(maxlen=HISTORY_BACKLOG_STEPS)
+    with path.open("rb") as stream:
+        end = stream.seek(0, os.SEEK_END)
+        lines = _reverse_file_lines(stream, end)
+        trailing = next(lines, b"")
+        offset = end - len(trailing)
+        for raw in lines:
+            steps = parser(raw.decode("utf-8", "replace"))
+            for step in reversed(steps):
+                recent.appendleft(step)
+                if len(recent) == HISTORY_BACKLOG_STEPS:
+                    return list(recent), offset
+    return list(recent), offset
+
 # id -> {pid, master_fd, cwd, name, proc, buffer, buf_lock, writers, writers_lock, closed}
 AGENTS = {}
 AGENTS_LOCK = threading.Lock()
@@ -807,10 +842,17 @@ def read_codex_sessions():
     index_path = CODEX_DIR / "session_index.jsonl"
     if index_path.exists():
         try:
-            lines = index_path.read_text().splitlines()
+            with index_path.open("rb") as index_stream:
+                end = index_stream.seek(0, os.SEEK_END)
+                lines = []
+                for raw in _reverse_file_lines(index_stream, end):
+                    if raw.strip():
+                        lines.append(raw.decode("utf-8", "replace"))
+                    if len(lines) == CODEX_INDEX_SCAN_LIMIT:
+                        break
         except OSError:
             lines = []
-        for line in reversed(lines[-CODEX_INDEX_SCAN_LIMIT:]):
+        for line in lines:
             line = line.strip()
             if not line:
                 continue
@@ -1774,6 +1816,19 @@ def transcript_path(cwd, session_id):
     return fpath if fpath.exists() else None
 
 
+TRANSCRIPT_CACHE_LIMIT = 256
+_TRANSCRIPT_CACHE_LOCK = threading.Lock()
+
+
+def _store_transcript_cache(cache, key, value):
+    # Bound long-lived backend caches even when sessions come and go for days.
+    with _TRANSCRIPT_CACHE_LOCK:
+        cache.pop(key, None)
+        cache[key] = value
+        while len(cache) > TRANSCRIPT_CACHE_LIMIT:
+            cache.pop(next(iter(cache)))
+
+
 _EFFORT_CACHE = {}  # caminho do transcript (str) -> (mtime, {"effort":..., "model":...})
 _EFFORT_TAIL_BYTES = 200_000  # basta pra achar a ULTIMA mensagem do assistente sem ler o arquivo inteiro
 
@@ -1841,7 +1896,7 @@ def _read_latest_effort_model(fpath):
         "effort": result_effort,
         "model": result_model,
     }
-    _EFFORT_CACHE[cache_key] = (mtime, result)
+    _store_transcript_cache(_EFFORT_CACHE, cache_key, (mtime, result))
     return result
 
 
@@ -1953,7 +2008,7 @@ def _scan_tool_activity(fpath):
         pass
 
     result = {"mcp": list(by_server.values()), "skill": list(by_skill.values())}
-    _MCP_CACHE[cache_key] = (mtime, result)
+    _store_transcript_cache(_MCP_CACHE, cache_key, (mtime, result))
     return result
 
 
@@ -2096,7 +2151,7 @@ def _scan_agent_roles(parent_transcript_path):
                                 roles[match.group(1)] = pending.pop(tu_id)
     except OSError:
         return {}
-    _ROLE_CACHE[cache_key] = (mtime, roles)
+    _store_transcript_cache(_ROLE_CACHE, cache_key, (mtime, roles))
     return roles
 
 
@@ -2533,7 +2588,7 @@ def _scan_transcript_usage(fpath, llm="claude"):
     result = scanner(fpath)
     if result is None:
         return None
-    _USAGE_CACHE[cache_key] = (mtime, result)
+    _store_transcript_cache(_USAGE_CACHE, cache_key, (mtime, result))
     return result
 
 
@@ -5076,6 +5131,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def _stream_steps(self):
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        selected_session = query.get("sessionId", [None])[0]
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
@@ -5109,25 +5166,15 @@ class Handler(BaseHTTPRequestHandler):
             sessions = {
                 s["sessionId"]: s
                 for s in read_sessions() + subagent_list + read_codex_sessions()
-                if s.get("alive")
+                if s.get("alive") and (not selected_session or s["sessionId"] == selected_session)
             }
             for sid, s in sessions.items():
                 fpath = resolve_transcript(s)
                 if not fpath:
                     continue
                 parser = _parser_for_session(s)
-                size = fpath.stat().st_size
-                # historico completo da sessao (nao so os ultimos KB) - o usuario quer
-                # ver a conversa inteira ao abrir, nao um recorte recente e fora de contexto
-                with fpath.open("r", errors="ignore") as f:
-                    chunk = f.read()
-                offsets[sid] = size
-                lines = chunk.split("\n")
-                collected = []
-                for line in lines:
-                    if line.strip():
-                        collected.extend(parser(line))
-                for step in collected[-HISTORY_BACKLOG_STEPS:]:
+                collected, offsets[sid] = _read_step_backlog(fpath, parser)
+                for step in collected:
                     step["sessionId"] = sid
                     step["pid"] = s["pid"]
                     step["name"] = step.get("name") or s.get("name")
@@ -5141,7 +5188,7 @@ class Handler(BaseHTTPRequestHandler):
                 sessions = {
                     s["sessionId"]: s
                     for s in read_sessions() + subagent_list + read_codex_sessions()
-                    if s.get("alive")
+                    if s.get("alive") and (not selected_session or s["sessionId"] == selected_session)
                 }
                 for sid, s in sessions.items():
                     fpath = resolve_transcript(s)
@@ -5162,15 +5209,8 @@ class Handler(BaseHTTPRequestHandler):
                         # conteudo ja existente como backlog agora, igual o bloco
                         # de conexao faz pras sessoes que ja estavam vivas na
                         # hora do connect.
-                        with fpath.open("r", errors="ignore") as f:
-                            chunk = f.read()
-                        offsets[sid] = size
-                        lines = chunk.split("\n")
-                        collected = []
-                        for line in lines:
-                            if line.strip():
-                                collected.extend(parser(line))
-                        for step in collected[-HISTORY_BACKLOG_STEPS:]:
+                        collected, offsets[sid] = _read_step_backlog(fpath, parser)
+                        for step in collected:
                             step["sessionId"] = sid
                             step["pid"] = s["pid"]
                             step["name"] = step.get("name") or s.get("name")
@@ -5179,22 +5219,26 @@ class Handler(BaseHTTPRequestHandler):
                     pos = offsets.get(sid, size)
                     if size < pos:
                         pos = 0  # arquivo rotacionado/truncado
+                        leftover.pop(sid, None)
                     if size > pos:
-                        with fpath.open("r", errors="ignore") as f:
+                        with fpath.open("rb") as f:
                             f.seek(pos)
-                            chunk = f.read()
-                        offsets[sid] = size
-                        buf = leftover.get(sid, "") + chunk
-                        lines = buf.split("\n")
+                            chunk = f.read(min(size - pos, 256 * 1024))
+                        offsets[sid] = pos + len(chunk)
+                        buf = leftover.get(sid, b"") + chunk
+                        lines = buf.split(b"\n")
                         leftover[sid] = lines[-1]
                         for line in lines[:-1]:
                             if not line.strip():
                                 continue
-                            for step in parser(line):
+                            for step in parser(line.decode("utf-8", "replace")):
                                 step["sessionId"] = sid
                                 step["pid"] = s["pid"]
                                 step["sessionName"] = s.get("name")
                                 self._sse_send(step)
+                for expired_id in set(offsets) - sessions.keys():
+                    offsets.pop(expired_id, None)
+                    leftover.pop(expired_id, None)
                 self._sse_send({"kind": "ping"})
                 time.sleep(1)
         except (BrokenPipeError, ConnectionResetError):

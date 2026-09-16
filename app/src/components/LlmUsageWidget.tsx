@@ -1,3 +1,4 @@
+import { startVisiblePolling } from '../utils/visiblePolling';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowsClockwise, Clock } from '@phosphor-icons/react';
@@ -5,10 +6,9 @@ import { fetchLlms, fetchUsage, ClaudeUsage, CodexUsage, UsageWindow, LlmCli, Se
 import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
 import './LlmUsageWidget.css';
 
-// mesmo intervalo do polling de sessoes (Home.tsx) — senao a caixinha de
-// contagem de sessao (busy/total) fica visivelmente atrasada em relacao ao
-// resto da tela, que ja atualiza a cada 2s.
-const LLM_REFRESH_MS = 2000;
+// CLI installation/auth changes slowly. Live counts come from sessions props,
+// so rediscovering executables every two seconds only adds subprocess and I/O work.
+const LLM_REFRESH_MS = 30_000;
 
 // uso real (%) vem do endpoint OAuth da Anthropic via backend local. Mantem a
 // cadencia de 60s para nao bater na API a cada poll visual de sessoes.
@@ -28,16 +28,6 @@ function isCountableSession(session: SessionInfo): boolean {
 // significa claude.
 function sessionLlmBin(session: SessionInfo): string {
   return session.llm || 'claude';
-}
-
-function formatResetsAt(iso: string | null): string {
-  if (!iso) return '';
-  const diffMs = new Date(iso).getTime() - Date.now();
-  if (diffMs <= 0) return 'resetando agora';
-  const hours = diffMs / 3_600_000;
-  if (hours < 1) return `reseta em ${Math.round(diffMs / 60_000)}min`;
-  if (hours < 48) return `reseta em ${Math.round(hours)}h`;
-  return `reseta em ${Math.round(hours / 24)}d`;
 }
 
 // versao curta (sem "reseta em"), pro grid de resets do popover novo — "21m",
@@ -101,7 +91,7 @@ interface Props {
   sessions: SessionInfo[];
 }
 
-export default function LlmUsageWidget({ sessions }: Props) {
+const LlmUsageWidget = ({ sessions }: Props) => {
   const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
   const [usage, setUsage] = useState<ClaudeUsage | null>(null);
   const [codexUsage, setCodexUsage] = useState<CodexUsage | null>(null);
@@ -163,7 +153,7 @@ export default function LlmUsageWidget({ sessions }: Props) {
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      fetchLlms()
+      return fetchLlms()
         .then((response) => {
           if (!cancelled) setLlms([CLAUDE_LLM_OPTION, ...response.llms]);
         })
@@ -171,17 +161,16 @@ export default function LlmUsageWidget({ sessions }: Props) {
           /* backend indisponivel nesse ciclo — mantem a ultima lista conhecida */
         });
     };
-    load();
-    const id = setInterval(load, LLM_REFRESH_MS);
+    const stopPolling = startVisiblePolling(load, LLM_REFRESH_MS);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      stopPolling();
     };
   }, []);
 
   const loadUsage = (silent = false, force = false) => {
     if (!silent) setUsageLoading(true);
-    fetchUsage(force)
+    return fetchUsage(force)
       .then((response) => {
         setUsage(response.claude);
         setCodexUsage(response.codex);
@@ -210,10 +199,7 @@ export default function LlmUsageWidget({ sessions }: Props) {
 
   useEffect(() => {
     if (!SHOW_REAL_USAGE) return;
-    loadUsage(true);
-    const id = setInterval(() => loadUsage(true), USAGE_REFRESH_MS);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return startVisiblePolling(() => loadUsage(true), USAGE_REFRESH_MS);
   }, []);
 
   // Relatorios de assinatura nao dependem de haver agentes rodando. Mantemos
@@ -480,4 +466,6 @@ export default function LlmUsageWidget({ sessions }: Props) {
       })}
     </div>
   );
-}
+};
+
+export default LlmUsageWidget;
