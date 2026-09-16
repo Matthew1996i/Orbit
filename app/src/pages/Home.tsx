@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { Plus, Skull, ArrowSquareOut, ArrowCounterClockwise, X, PushPinSlash } from '@phosphor-icons/react';
 import SessionTree from '../components/SessionTree';
-import LlmUsageWidget from '../components/LlmUsageWidget';
 import { llmLogoFor } from '../utils/llmLogos';
 import TerminalPanel from '../components/TerminalPanel';
 import NewAgentDialog from '../components/NewAgentDialog';
@@ -568,9 +567,6 @@ export default function Home() {
     <IonPage className="home-page">
       <AppShell sessions={sessions} onOpenSession={openPanel}>
         <IonContent className="home-content">
-          <div className="home-usage-header">
-            <LlmUsageWidget sessions={sessions} />
-          </div>
           <SessionTree
             sessions={[...sessions].sort((a, b) => a.startedAt - b.startedAt)}
             onOpen={openPanel}

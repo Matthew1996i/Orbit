@@ -21,6 +21,7 @@ import { readPref, writePref } from '../utils/uiPrefs';
 import { SectionKey } from '../utils/sidebarSections';
 import { AgentFileKind } from '../api';
 import './AppShell.css';
+import ContentWorkspace from './ContentWorkspace';
 import ToolsCatalogScreen from './ToolsCatalogScreen';
 import ToolsEditScreen from './ToolsEditScreen';
 
@@ -684,7 +685,7 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
               }
             />
           ) : (
-            children
+            <ContentWorkspace sessions={sessions} onOpenSession={onOpenSession}>{children}</ContentWorkspace>
           )}
         </div>
       </div>

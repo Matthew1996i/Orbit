@@ -12,13 +12,6 @@
   background-size: 22px 22px;
 }
 
-.home-usage-header {
-  position: absolute;
-  top: 12px;
-  left: 16px;
-  z-index: 11;
-}
-
 ion-toolbar {
   --background: var(--orbit-canvas-bg);
   --border-color: var(--orbit-canvas-border);

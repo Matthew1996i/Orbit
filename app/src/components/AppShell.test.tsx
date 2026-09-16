@@ -8,6 +8,7 @@ vi.mock('./Sidebar', () => ({ default: ({ activeSection }: { activeSection: stri
   <div data-testid="sidebar-content">{activeSection}</div>,
 }));
 vi.mock('./TitleBar', () => ({ default: () => null }));
+vi.mock('./LlmUsageWidget', () => ({ default: () => null }));
 vi.mock('./LlmCatalogScreen', () => ({ default: () => null }));
 vi.mock('./LlmDetailScreen', () => ({ default: () => null }));
 vi.mock('./AgentEditScreen', () => ({ default: () => null }));
