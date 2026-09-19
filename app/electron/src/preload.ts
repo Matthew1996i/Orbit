@@ -7,6 +7,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('dashboardAPI', {
   platform: process.platform,
+  discoverLlms: () => ipcRenderer.invoke('discover-llms'),
+  syncLlm: (id) => ipcRenderer.invoke('sync-llm', id),
   getUpdateState: () => ipcRenderer.invoke('app-update-get'),
   checkForUpdates: () => ipcRenderer.invoke('app-update-check'),
   downloadUpdate: () => ipcRenderer.invoke('app-update-download'),

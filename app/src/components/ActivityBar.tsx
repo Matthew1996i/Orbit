@@ -33,7 +33,7 @@ interface Props {
   onToggleSidebars: () => void;
 }
 
-export default function ActivityBar({
+const ActivityBar = ({
   expanded,
   onSelectSection,
   onBarHover,
@@ -46,7 +46,7 @@ export default function ActivityBar({
   screenSection,
   sidebarsPinned,
   onToggleSidebars,
-}: Props) {
+}: Props) => {
   const [settingsMenuAnchor, setSettingsMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [version, setVersion] = useState('');
@@ -124,6 +124,9 @@ export default function ActivityBar({
       onMouseOver={handlePointerOver}
       onMouseLeave={onHoverSectionEnd}
     >
+      <div className="orbit-activitybar-brand" role="img" aria-label="Orbit">
+        <span className="orbit-activitybar-brand-art" aria-hidden="true" />
+      </div>
       <button
         className={`orbit-activitybar-btn${isHome ? ' active' : ''}`}
         onClick={onGoHome}
@@ -181,4 +184,6 @@ export default function ActivityBar({
       <AboutDialog open={showAbout} version={version} onClose={() => setShowAbout(false)} />
     </div>
   );
-}
+};
+
+export default ActivityBar;

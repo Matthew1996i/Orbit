@@ -8,7 +8,15 @@ import unhandled from 'electron-unhandled';
 import { join } from 'path';
 
 import { startBackend, stopBackend } from './backend';
+import { discoverLlms } from './cliDiscovery';
+import { syncLlm } from './llmSync';
 import { ElectronCapacitorApp, setupContentSecurityPolicy, setupReloadWatcher } from './setup';
+
+// O Windows associa o remetente dos toasts ao AppUserModelID do processo.
+// Definir a identidade antes de criar qualquer notificacao evita exibir
+// a identidade de desenvolvimento do runtime no lugar do nome do produto.
+app.setName('Orbit');
+if (process.platform === 'win32') app.setAppUserModelId('br.com.axyo.orbit');
 
 // Graceful handling of unhandled errors.
 unhandled();
@@ -181,6 +189,8 @@ ipcMain.handle('window-toggle-maximize', (event) => {
   return win.isMaximized();
 });
 ipcMain.handle('window-close', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
+ipcMain.handle('discover-llms', () => discoverLlms());
+ipcMain.handle('sync-llm', (_event, id: string) => syncLlm(id));
 ipcMain.handle('window-is-maximized', (event) => BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false);
 
 // "destacar terminal pra fora do app" — abre uma janela OS de verdade pra

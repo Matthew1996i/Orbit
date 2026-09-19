@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ConfigProvider, Typography, Button } from 'antd';
-import { ArrowLeft, ArrowSquareOut, SignOut, SignIn, Copy, Check } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowSquareOut, SignOut, SignIn, Copy, Check, ArrowsClockwise } from '@phosphor-icons/react';
 import { LlmCli, startInstall } from '../api';
 import { llmLogoFor, llmLogoColorFor } from '../utils/llmLogos';
 import { llmGuideFor, llmManualAuthHint } from '../utils/llmGuide';
@@ -111,6 +111,8 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
   // rodando por baixo (o processo so COMECA quando o WS conecta, ver
   // InstallLogView), so que montado sem nenhum espaco visual.
   const [running, setRunning] = useState<{ action: 'login' | 'logout'; agentId: string } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
 
   const reload = () => fetchAllLlms().then(setLlms);
   useEffect(() => {
@@ -128,6 +130,21 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
   const onRunDone = () => {
     setRunning(null);
     reload();
+  };
+
+  const sync = async () => {
+    setSyncing(true);
+    setSyncMessage('');
+    try {
+      const result = await window.dashboardAPI?.syncLlm(id);
+      setSyncMessage(result?.error || (result?.ok
+        ? `Sincronizado. Configurações ${result.importedConfig ? 'não sensíveis importadas' : 'não encontradas'}; instruções e catálogo atualizados.`
+        : 'Sincronização disponível no app desktop.'));
+    } catch {
+      setSyncMessage('Não foi possível sincronizar esta LLM.');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   if (!llm) {
@@ -224,6 +241,14 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
 
           <div className="llm-detail-section">
             <Text className="llm-detail-section-title">Configurações</Text>
+            {['claude', 'codex', 'gemini', 'opencode'].includes(llm.id) && llm.status !== 'none' && (
+              <div className="llm-detail-account-actions">
+                <Button className="llm-btn llm-btn-secondary" icon={<ArrowsClockwise size={13} />} loading={syncing} onClick={sync}>
+                  Sincronizar com Orbit
+                </Button>
+              </div>
+            )}
+            {syncMessage && <p className="llm-detail-sync-status" role="status">{syncMessage}</p>}
             <div className="llm-detail-config-list">
               <div className="llm-detail-config-row">
                 <span className="llm-detail-config-label">Binário</span>

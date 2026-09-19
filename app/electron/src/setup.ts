@@ -101,6 +101,7 @@ export class ElectronCapacitorApp {
     const icon = nativeImage.createFromPath(
       join(app.getAppPath(), 'assets', process.platform === 'win32' ? 'appIcon.ico' : 'appIcon.png')
     );
+    if (process.platform === 'darwin') app.dock.setIcon(icon);
     this.mainWindowState = windowStateKeeper({
       defaultWidth: 1000,
       defaultHeight: 800,

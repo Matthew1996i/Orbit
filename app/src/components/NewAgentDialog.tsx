@@ -1,8 +1,9 @@
 import { useModalNavigation } from '../utils/modalNavigation';
 import { useEffect, useRef, useState } from 'react';
 import { FolderOpen, Robot, CaretDown } from '@phosphor-icons/react';
-import { fetchLlms, fetchUsage, LlmCli } from '../api';
-import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
+import { LlmCli } from '../api';
+import { fetchAllLlms } from '../utils/llmCatalog';
+import { llmLogoFor } from '../utils/llmLogos';
 import './ConfirmDialog.css';
 import './NewAgentDialog.css';
 
@@ -16,8 +17,8 @@ export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
   useModalNavigation(open);
   const [cwd, setCwd] = useState('~');
   const [name, setName] = useState('');
-  const [llm, setLlm] = useState('claude');
-  const [llmOptions, setLlmOptions] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
+  const [llm, setLlm] = useState('');
+  const [llmOptions, setLlmOptions] = useState<LlmCli[]>([]);
   const [llmMenuOpen, setLlmMenuOpen] = useState(false);
   const llmPickerRef = useRef<HTMLDivElement>(null);
   // ref (nao state): precisa bloquear o 2o clique JA no mesmo tick do 1o —
@@ -30,28 +31,14 @@ export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
     if (open) {
       setCwd('~');
       setName('');
-      setLlm('claude');
+      setLlm('');
+      setLlmOptions([]);
       setLlmMenuOpen(false);
       submittedRef.current = false;
-      fetchLlms()
-        .then((r) => {
-          setLlmOptions([CLAUDE_LLM_OPTION, ...r.llms]);
-          // status do Claude nao vem do /api/llms (essa CLI e o proprio app);
-          // busca o status real de autenticacao a parte e sobrescreve o
-          // placeholder hardcoded assim que resolver.
-          fetchUsage()
-            .then(({ claudeAuthenticated }) => {
-              setLlmOptions((cur) =>
-                cur.map((opt) =>
-                  opt.id === 'claude'
-                    ? { ...opt, connected: claudeAuthenticated, status: claudeAuthenticated ? 'connected' : 'installed' }
-                    : opt,
-                ),
-              );
-            })
-            .catch(() => {});
-        })
-        .catch(() => setLlmOptions([CLAUDE_LLM_OPTION]));
+      fetchAllLlms().then((options) => {
+        setLlmOptions(options.filter((option) => option.status !== 'none'));
+        setLlm(options.find((option) => option.connected)?.bin || '');
+      }).catch(() => setLlmOptions([]));
     }
   }, [open]);
 
@@ -66,8 +53,8 @@ export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
 
   if (!open) return null;
 
-  const selectedLlm = llmOptions.find((opt) => opt.bin === llm) || CLAUDE_LLM_OPTION;
-  const SelectedLogo = llmLogoFor(selectedLlm.id);
+  const selectedLlm = llmOptions.find((opt) => opt.bin === llm);
+  const SelectedLogo = selectedLlm ? llmLogoFor(selectedLlm.id) : null;
 
   const pickFolder = async () => {
     if (!window.dashboardAPI) return;
@@ -76,7 +63,7 @@ export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
   };
 
   const submit = () => {
-    if (submittedRef.current) return;
+    if (submittedRef.current || !selectedLlm?.connected) return;
     submittedRef.current = true;
     onSubmit(cwd || '~', name, llm);
   };
@@ -113,15 +100,14 @@ export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
             className="new-agent-input new-agent-llm-trigger"
             onClick={() => setLlmMenuOpen((v) => !v)}
           >
-            <span className="new-agent-llm-logo">
-              <SelectedLogo size={15} />
-            </span>
-            <span className="new-agent-llm-name">{selectedLlm.name}</span>
+            {SelectedLogo && <span className="new-agent-llm-logo"><SelectedLogo size={15} /></span>}
+            <span className="new-agent-llm-name">{selectedLlm?.name || 'Nenhuma LLM conectada'}</span>
             <CaretDown size={14} className={`new-agent-llm-chevron ${llmMenuOpen ? 'open' : ''}`} />
           </button>
 
           {llmMenuOpen && (
             <div className="new-agent-llm-menu">
+              {llmOptions.length === 0 && <div className="new-agent-llm-option">Nenhuma LLM instalada</div>}
               {llmOptions.map((opt) => {
                 const Logo = llmLogoFor(opt.id);
                 return (
@@ -151,7 +137,7 @@ export default function NewAgentDialog({ open, onClose, onSubmit }: Props) {
           <button className="confirm-btn-cancel" onClick={onClose} type="button">
             Cancelar
           </button>
-          <button className="confirm-btn-submit" onClick={submit} type="button">
+          <button className="confirm-btn-submit" onClick={submit} type="button" disabled={!selectedLlm?.connected}>
             Iniciar
           </button>
         </div>

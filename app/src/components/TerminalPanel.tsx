@@ -572,7 +572,7 @@ const TerminalPanel = ({
 
   return (
     <div
-      className={`term-panel${maximized ? ' term-panel-maximized' : ''}${popout ? ' term-panel-popout' : ''}${docked ? ' term-panel-docked' : ''}${docked && !dockedActive ? ' term-panel-docked-inactive' : ''}${settledHidden ? ' term-panel-minimized-hidden' : ''}${geniePhase ? ` term-panel-genie-${geniePhase}` : ''}${session.remoteControl ? ' term-panel-remote' : ''}`}
+      className={`term-panel${maximized && !popout ? ' term-panel-maximized' : ''}${popout ? ' term-panel-popout' : ''}${docked ? ' term-panel-docked' : ''}${docked && !dockedActive ? ' term-panel-docked-inactive' : ''}${settledHidden ? ' term-panel-minimized-hidden' : ''}${geniePhase ? ` term-panel-genie-${geniePhase}` : ''}${session.remoteControl ? ' term-panel-remote' : ''}`}
       style={{ zIndex }}
       ref={panelRef}
       data-session-id={session.sessionId}
@@ -580,10 +580,8 @@ const TerminalPanel = ({
     >
       <div className={`term-header${IS_LINUX_STYLE ? ' term-header-linux' : ''}`} ref={headerRef}>
         {popout || !IS_MAC_STYLE ? (
-          // janela destacada (popout): o proprio SO ja da fechar/minimizar
-          // (via PopoutTitleBar em SessionWindow.tsx) — repetir aqui so
-          // duplicaria. Fora do mac: fechar/minimizar vao pro lado direito
-          // junto do resto dos controles simulados de janela (ver abaixo).
+          // Na janela destacada, o macOS desenha os controles nativos neste
+          // espaco; nos outros sistemas os botoes ficam a direita.
           <div className="term-header-spacer" />
         ) : (
           <div className="term-traffic-lights">
@@ -606,7 +604,7 @@ const TerminalPanel = ({
             <span className="term-title-remote-tag" title="Remote Control ativo nesta sessão">remoto</span>
           )}
         </strong>
-        {popout ? (
+        {popout && IS_MAC_STYLE ? (
           <div className="term-header-spacer" />
         ) : (
           <div className="term-header-spacer">
@@ -622,13 +620,13 @@ const TerminalPanel = ({
             )}
             {!IS_MAC_STYLE && (
               <>
-                {!docked && <button className="term-win-btn" onClick={onMinimize} aria-label="Minimizar">
+                {!docked && <button className="term-win-btn" onClick={popout ? () => window.dashboardAPI?.windowMinimize() : onMinimize} aria-label="Minimizar">
                   <Minus size={11} weight="bold" />
                 </button>}
-                {!docked && <button className="term-win-btn" onClick={() => setMaximized((value) => !value)} aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar'}>
+                {!docked && <button className="term-win-btn" onClick={popout ? async () => setMaximized(Boolean(await window.dashboardAPI?.windowToggleMaximize())) : () => setMaximized((value) => !value)} aria-label={maximized ? 'Restaurar tamanho' : 'Maximizar'}>
                   {maximized ? <ArrowsInSimple size={11} weight="bold" /> : <ArrowsOutSimple size={11} weight="bold" />}
                 </button>}
-                <button className="term-win-btn term-win-btn-close" onClick={onClose} aria-label="Fechar">
+                <button className="term-win-btn term-win-btn-close" onClick={popout ? () => window.dashboardAPI?.windowClose() : onClose} aria-label="Fechar">
                   <X size={11} weight="bold" />
                 </button>
               </>

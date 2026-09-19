@@ -127,6 +127,12 @@
   display: flex;
   gap: 8px;
 }
+
+.llm-detail-sync-status {
+  margin: 8px 0 12px;
+  font-size: var(--font-size-sm);
+  color: var(--orbit-fg-muted);
+}
 .llm-detail-no-login-hint {
   margin: 0;
   font-size: var(--font-size-base);

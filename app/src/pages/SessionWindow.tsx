@@ -2,61 +2,11 @@ import { startVisiblePolling } from '../utils/visiblePolling';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { IonPage } from '@ionic/react';
-import { Minus, X, ArrowsOutSimple } from '@phosphor-icons/react';
 import TerminalPanel from '../components/TerminalPanel';
 import { SessionInfo, StepEvent, connectStepStream, fetchState } from '../api';
-import { getOsPlatform } from '../utils/platform';
-import '../components/TitleBar.css';
 import './SessionWindow.css';
 
 const MAX_BUFFER_STEPS = 300;
-
-// barra de titulo customizada da janela destacada — a janela nasce
-// frame:false (igual a principal, ver open-session-window no processo
-// principal do Electron), entao o SO nao desenha nada sozinho; "externo -"
-// no titulo deixa claro de longe que essa janela e uma sessao destacada,
-// nao a janela principal do app. Reaproveita as classes de TitleBar.css
-// (mesmo visual dos botoes de janela) mas e um componente bem mais simples
-// (sem menu, sem sidebar) — nao faz sentido portar TitleBar.tsx inteiro.
-function PopoutTitleBar({ title }: { title: string }) {
-  // no macOS a janela usa titleBarStyle:'hiddenInset' (ver index.ts) — os
-  // semaforos nativos ja aparecem sozinhos, entao os nossos ficam de fora
-  // pra nao duplicar; no Linux/Windows continuam simulados (so muda o
-  // estilo circular vs quadrado, ver TitleBar.css).
-  const platform = getOsPlatform();
-  const isMac = platform === 'mac';
-  return (
-    <div className={`title-bar ${platform}`}>
-      <span className="title-bar-name">externo — {title}</span>
-
-      {!isMac && (
-        <div className="title-bar-window-controls">
-          <button
-            className="title-bar-btn"
-            onClick={() => window.dashboardAPI?.windowMinimize()}
-            aria-label="Minimizar"
-          >
-            <Minus size={14} weight="bold" />
-          </button>
-          <button
-            className="title-bar-btn"
-            onClick={() => window.dashboardAPI?.windowToggleMaximize()}
-            aria-label="Maximizar ou restaurar"
-          >
-            <ArrowsOutSimple size={14} />
-          </button>
-          <button
-            className="title-bar-btn title-bar-btn-close"
-            onClick={() => window.dashboardAPI?.windowClose()}
-            aria-label="Fechar"
-          >
-            <X size={14} weight="bold" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // conteudo de uma janela OS DEDICADA a UMA sessao (aberta via o botao
 // "destacar" do TerminalPanel — ver onPopout em Home.tsx e o handler
@@ -113,9 +63,8 @@ const SessionWindow = () => {
   const session = sessions.find((s) => s.sessionId === sessionId);
   const title = session?.name || sessionId?.slice(0, 8) || '…';
 
-  // o titulo NATIVO da janela (usado na barra de tarefas/alt-tab, mesmo sem
-  // moldura do SO visivel) segue `document.title` automaticamente — o
-  // Electron atualiza sozinho via `page-title-updated`, sem precisar de IPC.
+  // O titulo nativo continua identificando a sessao no Dock e no alternador
+  // de janelas. A barra visivel e a mesma do terminal dentro do app.
   useEffect(() => {
     document.title = `externo — ${title}`;
   }, [title]);
@@ -128,7 +77,6 @@ const SessionWindow = () => {
   return (
     <IonPage>
       <div className="session-window-body">
-        <PopoutTitleBar title={title} />
         {session ? (
           <TerminalPanel
             session={session}
