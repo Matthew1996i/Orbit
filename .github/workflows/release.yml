@@ -24,7 +24,7 @@ jobs:
         working-directory: app
         run: |
           npm install
-          npm run test.unit -- --run src/components/AppShell.test.tsx src/components/UpdateControl.test.tsx src/utils/terminalPlacement.test.ts src/pages/Home.test.tsx
+          npm run test.unit -- --run
           npm run build
 
       - name: Sincronizar bundle web pro Electron

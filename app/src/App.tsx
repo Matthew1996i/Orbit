@@ -1,8 +1,7 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route } from 'react-router-dom';
 import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
-import Home from './pages/Home';
-import SessionWindow from './pages/SessionWindow';
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/react/css/core.css';
@@ -35,16 +34,21 @@ import '@ionic/react/css/palettes/dark.system.css';
 import './theme/variables.css';
 import './theme/themes.css';
 
+const Home = lazy(() => import('./pages/Home'));
+const SessionWindow = lazy(() => import('./pages/SessionWindow'));
+
 setupIonicReact();
 
 const App: React.FC = () => (
   <IonApp>
     <IonReactRouter>
-      <IonRouterOutlet>
-        <Route path="/home" element={<Home />} />
-        <Route path="/session/:sessionId" element={<SessionWindow />} />
-        <Route path="/" element={<Navigate to="/home" replace />} />
-      </IonRouterOutlet>
+      <Suspense fallback={<div role="status">Carregando…</div>}>
+        <IonRouterOutlet>
+          <Route path="/home" element={<Home />} />
+          <Route path="/session/:sessionId" element={<SessionWindow />} />
+          <Route path="/" element={<Navigate to="/home" replace />} />
+        </IonRouterOutlet>
+      </Suspense>
     </IonReactRouter>
   </IonApp>
 );

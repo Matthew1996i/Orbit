@@ -1,3 +1,4 @@
+import { startVisiblePolling } from '../utils/visiblePolling';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { IonPage } from '@ionic/react';
@@ -64,10 +65,10 @@ function PopoutTitleBar({ title }: { title: string }) {
 // Electron proprio, sem nenhum estado compartilhado com a janela principal —
 // precisa buscar/assinar os dados da sessao de novo, do zero, do mesmo jeito
 // que o Home.tsx faz pro dashboard inteiro, so que filtrado pra UMA sessao.
-export default function SessionWindow() {
+const SessionWindow = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [replayVersion, setReplayVersion] = useState(0);
+  const [, setReplayVersion] = useState(0);
   const buffersRef = useRef<Map<string, StepEvent[]>>(new Map());
 
   const refresh = useCallback(async () => {
@@ -80,12 +81,18 @@ export default function SessionWindow() {
   }, []);
 
   useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 2000);
-    return () => clearInterval(id);
+    return startVisiblePolling(refresh, 2000);
   }, [refresh]);
 
   useEffect(() => {
+    let replayTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleReplay = () => {
+      if (replayTimer !== undefined) return;
+      replayTimer = setTimeout(() => {
+        replayTimer = undefined;
+        setReplayVersion((version) => version + 1);
+      }, 100);
+    };
     const disconnect = connectStepStream((step) => {
       if (!step.sessionId || step.sessionId !== sessionId) return;
       let buf = buffersRef.current.get(step.sessionId);
@@ -95,9 +102,12 @@ export default function SessionWindow() {
       }
       buf.push(step);
       if (buf.length > MAX_BUFFER_STEPS) buf.splice(0, buf.length - MAX_BUFFER_STEPS);
-      if (!step.backlog) setReplayVersion((v) => v + 1);
-    });
-    return disconnect;
+      if (!step.backlog) scheduleReplay();
+    }, sessionId);
+    return () => {
+      clearTimeout(replayTimer);
+      disconnect();
+    };
   }, [sessionId]);
 
   const session = sessions.find((s) => s.sessionId === sessionId);
@@ -139,4 +149,6 @@ export default function SessionWindow() {
       </div>
     </IonPage>
   );
-}
+};
+
+export default SessionWindow;

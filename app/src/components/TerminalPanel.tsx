@@ -55,7 +55,7 @@ interface Props {
   onNeedsAction?: (needsAction: boolean) => void;
 }
 
-export default function TerminalPanel({
+const TerminalPanel = ({
   session,
   allSessions,
   replaySteps,
@@ -71,7 +71,7 @@ export default function TerminalPanel({
   dockedActive = true,
   onDragStateChange,
   onNeedsAction,
-}: Props) {
+}: Props) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const [maximized, setMaximized] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -243,7 +243,8 @@ export default function TerminalPanel({
 
     const ws = new WebSocket(`${BACKEND_WS}/ws/agent/${session.appAgentId}`);
     ws.binaryType = 'arraybuffer';
-    ws.onmessage = (ev) => term.write(new Uint8Array(ev.data as ArrayBuffer), checkNeedsAction);
+    const parsedListener = term.onWriteParsed(checkNeedsAction);
+    ws.onmessage = (ev) => term.write(new Uint8Array(ev.data as ArrayBuffer));
     ws.onclose = () => term.writeln('\r\n\x1b[31m[desconectado]\x1b[0m');
     let lastCols = -1;
     let lastRows = -1;
@@ -334,12 +335,12 @@ export default function TerminalPanel({
     // ele realmente mudou; nao gera resize/SIGWINCH ocioso.
     const dimensionWatcher = window.setInterval(() => {
       const body = bodyRef.current;
-      if (!body) return;
+      if (!body || document.hidden || body.getClientRects().length === 0) return;
       if (body.clientWidth === observedWidth && body.clientHeight === observedHeight) return;
       observedWidth = body.clientWidth;
       observedHeight = body.clientHeight;
       scheduleResize();
-    }, 100);
+    }, 1000);
 
     return () => {
       disposed = true;
@@ -349,6 +350,9 @@ export default function TerminalPanel({
       themeObserver.disconnect();
       window.removeEventListener('resize', onWindowResize);
       ro.disconnect();
+      parsedListener.dispose();
+      ws.onmessage = null;
+      ws.onclose = null;
       ws.close();
       term.dispose();
       termRef.current = null;
@@ -649,4 +653,6 @@ export default function TerminalPanel({
       ))}
     </div>
   );
-}
+};
+
+export default TerminalPanel;

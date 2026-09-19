@@ -1,3 +1,4 @@
+import { startVisiblePolling } from '../utils/visiblePolling';
 import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { SessionInfo, StepEvent } from '../api';
 import DiffBlock from './DiffBlock';
@@ -195,8 +196,7 @@ const TranscriptView = ({ session, allSessions, steps }: Props) => {
   const [verbIndex, setVerbIndex] = useState(0);
   useEffect(() => {
     if (!isBusy) return;
-    const id = setInterval(() => setVerbIndex((current) => (current + 1) % THINKING_VERBS.length), VERB_INTERVAL_MS);
-    return () => clearInterval(id);
+    return startVisiblePolling(() => setVerbIndex((current) => (current + 1) % THINKING_VERBS.length), VERB_INTERVAL_MS);
   }, [isBusy]);
 
   // início do período "busy" (referência para o tempo decorrido) + tick de 1s para exibi-lo
@@ -208,8 +208,7 @@ const TranscriptView = ({ session, allSessions, steps }: Props) => {
       return;
     }
     if (busyStartRef.current === null) busyStartRef.current = Date.now();
-    const id = setInterval(() => forceTick((current) => current + 1), 1000);
-    return () => clearInterval(id);
+    return startVisiblePolling(() => forceTick((current) => current + 1), 1000);
   }, [isBusy]);
 
   const elapsedMs = isBusy && busyStartRef.current !== null ? Date.now() - busyStartRef.current : 0;

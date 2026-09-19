@@ -1,3 +1,4 @@
+import { startVisiblePolling } from '../utils/visiblePolling';
 import { terminalDropPlacement, type TerminalPlacement } from '../utils/terminalPlacement';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
@@ -40,7 +41,7 @@ function revealDockedTab(tab: HTMLButtonElement | null) {
   });
 }
 
-export default function Home() {
+const Home = () => {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [openIds, setOpenIds] = useState<string[]>([]);
   const [minimizedIds, setMinimizedIds] = useState<Set<string>>(new Set());
@@ -80,7 +81,7 @@ export default function Home() {
     const saved = Number(localStorage.getItem(TERMINAL_DOCKED_WIDTH_STORAGE_KEY));
     return Number.isFinite(saved) && saved >= 360 ? saved : Math.round(window.innerWidth * 0.42);
   });
-  const [replayVersion, setReplayVersion] = useState(0);
+  const [, setReplayVersion] = useState(0);
   const [showNewAgent, setShowNewAgent] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ session: SessionInfo; x: number; y: number } | null>(null);
@@ -302,6 +303,13 @@ export default function Home() {
     try {
       const data = await fetchState();
       setSessions(data.sessions);
+      const currentIds = new Set(data.sessions.map((session) => session.sessionId));
+      for (const id of sessionCacheRef.current.keys()) {
+        if (!currentIds.has(id)) sessionCacheRef.current.delete(id);
+      }
+      for (const id of buffersRef.current.keys()) {
+        if (!currentIds.has(id)) buffersRef.current.delete(id);
+      }
       data.sessions.forEach((s) => sessionCacheRef.current.set(s.sessionId, s));
 
       // reabre os paineis que estavam abertos antes de um reload da pagina
@@ -354,27 +362,41 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 2000);
-    return () => clearInterval(id);
+    return startVisiblePolling(refresh, 2000);
   }, [refresh]);
 
   useEffect(() => {
+    let replayTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleReplay = () => {
+      if (replayTimer !== undefined) return;
+      replayTimer = setTimeout(() => {
+        replayTimer = undefined;
+        setReplayVersion((version) => version + 1);
+      }, 100);
+    };
     const disconnect = connectStepStream((step) => {
       if (!step.sessionId) return;
       let buf = buffersRef.current.get(step.sessionId);
       if (!buf) {
         buf = [];
         buffersRef.current.set(step.sessionId, buf);
+        // Also bound session count if discovery is unavailable for a long time.
+        if (buffersRef.current.size > 128) {
+          const oldestId = buffersRef.current.keys().next().value;
+          if (oldestId) buffersRef.current.delete(oldestId);
+        }
       }
       buf.push(step);
       if (buf.length > MAX_BUFFER_STEPS) buf.splice(0, buf.length - MAX_BUFFER_STEPS);
 
       if (!step.backlog && openIdsRef.current.includes(step.sessionId)) {
-        setReplayVersion((v) => v + 1);
+        scheduleReplay();
       }
     });
-    return disconnect;
+    return () => {
+      clearTimeout(replayTimer);
+      disconnect();
+    };
   }, []);
 
   const bringToFront = (id: string) => {
@@ -849,4 +871,6 @@ export default function Home() {
       </>
     </IonPage>
   );
-}
+};
+
+export default Home;

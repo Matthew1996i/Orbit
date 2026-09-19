@@ -1,3 +1,4 @@
+import { startVisiblePolling } from '../utils/visiblePolling';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { IonBadge } from '@ionic/react';
 import { PuzzlePiece, Plus, Minus, Crosshair, Plug, Sparkle, Ticket, GitBranch, Envelope, HardDrive, ChatCircle, SquaresFour, Database, Globe, Calendar, MagnifyingGlass } from '@phosphor-icons/react';
@@ -19,7 +20,7 @@ const TOPBAR_H = 38;
 // 8s era perceptivelmente atrasado durante uma resposta em andamento.
 const COST_REFRESH_MS = 2000;
 
-function useCostSummary(): { summary: CostSummary | null; connectionError: boolean } {
+const useCostSummary = (): { summary: CostSummary | null; connectionError: boolean } => {
   const [summary, setSummary] = useState<CostSummary | null>(null);
   // true quando o ciclo de poll MAIS RECENTE falhou — o rodape usa isso pra
   // mostrar um icone de "sem conexao" em vez de continuar exibindo o ultimo
@@ -30,7 +31,7 @@ function useCostSummary(): { summary: CostSummary | null; connectionError: boole
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      fetchCostSummary()
+      return fetchCostSummary()
         .then((response) => {
           if (cancelled) return;
           setSummary(response);
@@ -40,16 +41,15 @@ function useCostSummary(): { summary: CostSummary | null; connectionError: boole
           if (!cancelled) setConnectionError(true);
         });
     };
-    load();
-    const id = setInterval(load, COST_REFRESH_MS);
+    const stopPolling = startVisiblePolling(load, COST_REFRESH_MS);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      stopPolling();
     };
   }, []);
 
   return { summary, connectionError };
-}
+};
 
 // mapeia o nome do servidor MCP (ex: "redmine", "google-drive") pra um icone
 // generico que representa o TIPO de servico — nao ha como buscar o logo real
@@ -505,14 +505,6 @@ function usePanAndZoom(contentWidth: number, contentHeight: number) {
     scheduleVisibleRectUpdate();
   };
 
-  // liga will-change SO durante o gesto (pan ou zoom) — no repouso, o
-  // Chromium re-rasteriza o conteudo nitido quase na hora em vez de esperar
-  // o idle longo (~10s) que acontece quando will-change fica sempre ligado.
-  const setGpuLayerActive = (active: boolean) => {
-    const pan = panRef.current;
-    if (pan) pan.style.willChange = active ? 'transform' : 'auto';
-  };
-
   // viewport pode mudar de tamanho (resize da janela) sem nenhum pan/zoom
   // acontecer — sem isso o retangulo de culling ficaria desatualizado e
   // cards nas bordas sumiriam/apareceriam so no proximo pan.
@@ -678,7 +670,7 @@ const GROUP_BOX_LABEL_H = 26;
 // rotulo (que fica fora do card, embaixo dele) vazava pra fora da caixa.
 const COST_LABEL_H = 26;
 
-export default function SessionTree({ sessions, onOpen, onContextMenu }: TreeProps) {
+const SessionTree = ({ sessions, onOpen, onContextMenu }: TreeProps) => {
   const { summary: costSummary, connectionError: costConnectionError } = useCostSummary();
 
   // relogio compartilhado por TODOS os cards — um unico setInterval aqui em
@@ -686,8 +678,7 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
   // suficiente pra segundo "ao vivo" sem gerar trabalho extra perceptivel.
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    return startVisiblePolling(() => setNow(Date.now()), 1000);
   }, []);
 
   const { roots, width, height } = useMemo(() => {
@@ -837,4 +828,6 @@ export default function SessionTree({ sessions, onOpen, onContextMenu }: TreePro
       <CostUsageFooter summary={costSummary} connectionError={costConnectionError} />
     </div>
   );
-}
+};
+
+export default SessionTree;

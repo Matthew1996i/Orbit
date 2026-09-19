@@ -1,28 +1,29 @@
 import { ModalNavigationContext } from '../utils/modalNavigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import TitleBar from './TitleBar';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
-import LlmCatalogScreen from './LlmCatalogScreen';
-import LlmDetailScreen from './LlmDetailScreen';
-import AgentEditScreen from './AgentEditScreen';
-import AgentCatalogScreen from './AgentCatalogScreen';
-import SkillCatalogScreen from './SkillCatalogScreen';
-import CommandCatalogScreen from './CommandCatalogScreen';
-import McpCatalogScreen from './McpCatalogScreen';
-import McpEditScreen from './McpEditScreen';
-import McpPresetCatalogScreen from './McpPresetCatalogScreen';
-import SecretsCatalogScreen from './SecretsCatalogScreen';
-import AiProvidersCatalogScreen from './AiProvidersCatalogScreen';
-import SecretsModal from './SecretsModal';
-import AiProviderModal from './AiProviderModal';
 import { AiProvider, McpDef, SecretGroup, SessionInfo } from '../api';
 import { readPref, writePref } from '../utils/uiPrefs';
 import { SectionKey } from '../utils/sidebarSections';
 import { AgentFileKind } from '../api';
 import './AppShell.css';
-import ToolsCatalogScreen from './ToolsCatalogScreen';
-import ToolsEditScreen from './ToolsEditScreen';
+
+const LlmCatalogScreen = lazy(() => import('./LlmCatalogScreen'));
+const LlmDetailScreen = lazy(() => import('./LlmDetailScreen'));
+const AgentEditScreen = lazy(() => import('./AgentEditScreen'));
+const AgentCatalogScreen = lazy(() => import('./AgentCatalogScreen'));
+const SkillCatalogScreen = lazy(() => import('./SkillCatalogScreen'));
+const CommandCatalogScreen = lazy(() => import('./CommandCatalogScreen'));
+const McpCatalogScreen = lazy(() => import('./McpCatalogScreen'));
+const McpEditScreen = lazy(() => import('./McpEditScreen'));
+const McpPresetCatalogScreen = lazy(() => import('./McpPresetCatalogScreen'));
+const SecretsCatalogScreen = lazy(() => import('./SecretsCatalogScreen'));
+const AiProvidersCatalogScreen = lazy(() => import('./AiProvidersCatalogScreen'));
+const SecretsModal = lazy(() => import('./SecretsModal'));
+const AiProviderModal = lazy(() => import('./AiProviderModal'));
+const ToolsCatalogScreen = lazy(() => import('./ToolsCatalogScreen'));
+const ToolsEditScreen = lazy(() => import('./ToolsEditScreen'));
 
 // primeiro caso do padrao "tela cheia no lugar do conteudo" (substitui
 // modal) — a Sidebar dispara, o AppShell troca `.orbit-content` por uma
@@ -127,7 +128,7 @@ interface Props {
   onOpenSession: (session: SessionInfo) => void;
 }
 
-export default function AppShell({ children, sessions, onOpenSession }: Props) {
+const AppShell = ({ children, sessions, onOpenSession }: Props) => {
   // aberto/secao-ativa juntos NUM SO estado (nao dois useState separados) —
   // assim o toggle "clicar no icone ja ativo fecha" sempre le os dois valores
   // do MESMO snapshot atomico dentro do updater funcional, sem risco de um
@@ -607,87 +608,91 @@ export default function AppShell({ children, sessions, onOpenSession }: Props) {
           </div>
         )}
         <div className="orbit-content">
-          {fullScreen?.kind === 'llmCatalog' ? (
-            <LlmCatalogScreen onBack={closeFullScreen} />
-          ) : fullScreen?.kind === 'llmDetail' ? (
-            <LlmDetailScreen id={fullScreen.id} onBack={closeFullScreen} />
-          ) : fullScreen?.kind === 'agentCatalog' ? (
-            <AgentCatalogScreen
-              onBack={closeFullScreen}
-              onOpenAgent={(name, subtitle) => openAgentEdit(name, 'agent', subtitle)}
-              onCreateAgent={() => openAgentEdit('', 'agent', undefined, true)}
-            />
-          ) : fullScreen?.kind === 'skillCatalog' ? (
-            <SkillCatalogScreen
-              onBack={closeFullScreen}
-              onOpenSkill={(name, subtitle) => openSkillEdit(name, subtitle)}
-              onCreateSkill={() => openSkillEdit('', undefined, true)}
-            />
-          ) : fullScreen?.kind === 'commandCatalog' ? (
-            <CommandCatalogScreen
-              onBack={closeFullScreen}
-              onOpenCommand={(name, subtitle) => openCommandEdit(name, subtitle)}
-              onCreateCommand={() => openCommandEdit('', undefined, true)}
-            />
-          ) : fullScreen?.kind === 'toolsCatalog' ? (
-            <ToolsCatalogScreen onBack={closeFullScreen} onOpenTool={openToolsEdit} />
-          ) : fullScreen?.kind === 'toolsEdit' ? (
-            <ToolsEditScreen tool={fullScreen.tool} allTools={fullScreen.allTools} onBack={openToolsCatalog} />
-          ) : fullScreen?.kind === 'mcpCatalog' ? (
-            <McpCatalogScreen
-              onBack={closeFullScreen}
-              onOpenMcp={(mcp) => openMcpEdit(mcp)}
-              onCreateMcp={() => openMcpPresetCatalog()}
-            />
-          ) : fullScreen?.kind === 'mcpPresetCatalog' ? (
-            <McpPresetCatalogScreen
-              onBack={openMcpCatalog}
-              onChoose={(draft) => openMcpEdit(undefined, draft)}
-              onManual={() => openMcpEdit()}
-            />
-          ) : fullScreen?.kind === 'mcpEdit' ? (
-            <McpEditScreen
-              mcp={fullScreen.mcp}
-              draft={fullScreen.draft}
-              onBack={openMcpCatalog}
-              onDeleted={openMcpCatalog}
-            />
-          ) : fullScreen?.kind === 'secretsCatalog' ? (
-            <SecretsCatalogScreen onBack={closeFullScreen} onOpenGroup={openSecretEdit} />
-          ) : fullScreen?.kind === 'aiProvidersCatalog' ? (
-            <AiProvidersCatalogScreen onBack={closeFullScreen} onOpenProvider={openAiProviderEdit} />
-          ) : fullScreen?.kind === 'secretEdit' ? (
-            <SecretsModal group={fullScreen.group} existingGroups={[]} onClose={openSecretsCatalog} onSaved={() => undefined} />
-          ) : fullScreen?.kind === 'aiProviderEdit' ? (
-            <AiProviderModal provider={fullScreen.provider} onClose={openAiProvidersCatalog} onSaved={() => undefined} />
-          ) : fullScreen?.kind === 'agentEdit' ? (
-            <AgentEditScreen
-              name={fullScreen.name}
-              subtitle={fullScreen.subtitle}
-              kind={fullScreen.fileKind}
-              isNew={fullScreen.isNew}
-              // "voltar" leva ao catalogo DA MESMA secao do arquivo aberto —
-              // nao sempre pro de agentes (bug corrigido nesta entrega).
-              onBack={
-                fullScreen.fileKind === 'skill'
-                  ? openSkillCatalog
-                  : fullScreen.fileKind === 'command'
-                    ? openCommandCatalog
-                    : openAgentCatalog
-              }
-              onDeleted={
-                fullScreen.fileKind === 'skill'
-                  ? openSkillCatalog
-                  : fullScreen.fileKind === 'command'
-                    ? openCommandCatalog
-                    : openAgentCatalog
-              }
-            />
-          ) : (
-            children
-          )}
+          <Suspense fallback={<div role="status">Carregando…</div>}>
+            {fullScreen?.kind === 'llmCatalog' ? (
+              <LlmCatalogScreen onBack={closeFullScreen} />
+            ) : fullScreen?.kind === 'llmDetail' ? (
+              <LlmDetailScreen id={fullScreen.id} onBack={closeFullScreen} />
+            ) : fullScreen?.kind === 'agentCatalog' ? (
+              <AgentCatalogScreen
+                onBack={closeFullScreen}
+                onOpenAgent={(name, subtitle) => openAgentEdit(name, 'agent', subtitle)}
+                onCreateAgent={() => openAgentEdit('', 'agent', undefined, true)}
+              />
+            ) : fullScreen?.kind === 'skillCatalog' ? (
+              <SkillCatalogScreen
+                onBack={closeFullScreen}
+                onOpenSkill={(name, subtitle) => openSkillEdit(name, subtitle)}
+                onCreateSkill={() => openSkillEdit('', undefined, true)}
+              />
+            ) : fullScreen?.kind === 'commandCatalog' ? (
+              <CommandCatalogScreen
+                onBack={closeFullScreen}
+                onOpenCommand={(name, subtitle) => openCommandEdit(name, subtitle)}
+                onCreateCommand={() => openCommandEdit('', undefined, true)}
+              />
+            ) : fullScreen?.kind === 'toolsCatalog' ? (
+              <ToolsCatalogScreen onBack={closeFullScreen} onOpenTool={openToolsEdit} />
+            ) : fullScreen?.kind === 'toolsEdit' ? (
+              <ToolsEditScreen tool={fullScreen.tool} allTools={fullScreen.allTools} onBack={openToolsCatalog} />
+            ) : fullScreen?.kind === 'mcpCatalog' ? (
+              <McpCatalogScreen
+                onBack={closeFullScreen}
+                onOpenMcp={(mcp) => openMcpEdit(mcp)}
+                onCreateMcp={() => openMcpPresetCatalog()}
+              />
+            ) : fullScreen?.kind === 'mcpPresetCatalog' ? (
+              <McpPresetCatalogScreen
+                onBack={openMcpCatalog}
+                onChoose={(draft) => openMcpEdit(undefined, draft)}
+                onManual={() => openMcpEdit()}
+              />
+            ) : fullScreen?.kind === 'mcpEdit' ? (
+              <McpEditScreen
+                mcp={fullScreen.mcp}
+                draft={fullScreen.draft}
+                onBack={openMcpCatalog}
+                onDeleted={openMcpCatalog}
+              />
+            ) : fullScreen?.kind === 'secretsCatalog' ? (
+              <SecretsCatalogScreen onBack={closeFullScreen} onOpenGroup={openSecretEdit} />
+            ) : fullScreen?.kind === 'aiProvidersCatalog' ? (
+              <AiProvidersCatalogScreen onBack={closeFullScreen} onOpenProvider={openAiProviderEdit} />
+            ) : fullScreen?.kind === 'secretEdit' ? (
+              <SecretsModal group={fullScreen.group} existingGroups={[]} onClose={openSecretsCatalog} onSaved={() => undefined} />
+            ) : fullScreen?.kind === 'aiProviderEdit' ? (
+              <AiProviderModal provider={fullScreen.provider} onClose={openAiProvidersCatalog} onSaved={() => undefined} />
+            ) : fullScreen?.kind === 'agentEdit' ? (
+              <AgentEditScreen
+                name={fullScreen.name}
+                subtitle={fullScreen.subtitle}
+                kind={fullScreen.fileKind}
+                isNew={fullScreen.isNew}
+                // "voltar" leva ao catalogo DA MESMA secao do arquivo aberto —
+                // nao sempre pro de agentes (bug corrigido nesta entrega).
+                onBack={
+                  fullScreen.fileKind === 'skill'
+                    ? openSkillCatalog
+                    : fullScreen.fileKind === 'command'
+                      ? openCommandCatalog
+                      : openAgentCatalog
+                }
+                onDeleted={
+                  fullScreen.fileKind === 'skill'
+                    ? openSkillCatalog
+                    : fullScreen.fileKind === 'command'
+                      ? openCommandCatalog
+                      : openAgentCatalog
+                }
+              />
+            ) : (
+              children
+            )}
+          </Suspense>
         </div>
       </div>
     </ModalNavigationContext.Provider>
   );
-}
+};
+
+export default AppShell;

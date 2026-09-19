@@ -1,4 +1,4 @@
-import { Fragment, ReactNode } from 'react';
+import { Fragment, memo, ReactNode } from 'react';
 import './DiffBlock.css';
 
 const KEYWORDS_BY_LANG: Record<string, string[]> = {
@@ -141,7 +141,7 @@ interface Props {
   newText: string;
 }
 
-export default function DiffBlock({ file, oldText, newText }: Props) {
+const DiffBlock = memo(({ file, oldText, newText }: Props) => {
   const lines = diffLines(oldText, newText);
   const added = lines.filter((l) => l.kind === 'add').length;
   const removed = lines.filter((l) => l.kind === 'remove').length;
@@ -184,4 +184,6 @@ export default function DiffBlock({ file, oldText, newText }: Props) {
       </div>
     </div>
   );
-}
+});
+
+export default DiffBlock;
