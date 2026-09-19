@@ -41,7 +41,7 @@ export default function CostUsageFooter({ summary, connectionError }: Props) {
   if (!summary || summary.tokensTotal === 0) return null;
 
   return (
-    <div className="cost-usage-footer" title="uso da solicitação mais recente, lido da telemetria nativa de cada CLI">
+    <div className="cost-usage-footer" title="consumo acumulado das sessões atuais, lido da telemetria nativa de cada CLI">
       {formatTokens(summary.tokensTotal)} tokens
       {summary.costAvailable !== false ? ` · ~${formatBrl(summary.costBrl)}` : ''}
     </div>

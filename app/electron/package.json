@@ -1,6 +1,7 @@
 {
   "name": "Orbit",
-  "version": "1.0.27",
+  "productName": "Orbit",
+  "version": "1.0.28",
   "description": "Dashboard local para acompanhar e interagir com sessões de assistentes de IA",
   "author": {
     "name": "Axyo",

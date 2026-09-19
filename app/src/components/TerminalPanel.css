@@ -128,9 +128,7 @@
   top: auto;
   left: auto;
   width: 100%;
-  /* preenche o restante do .session-window-body (que ja reserva os 38px da
-     PopoutTitleBar no topo via padding) — nao 100vh, que estouraria por
-     baixo dessa barra. */
+  /* A propria barra do terminal ocupa o topo da janela destacada. */
   height: 100%;
   min-width: 0;
   min-height: 0;
@@ -211,6 +209,11 @@
    nada em volta pra combinar. */
 .term-panel-popout .term-header {
   border-radius: 0;
+  cursor: default;
+  -webkit-app-region: drag;
+}
+.term-panel-popout .term-win-btn {
+  -webkit-app-region: no-drag;
 }
 .term-panel-popout .term-body {
   border-radius: 0;

@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowsClockwise, Clock } from '@phosphor-icons/react';
 import { fetchLlms, fetchUsage, ClaudeUsage, CodexUsage, UsageWindow, LlmCli, SessionInfo } from '../api';
-import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
+import { llmLogoFor } from '../utils/llmLogos';
 import './LlmUsageWidget.css';
 
 // CLI installation/auth changes slowly. Live counts come from sessions props,
@@ -92,7 +92,7 @@ interface Props {
 }
 
 const LlmUsageWidget = ({ sessions }: Props) => {
-  const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
+  const [llms, setLlms] = useState<LlmCli[]>([]);
   const [usage, setUsage] = useState<ClaudeUsage | null>(null);
   const [codexUsage, setCodexUsage] = useState<CodexUsage | null>(null);
   const [codexUsageError, setCodexUsageError] = useState<string | null>(null);
@@ -155,7 +155,7 @@ const LlmUsageWidget = ({ sessions }: Props) => {
     const load = () => {
       return fetchLlms()
         .then((response) => {
-          if (!cancelled) setLlms([CLAUDE_LLM_OPTION, ...response.llms]);
+          if (!cancelled) setLlms(response.llms);
         })
         .catch(() => {
           /* backend indisponivel nesse ciclo — mantem a ultima lista conhecida */
@@ -176,20 +176,6 @@ const LlmUsageWidget = ({ sessions }: Props) => {
         setCodexUsage(response.codex);
         setCodexUsageError(response.codexUsageError ?? null);
         setCodexUsageStale(!!response.codexUsageStale);
-        // status do Claude nao vem do /api/llms (essa CLI e o proprio app);
-        // sobrescreve o placeholder hardcoded com o status real de
-        // autenticacao ja obtido nesta mesma chamada.
-        setLlms((cur) =>
-          cur.map((cli) =>
-            cli.id === 'claude'
-              ? {
-                  ...cli,
-                  connected: response.claudeAuthenticated,
-                  status: response.claudeAuthenticated ? 'connected' : 'installed',
-                }
-              : cli,
-          ),
-        );
       })
       .catch(() => {
         /* mantem o ultimo valor conhecido */
@@ -202,12 +188,7 @@ const LlmUsageWidget = ({ sessions }: Props) => {
     return startVisiblePolling(() => loadUsage(true), USAGE_REFRESH_MS);
   }, []);
 
-  // Relatorios de assinatura nao dependem de haver agentes rodando. Mantemos
-  // Claude e Codex visiveis e montados em todos os estados para que o polling
-  // de uso continue ativo mesmo com a arvore completamente vazia.
-  const visibleLlms = llms.filter(
-    (cli) => cli.id === 'claude' || cli.id === 'codex' || cli.connected || cli.status === 'installed',
-  );
+  const visibleLlms = llms.filter((cli) => cli.status !== 'none');
 
   return (
     <div className="llm-usage-widget" ref={rootRef}>

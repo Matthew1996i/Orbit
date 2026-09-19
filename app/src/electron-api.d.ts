@@ -12,6 +12,8 @@ declare global {
   interface Window {
     dashboardAPI?: {
       platform: 'darwin' | 'win32' | 'linux' | string;
+      discoverLlms: () => Promise<import('./api').LlmCli[]>;
+      syncLlm: (id: string) => Promise<{ ok?: boolean; error?: string; manifestPath?: string; instructionPath?: string; importedConfig?: boolean }>;
       getUpdateState: () => Promise<OrbitUpdateState>;
       checkForUpdates: () => Promise<OrbitUpdateState>;
       downloadUpdate: () => Promise<OrbitUpdateState>;

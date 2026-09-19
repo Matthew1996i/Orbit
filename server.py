@@ -186,9 +186,13 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
     if not cwd_path.is_dir():
         raise ValueError(f"diretório não existe: {cwd}")
 
+    if llm_bin not in {cli["bin"] for cli in KNOWN_LLM_CLIS}:
+        raise ValueError("selecione uma LLM instalada")
+    if not _resolve_bin(llm_bin):
+        raise ValueError(f"LLM não instalada: {llm_bin}")
+    selected_llm = llm_bin
     master_fd, slave_fd = pty.openpty()
     fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
-    selected_llm = llm_bin if llm_bin in {c["bin"] for c in KNOWN_LLM_CLIS} | {"claude"} else "claude"
     if resume_session_id:
         # Continua a conversa no provedor que a criou. Retomar um rollout do
         # Codex com `claude --resume` parecia iniciar o terminal, mas nunca
@@ -2155,7 +2159,7 @@ def _scan_agent_roles(parent_transcript_path):
     return roles
 
 
-def find_subagent_transcripts():
+def find_subagent_transcripts(include_inactive_for=None):
     """Descobre subagentes disparados via Agent/Task (sem PID/processo proprio, sem
     entrada em ~/.claude/sessions/*.json) varrendo os transcripts que eles proprios
     escrevem em PROJECTS_DIR/<projeto>/<sessionId-pai>/subagents/agent-<agentId>.jsonl,
@@ -2176,10 +2180,10 @@ def find_subagent_transcripts():
             mtime = fpath.stat().st_mtime
         except OSError:
             continue
-        if (now - mtime) >= SUBAGENT_ALIVE_WINDOW_SECS:
+        parent_session_id = fpath.parent.parent.name
+        if (now - mtime) >= SUBAGENT_ALIVE_WINDOW_SECS and parent_session_id not in (include_inactive_for or ()):
             continue  # subagente ja terminou (heuristica por atividade recente) - nao reporta lixo historico
         # fpath = PROJECTS_DIR/<projeto>/<sessionId-pai>/subagents/agent-<agentId>.jsonl
-        parent_session_id = fpath.parent.parent.name
         parent_transcript = fpath.parent.parent.parent / f"{parent_session_id}.jsonl"
         try:
             parent_mtime = parent_transcript.stat().st_mtime
@@ -2452,6 +2456,13 @@ def _claude_segment_usage(records, duration_ms=None, ended_at=None, in_progress=
 def _scan_claude_usage(fpath):
     segment = []
     latest = None
+    total = _empty_usage()
+    def add_segment(usage):
+        for key in ("inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens"):
+            total[key] += usage[key]
+        total["costUsd"] += usage["costUsd"]
+        if sum(usage[key] for key in ("inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens")):
+            total["costAvailable"] = total["costAvailable"] and usage["costAvailable"]
     try:
         with fpath.open("r", errors="ignore") as f:
             for line in f:
@@ -2462,6 +2473,7 @@ def _scan_claude_usage(fpath):
                 if d.get("type") == "system" and d.get("subtype") == "turn_duration":
                     ended_at = _iso_to_ms(d.get("timestamp"))
                     latest = _claude_segment_usage(segment, d.get("durationMs"), ended_at)
+                    add_segment(latest)
                     segment = []
                 else:
                     segment.append(d)
@@ -2471,12 +2483,22 @@ def _scan_claude_usage(fpath):
     # Depois de concluir um turno o Claude ainda anexa hooks/cost-state. Isso
     # nao constitui uma nova solicitacao; so troca pelo segmento corrente se
     # houve de fato um novo prompt do usuario.
-    return current if current["requestInProgress"] else (latest or current)
+    if current["requestInProgress"] or latest is None or any(
+        current[key] for key in ("inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens")
+    ):
+        add_segment(current)
+    timing = current if current["requestInProgress"] else (latest or current)
+    for key in ("requestStartedAt", "requestEndedAt", "requestDurationMs", "requestInProgress"):
+        total[key] = timing[key]
+    return total
 
 
 def _scan_codex_usage(fpath):
     latest = None
     current = None
+    total = _empty_usage()
+    has_thread_total = False
+    completed = _empty_usage()
     try:
         with fpath.open("r", errors="ignore") as f:
             for line in f:
@@ -2501,7 +2523,19 @@ def _scan_codex_usage(fpath):
                     current["outputTokens"] = usage.get("output_tokens") or 0
                     current["cacheReadTokens"] = cached
                     current["cacheWriteTokens"] = cache_write
+                    thread_usage = payload.get("thread_token_usage")
+                    if thread_usage:
+                        has_thread_total = True
+                        thread_input = thread_usage.get("input_tokens") or 0
+                        thread_cached = thread_usage.get("cached_input_tokens") or 0
+                        thread_write = thread_usage.get("cache_write_input_tokens") or 0
+                        total["inputTokens"] = max(0, thread_input - thread_cached - thread_write)
+                        total["outputTokens"] = thread_usage.get("output_tokens") or 0
+                        total["cacheReadTokens"] = thread_cached
+                        total["cacheWriteTokens"] = thread_write
                 elif d.get("type") == "event_msg" and payload.get("type") in ("task_complete", "turn_aborted") and current is not None:
+                    for key in ("inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens"):
+                        completed[key] += current[key]
                     current["requestDurationMs"] = payload.get("duration_ms")
                     current["requestEndedAt"] = _iso_to_ms(d.get("timestamp"))
                     current["requestInProgress"] = False
@@ -2509,18 +2543,23 @@ def _scan_codex_usage(fpath):
                     current = None
     except OSError:
         return None
-    result = current or latest or _empty_usage()
-    model = result.pop("model", None)
+    timing = current or latest or _empty_usage()
+    model = timing.pop("model", None)
+    if not has_thread_total:
+        for key in ("inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens"):
+            total[key] = completed[key] + (current[key] if current else 0)
+    for key in ("requestStartedAt", "requestEndedAt", "requestDurationMs", "requestInProgress"):
+        total[key] = timing[key]
     # Modelos de assinatura internos (ex. gpt-5.6-sol) nem sempre possuem
     # preco na tabela local. Nessa situacao tokens/tempo continuam exatos e o
     # custo fica explicitamente indisponivel em vez de usar o default Claude.
     if model and _has_specific_price(model):
-        result["costUsd"] = _usage_cost(
-            result["inputTokens"], result["outputTokens"], result["cacheReadTokens"], result["cacheWriteTokens"], model
+        total["costUsd"] = _usage_cost(
+            total["inputTokens"], total["outputTokens"], total["cacheReadTokens"], total["cacheWriteTokens"], model
         )
     else:
-        result["costAvailable"] = False
-    return result
+        total["costAvailable"] = False
+    return total
 
 
 def _scan_copilot_usage(fpath):
@@ -2574,7 +2613,7 @@ def _scan_copilot_usage(fpath):
 
 
 def _scan_transcript_usage(fpath, llm="claude"):
-    """Le as metricas do turno/solicitacao mais recente no formato nativo da CLI."""
+    """Le consumo acumulado da sessao e tempo do turno mais recente."""
     try:
         mtime = fpath.stat().st_mtime
     except OSError:
@@ -2593,26 +2632,28 @@ def _scan_transcript_usage(fpath, llm="claude"):
 
 
 def read_cost_summary():
-    """Agrega tokens/custo de TODAS as sessoes conhecidas no momento (reais +
-    subagentes ativos) — mesmo escopo de sessoes que /api/state expoe na
-    arvore, entao o numero bate com o que o usuario ve nos cards. Tambem monta
-    o detalhamento POR SESSAO (perSession), pra cada card poder mostrar so o
-    proprio custo/consumo, alem do agregado geral."""
+    """Consumo acumulado das sessoes atuais, inclusive subagentes concluidos."""
     # sessionId -> caminho do transcript — 1:1 (cada sessao/subagente tem seu
     # proprio arquivo), diferente do dedup por fpath usado antes so pra
     # proteger o total contra sessao fisicamente duplicada (ver read_sessions).
     session_paths = {}
-    metric_sessions = (
-        read_sessions()
-        + find_subagent_transcripts()
-        + read_codex_sessions()
-        + read_copilot_sessions()
-        + read_app_agent_sessions()
-    )
+    roots = read_sessions() + read_codex_sessions() + read_copilot_sessions() + read_app_agent_sessions()
+    subagents = find_subagent_transcripts()
+    known_ids = {s["sessionId"] for s in roots + subagents}
+    # Subagentes encerrados somem da arvore apos a janela de atividade, mas
+    # continuam pertencendo ao custo da sessao pai enquanto ela esta aberta.
+    while True:
+        linked = find_subagent_transcripts(include_inactive_for=known_ids)
+        new_ids = {s["sessionId"] for s in linked} - known_ids
+        subagents = linked
+        if not new_ids:
+            break
+        known_ids.update(new_ids)
+    metric_sessions = roots + subagents
     for s in metric_sessions:
         fpath = resolve_transcript(s)
         if fpath:
-            session_paths[s["sessionId"]] = (fpath, s.get("llm") or "claude")
+            session_paths[s["sessionId"]] = (fpath, s.get("llm") or "claude", s.get("parentSessionId"))
 
     pricing = _load_pricing()
     usd_brl = pricing.get("usd_brl_fallback") or 5.09
@@ -2620,7 +2661,7 @@ def read_cost_summary():
     totals = {"inputTokens": 0, "outputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0, "costUsd": 0.0, "costAvailable": True}
     per_session = {}
     seen_paths = set()
-    for session_id, (fpath, llm) in session_paths.items():
+    for session_id, (fpath, llm, parent_id) in session_paths.items():
         usage = _scan_transcript_usage(fpath, llm)
         if not usage:
             continue
@@ -2636,6 +2677,7 @@ def read_cost_summary():
             "requestEndedAt": usage.get("requestEndedAt"),
             "requestDurationMs": usage.get("requestDurationMs"),
             "requestInProgress": usage.get("requestInProgress", False),
+            "parentSessionId": parent_id,
         }
         # o agregado geral ainda deduplica por arquivo fisico — uma sessao
         # duplicada (bug ja corrigido, mas defensivo) nao deve contar 2x no
@@ -3760,12 +3802,8 @@ KNOWN_LLM_CLIS = [
     {"id": "goose", "name": "Goose", "bin": "goose", "vendor": "Block", "install": "curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash", "login": "", "logout": ""},
     {"id": "openhands", "name": "OpenHands", "bin": "openhands", "vendor": "All Hands AI", "install": "pipx install openhands", "login": "", "logout": ""},
     {"id": "continue-cli", "name": "Continue CLI", "bin": "cn", "vendor": "Continue", "install": "npm install -g @continuedev/cli", "login": "", "logout": ""},
-    # Claude Code (a propria CLI que roda o app) — so entra aqui pra
-    # /api/install/start achar os comandos reais de login/logout
-    # (`claude auth login|logout`, confirmados via `claude auth --help`).
-    # read_llm_clis() PULA esse id de proposito (ver abaixo) — o Claude ja
-    # aparece na listagem via CLAUDE_LLM_OPTION no frontend, incluir aqui
-    # tambem duplicaria a linha.
+    # Claude e tratado como qualquer outra CLI: so fica instalado quando
+    # seu executavel existe na maquina.
     {"id": "claude", "name": "Claude Code", "bin": "claude", "vendor": "Anthropic", "install": "", "login": "claude auth login", "logout": "claude auth logout"},
 ]
 
@@ -3925,6 +3963,15 @@ def _path_dirs_with_user_bins():
             # Prepending cada fallback fazia uma instalacao NVM antiga
             # ultrapassar o Codex atualizado que ja estava no PATH.
             path_dirs.append(d)
+    if os.name == "nt":
+        windows_dirs = [os.path.join(home, "AppData", "Roaming", "npm")]
+        if os.environ.get("APPDATA"):
+            windows_dirs.append(os.path.join(os.environ["APPDATA"], "npm"))
+        if os.environ.get("LOCALAPPDATA"):
+            windows_dirs.append(os.path.join(os.environ["LOCALAPPDATA"], "Programs", "nodejs"))
+        for d in windows_dirs:
+            if d not in path_dirs:
+                path_dirs.append(d)
     # Remove duplicatas preservando ordem. Em shells iniciados pelo proprio
     # Codex e comum o PATH ja vir com entradas repetidas, e isso fazia a
     # listagem trabalhar mais sem ganhar cobertura.
@@ -3938,10 +3985,12 @@ def _resolve_bin(name):
     ja que subprocess.run(["nome", ...]) sem `env=` faz a busca usando o
     PATH herdado de verdade do processo (que pode ser o minimo do SO
     empacotado), nao a lista corrigida acima."""
+    extensions = ("", ".exe", ".cmd", ".bat", ".com") if os.name == "nt" else ("",)
     for d in _path_dirs_with_user_bins():
-        candidate = Path(d) / name
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return str(candidate)
+        for extension in extensions:
+            candidate = Path(d) / (name + extension)
+            if candidate.is_file() and (os.name == "nt" or os.access(candidate, os.X_OK)):
+                return str(candidate)
     return None
 
 
@@ -3950,6 +3999,7 @@ def _resolve_bin(name):
 # login, ou desconhecidas) caem no fallback "authenticated == installed"
 # dentro de read_llm_clis().
 AUTH_CHECKS = {
+    "claude": _claude_authenticated,
     "gemini": _gemini_authenticated,
     "cursor-agent": _cursor_authenticated,
     "copilot": _gh_authenticated,
@@ -4276,30 +4326,14 @@ def read_codex_usage_status():
 
 
 def find_claude_bin_path():
-    """Caminho real do binario "claude" no PATH — read_llm_clis() PULA o
-    Claude de proposito (ver comentario la), mas a tela de detalhe dele
-    (LlmDetailScreen) precisa do mesmo dado real que as outras LLMs tem
-    (Binario/Caminho), nao do placeholder fixo "claude" que CLAUDE_LLM_OPTION
-    usa no frontend antes desse valor chegar."""
-    for d in _path_dirs_with_user_bins():
-        candidate = Path(d) / "claude"
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return str(candidate)
-    return None
+    """Caminho real do Claude, usando a mesma descoberta das demais CLIs."""
+    return _resolve_bin("claude")
 
 
 def read_llm_clis():
     result = []
-    path_dirs = _path_dirs_with_user_bins()
     for cli in KNOWN_LLM_CLIS:
-        if cli["id"] == "claude":
-            continue  # so serve pro /api/install/start achar login/logout — ver comentario acima
-        found = None
-        for d in path_dirs:
-            candidate = Path(d) / cli["bin"]
-            if candidate.is_file() and os.access(candidate, os.X_OK):
-                found = str(candidate)
-                break
+        found = _resolve_bin(cli["bin"])
         installed = bool(found)
         auth_check = AUTH_CHECKS.get(cli["id"])
         authenticated = auth_check() if auth_check else installed

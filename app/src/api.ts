@@ -148,9 +148,17 @@ export interface LlmCli {
 }
 
 export async function fetchLlms(): Promise<{ llms: LlmCli[] }> {
-  const res = await fetch(`${BACKEND_HTTP}/api/llms`, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`llms ${res.status}`);
-  return res.json();
+  if (window.dashboardAPI?.platform === 'win32' && window.dashboardAPI.discoverLlms) {
+    return { llms: await window.dashboardAPI.discoverLlms() };
+  }
+  try {
+    const res = await fetch(`${BACKEND_HTTP}/api/llms`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`llms ${res.status}`);
+    return res.json();
+  } catch (error) {
+    if (window.dashboardAPI?.discoverLlms) return { llms: await window.dashboardAPI.discoverLlms() };
+    throw error;
+  }
 }
 
 export interface UsageWindow {
@@ -204,6 +212,7 @@ export interface SessionCostUsage {
   costUsd: number;
   costBrl: number;
   costAvailable?: boolean;
+  parentSessionId?: string | null;
   requestStartedAt?: number | null;
   requestEndedAt?: number | null;
   requestDurationMs?: number | null;

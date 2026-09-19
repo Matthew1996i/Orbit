@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, ArrowsClockwise, SquaresFour } from '@phosphor-icons/react';
 import { fetchCatalog, fetchSecretGroups, fetchAiProviders, CatalogResponse, LlmCli, AgentFileKind, SecretGroup, AiProvider, McpDef } from '../api';
-import { CLAUDE_LLM_OPTION, llmLogoFor } from '../utils/llmLogos';
+import { llmLogoFor } from '../utils/llmLogos';
 import { fetchAllLlms } from '../utils/llmCatalog';
 import { SectionKey, SECTION_ICONS, SECTION_LABELS } from '../utils/sidebarSections';
 import './Sidebar.css';
@@ -59,7 +59,7 @@ export default function Sidebar({
   onOpenAiProviderEdit,
 }: Props) {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
-  const [llms, setLlms] = useState<LlmCli[]>([CLAUDE_LLM_OPTION]);
+  const [llms, setLlms] = useState<LlmCli[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [secretGroups, setSecretGroups] = useState<SecretGroup[]>([]);
   const [aiProviders, setAiProviders] = useState<AiProvider[]>([]);

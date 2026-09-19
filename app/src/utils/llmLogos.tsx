@@ -17,28 +17,6 @@ import Antigravity from '@lobehub/icons/es/Antigravity/components/Color';
 import Qwen from '@lobehub/icons/es/Qwen/components/Color';
 import Goose from '@lobehub/icons/es/Goose/components/Mono';
 import OpenHands from '@lobehub/icons/es/OpenHands/components/Color';
-import { LlmCli } from '../api';
-
-// Claude Code e o LLM nativo do app (nao vem de /api/llms, que so lista as
-// OUTRAS CLIs conhecidas) — todo lugar que mostra a lista de LLMs precisa
-// prepender essa entrada sintetica, sempre "instalada".
-export const CLAUDE_LLM_OPTION: LlmCli = {
-  id: 'claude',
-  name: 'Claude Code',
-  bin: 'claude',
-  vendor: 'Anthropic',
-  install: '',
-  // `claude auth login`/`claude auth logout` sao comandos reais da propria
-  // CLI (confirmado via `claude auth --help`) — com isso o Claude entra no
-  // mesmo fluxo de conectar/desconectar das outras LLMs, em vez de ficar de
-  // fora so por ser a LLM nativa do app.
-  login: 'claude auth login',
-  logout: 'claude auth logout',
-  connected: true,
-  status: 'connected',
-  path: 'claude',
-};
-
 // logos reais das marcas (via @lobehub/icons) — usados em todo lugar que
 // mostra uma LLM (sidebar, modal de conexao, widget de uso, card na arvore)
 // pra ficar facil de reconhecer de relance. Prefere a variante ".Color" (logo

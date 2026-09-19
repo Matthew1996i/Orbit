@@ -221,8 +221,21 @@ function rollupCostUsage(
   let costBrl = 0;
   let costAvailable = true;
   let any = false;
-  flattenNodes(node).forEach((n) => {
-    const own = perSession[n.session.sessionId];
+  const descendants = new Set([node.session.sessionId]);
+  // O backend inclui subagentes concluidos no resumo mesmo depois que seus
+  // cards saem da arvore. Percorrer a linhagem preserva o total do no.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    Object.entries(perSession).forEach(([id, usage]) => {
+      if (usage.parentSessionId && descendants.has(usage.parentSessionId) && !descendants.has(id)) {
+        descendants.add(id);
+        changed = true;
+      }
+    });
+  }
+  descendants.forEach((id) => {
+    const own = perSession[id];
     if (!own) return;
     any = true;
     tokensTotal += own.tokensTotal;
@@ -266,10 +279,11 @@ interface CardProps {
   onOpen: (session: SessionInfo) => void;
   onContextMenu: (session: SessionInfo, x: number, y: number) => void;
   costUsage?: SessionCostUsage;
+  ownUsage?: SessionCostUsage;
   now: number;
 }
 
-function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, now }: CardProps) {
+function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, ownUsage, now }: CardProps) {
   const { session } = node;
   const status = statusOf(session);
   const name = session.name || session.sessionId.slice(0, 8);
@@ -405,13 +419,15 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, n
         className={`tree-card-cost${isRootLevel ? ' tree-card-cost-top' : ''}`}
         style={
           isRootLevel
-            ? { left: x, top: y - CARD_HEIGHT / 2 - 30, width: CARD_WIDTH / 2 }
+            ? { left: x - 130, top: y - CARD_HEIGHT / 2 - 37, width: 260 }
             : { left: x - CARD_WIDTH / 2, top: y + CARD_HEIGHT / 2 + 4, width: CARD_WIDTH }
         }
-        title={isRootLevel ? 'uso da solicitação mais recente (agente + subagentes)' : 'uso da solicitação mais recente desta sessão'}
+        title={isRootLevel ? 'consumo acumulado do nó (agente + subagentes)' : 'consumo acumulado desta sessão'}
       >
-        <div>{formatTokens(costUsage.tokensTotal)} tokens</div>
-        {costUsage.costAvailable !== false && <div>~{formatBrl(costUsage.costBrl)}</div>}
+        {isRootLevel && ownUsage && ownUsage.tokensTotal > 0 && (
+          <div>Agente: {formatTokens(ownUsage.tokensTotal)} tokens{ownUsage.costAvailable !== false ? ` · ~${formatBrl(ownUsage.costBrl)}` : ''}</div>
+        )}
+        <div>{isRootLevel ? 'Nó: ' : ''}{formatTokens(costUsage.tokensTotal)} tokens{costUsage.costAvailable !== false ? ` · ~${formatBrl(costUsage.costBrl)}` : ''}</div>
       </div>
     )}
     </>
@@ -818,6 +834,7 @@ const SessionTree = ({ sessions, onOpen, onContextMenu }: TreeProps) => {
                 }}
                 onContextMenu={onContextMenu}
                 costUsage={costUsage}
+                ownUsage={costSummary?.perSession[node.session.sessionId]}
                 now={now}
               />
             );
