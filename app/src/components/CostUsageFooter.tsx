@@ -6,6 +6,17 @@ export function formatTokens(total: number): string {
   return Math.round(total).toLocaleString('pt-BR');
 }
 
+export function formatTokensCompact(total: number): string {
+  const rounded = Math.round(total);
+  if (rounded >= 1_000_000) return `${(rounded / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}M`;
+  if (rounded >= 1_000) return `${(rounded / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`;
+  return rounded.toLocaleString('pt-BR');
+}
+
+export function formatBrlCompact(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function formatBrl(value: number): string {
   return value.toLocaleString('pt-BR', {
     style: 'currency',

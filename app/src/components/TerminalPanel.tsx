@@ -584,7 +584,7 @@ const TerminalPanel = ({
           // espaco; nos outros sistemas os botoes ficam a direita.
           <div className="term-header-spacer" />
         ) : (
-          <div className="term-traffic-lights">
+          <div className="term-traffic-lights" aria-label="Controles do terminal">
             {/* glifos desenhados em CSS (::before/::after, ver .term-dot em
                 TerminalPanel.css), como o semaforo real do macOS — icone de
                 fonte em 8px ficava fino/descentrado. */}

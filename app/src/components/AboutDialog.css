@@ -52,18 +52,14 @@
 }
 
 .about-logo {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
+  display: block;
+  width: 190px;
+  height: 68px;
   margin-bottom: 14px;
+  background: currentColor;
+  -webkit-mask: url('../assets/orbit-logo.svg') center / contain no-repeat;
+  mask: url('../assets/orbit-logo.svg') center / contain no-repeat;
   user-select: none;
-}
-
-.about-name {
-  margin: 0;
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: -0.01em;
 }
 
 .about-tagline {

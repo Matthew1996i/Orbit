@@ -96,7 +96,7 @@ export function llmGuideFor(llm: LlmCli): LlmGuide {
       docsUrl: `https://www.npmjs.com/package/${npmPkg}`,
       docsLabel: `npmjs.com/package/${npmPkg}`,
       installSteps: [
-        'Precisa do Node.js 18 ou mais recente instalado (nodejs.org) — o comando abaixo usa o npm que vem junto.',
+        'Precisa do Node.js 24 ou mais recente instalado (nodejs.org) — o comando abaixo usa o npm que vem junto.',
         `Rode no terminal: npm install -g ${npmPkg}`,
         `Confirme que instalou certo: ${bin} --version`,
         loginHint,

@@ -24,7 +24,7 @@ rodando na sua máquina. É composto por duas partes:
 | Ferramenta | Versão mínima | Para quê |
 |---|---|---|
 | Python 3   | 3.9+          | Rodar o backend |
-| Node.js    | 18+ (recomendado 20+) | Build do frontend e do app Electron |
+| Node.js    | 24+ | Build do frontend e do app Electron |
 | npm        | vem com o Node | Instalar dependências |
 
 Não há `requirements.txt` — o backend não tem dependências externas.

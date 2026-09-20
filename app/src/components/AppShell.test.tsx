@@ -151,7 +151,7 @@ describe('modal Sobre real, aberto pela engrenagem', () => {
     hover('Skills');
     fireEvent.click(screen.getByRole('button', { name: 'Configurações' }));
     await act(async () => { fireEvent.click(screen.getByText('Sobre')); });
-    const dialog = screen.getByRole('dialog', { name: 'Orbit' });
+    const dialog = screen.getByRole('dialog', { name: 'Sobre o Orbit' });
     fireEvent.mouseOver(dialog);
     act(() => { vi.advanceTimersByTime(500); });
     expect(document.querySelector('.orbit-activitybar.expanded')).toBeNull();

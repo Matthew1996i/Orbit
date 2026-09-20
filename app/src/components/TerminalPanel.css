@@ -30,10 +30,12 @@
 }
 
 .term-panel-maximized {
-  left: 8px !important;
-  top: 46px !important;
-  width: calc(100vw - 16px) !important;
-  height: calc(100vh - 54px) !important;
+  box-sizing: border-box;
+  left: calc(var(--orbit-content-left, 48px) + var(--orbit-panel-gap, 6px)) !important;
+  top: calc(var(--orbit-titlebar-h) + var(--orbit-panel-gap, 6px)) !important;
+  width: calc(100vw - var(--orbit-content-left, 48px) - (var(--orbit-panel-gap, 6px) * 2) - var(--orbit-terminal-rail-w, 0px)) !important;
+  height: calc(100vh - var(--orbit-titlebar-h) - (var(--orbit-panel-gap, 6px) * 2)) !important;
+  min-width: 0;
   resize: none;
 }
 
