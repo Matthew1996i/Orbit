@@ -11,3 +11,45 @@
 .astra-agent-name small { display: block; color: #b2c4db; font-size: 9px; margin-top: 2px; }
 .orbit-astra .scene-error { position: absolute; inset: 0; display: grid; place-content: center; padding: 32px; color: #e7e8d9; text-align: center; background: #17251f; }
 .orbit-astra .scene-error button { padding: 12px; color: inherit; background: #344e3a; border: 1px solid #a8b2a2; cursor: pointer; }
+.astra-agent-indicator, .astra-activity { position: relative; }
+.astra-agent-indicator .astra-agent-name { max-width: 210px; }
+.astra-agent-name small { overflow: hidden; text-overflow: ellipsis; }
+.astra-activity .astra-agent-name { background: #394334eb; border-color: #c7c5a54d; }
+.astra-activity[data-retiring="true"] { pointer-events: none; }
+.astra-activity-details { position: absolute; left: 50%; top: calc(100% + 8px); transform: translateX(-50%); width: 280px; max-height: 260px; overflow: auto; padding: 12px; border-radius: 9px; border: 1px solid #c6d4be55; background: #172322f5; color: #eff3eb; box-shadow: 0 8px 28px #08141466; font: 12px/1.5 system-ui, sans-serif; white-space: normal; overflow-wrap: anywhere; cursor: default; }
+.astra-activity-details p { margin: 6px 0; }
+.astra-activity-details small { color: #b7cabf; }
+.astra-activity-details ul { padding-left: 16px; margin: 8px 0 0; }
+.astra-activity-details li + li { margin-top: 6px; }
+
+.astra-panel { position: absolute; left: 16px; bottom: 16px; z-index: 40; width: 300px; max-height: calc(100% - 32px); overflow: auto; padding: 12px 14px; border-radius: 11px; border: 1px solid #c6d4be55; background: #172322f2; color: #eff3eb; box-shadow: 0 10px 30px #08141466; font: 12px/1.5 system-ui, sans-serif; backdrop-filter: blur(8px); }
+.astra-panel-hint { color: #c4d3c9; font-size: 11.5px; padding: 10px 14px; }
+.astra-panel header { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.astra-panel header div { min-width: 0; flex: 1; }
+.astra-panel header strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.astra-panel header small { display: block; color: #b7cabf; font-size: 10px; }
+.astra-panel-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #91cdb7; box-shadow: 0 0 6px #91cdb7aa; }
+.astra-panel-dot[data-status="busy"] { background: #efc380; box-shadow: 0 0 6px #efc380aa; }
+.astra-panel-dot[data-status="dead"] { background: #9aa5bf; box-shadow: none; }
+.astra-panel-close { margin-left: auto; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: #c4d3c9; font-size: 16px; line-height: 1; cursor: pointer; }
+.astra-panel-close:hover { background: #ffffff14; color: #fff; }
+.astra-panel p { margin: 4px 0; overflow-wrap: anywhere; }
+.astra-panel p > span { display: inline-block; min-width: 46px; margin-right: 6px; color: #9fb5a8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.astra-panel-now { font-weight: 500; }
+.astra-panel-now em { display: block; margin: 2px 0 0 52px; font-style: normal; font-weight: 400; color: #d9e4dc; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.astra-panel-state b { font-weight: 500; color: #e6efe8; }
+.astra-panel-activities { margin: 8px 0 0; padding: 0; list-style: none; border-top: 1px solid #c6d4be22; }
+.astra-panel-activities li { display: grid; grid-template-columns: 96px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid #c6d4be14; }
+.astra-panel-activities li b { font-weight: 500; color: #c9d8cd; font-size: 11px; }
+.astra-panel-activities li span { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #e3ebe4; }
+.astra-panel-activities li[data-current="true"] { background: linear-gradient(90deg, #efc38018, transparent); }
+.astra-panel-activities li[data-current="true"] b::before { content: '▸ '; color: #efc380; }
+.astra-panel-empty { color: #b7cabf; }
+.astra-panel footer { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.astra-panel footer small { flex: 1; color: #9fb5a8; font-size: 10.5px; }
+.astra-panel footer button { padding: 6px 10px; border-radius: 7px; border: 1px solid #c6d4be44; background: #ffffff0d; color: #eff3eb; font: 500 11.5px system-ui, sans-serif; cursor: pointer; }
+.astra-panel footer button:hover { background: #ffffff1a; }
+.astra-panel footer .astra-panel-primary { margin-left: auto; background: #6d5bd0; border-color: #8f80e6; }
+.astra-panel footer .astra-panel-primary:hover { background: #7d6be0; }
+.astra-activity .astra-agent-name > span { width: auto; height: auto; background: none; font-size: 13px; line-height: 1; }
+.astra-activity[data-working="true"] .astra-agent-name { border-color: #efc380aa; box-shadow: 0 0 0 1px #efc38033, 0 3px 10px #050a1840; }

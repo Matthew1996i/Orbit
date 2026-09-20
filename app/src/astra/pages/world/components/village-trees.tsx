@@ -18,7 +18,7 @@ export const VillageTrees = ({ trees }: { trees: Tree[] }) => {
   const placements = useMemo(() => trees.map((tree) => {
     const random = createRandom(seedFor(tree));
     const variant = meshes[Math.floor(random() * meshes.length)];
-    return { tree, variant, scale: tree.height / variant.height, rotation: random() * Math.PI * 2 };
+    return { tree, variant, scale: Math.min(tree.height / variant.height, tree.radius * 2 / variant.width), rotation: random() * Math.PI * 2 };
   }), [trees, meshes]);
   // O shadow map e estatico (autoUpdate=false); as arvores chegam depois do
   // primeiro frame, entao pedimos um novo mapa de sombras quando montam.

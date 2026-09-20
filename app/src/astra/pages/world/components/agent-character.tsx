@@ -1,67 +1,35 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
 import { Group } from 'three';
-import type { SessionInfo } from '../../../../api';
-import type { Position } from '../../../core/world/types';
-import { groundHeight, randomWalkPath } from '../../../core/world/navigation';
 import { createRandom } from '../../../shared/random';
-import { KitCharacter } from './kit-character';
+import type { LiveWorld, WorldActor, WorldNode } from '../../../core/world/live-world.types';
+import { KitCharacter, type CharacterAction } from './kit-character';
 import { CHARACTERS, characterHeight } from './kit-characters';
-import { agentIdentity } from '../../../core/world/agent-identity';
+import { AgentIndicator } from './agent-indicator';
+import { WaitingKey } from './waiting-key';
+import { isWaiting } from '../../../core/world/activity';
+import type { FocusHandlers } from './focus';
 
-export const AgentCharacter = ({ session, position, onOpenSession }: {
-  session: SessionInfo; position: Position; onOpenSession?: (session: SessionInfo) => void;
-}) => {
-  const actor = useRef<Group>(null), facing = useRef<Group>(null), walking = useRef(false);
-  const route = useRef<Position[]>([]), waypoint = useRef(0), wait = useRef(0);
-  const random = useMemo(() => createRandom(Array.from(session.sessionId).reduce((seed, char) => (seed * 31 + char.charCodeAt(0)) >>> 0, 7)), [session.sessionId]);
-  const idle = session.alive && session.status !== 'busy';
-  const name = session.name || session.role || session.sessionId.slice(0, 8);
-  const identity = agentIdentity(session);
-  const character = useMemo(() => CHARACTERS[Math.floor(random() * CHARACTERS.length)], [random]);
-  useFrame((_, frameDelta) => {
-    if (!actor.current || !facing.current) return;
-    walking.current = false;
-    if (!idle) return;
-    const delta = Math.min(frameDelta, 0.05), current = actor.current.position;
-    wait.current -= delta;
-    if (waypoint.current >= route.current.length) {
-      if (wait.current > 0) return;
-      route.current = randomWalkPath(current.x, current.z, random); waypoint.current = 0;
-      if (!route.current.length) { wait.current = 2; return; }
-    }
-    const target = route.current[waypoint.current];
-    const differenceX = target[0] - current.x, differenceZ = target[2] - current.z;
-    const distance = Math.hypot(differenceX, differenceZ), step = Math.min(delta * 1.1, distance);
-    if (distance > 0.005) {
-      current.x += differenceX / distance * step; current.z += differenceZ / distance * step;
-      current.y = groundHeight(current.x, current.z);
-      const angle = Math.atan2(differenceX, differenceZ);
-      const difference = Math.atan2(Math.sin(angle - facing.current.rotation.y), Math.cos(angle - facing.current.rotation.y));
-      facing.current.rotation.y += difference * Math.min(delta * 9, 1);
-      walking.current = true;
-    }
-    if (distance <= step + 0.005) {
-      waypoint.current++;
-      if (waypoint.current >= route.current.length) wait.current = 1.5 + random() * 4;
-    }
-  });
-  return <group ref={actor} position={position} onClick={(event) => {
-    if (event.delta > 5) return;
-    event.stopPropagation(); onOpenSession?.(session);
-  }}>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-      <circleGeometry args={[0.55, 20]} /><meshBasicMaterial color="#111a30" transparent opacity={0.25} depthWrite={false} />
-    </mesh>
-    <group ref={facing}><KitCharacter name={character} walking={walking} /></group>
-    <Html position={[0, characterHeight(character) + 0.8, 0]} center distanceFactor={28} zIndexRange={[30, 0]}>
-      <button className="astra-agent-name" data-status={!session.alive ? 'dead' : idle ? 'idle' : 'busy'}
-        title={`${name} · ${!session.alive ? 'Encerrado' : idle ? 'Ocioso' : 'Em execução'}`}
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => { event.stopPropagation(); onOpenSession?.(session); }}>
-        <span aria-hidden="true" /><div><strong>{name}</strong><small>{identity.provider}{identity.model ? ` · ${identity.model}` : ''}</small></div>
-      </button>
-    </Html>
+export const AgentCharacter = ({ world, node, actor, focus }: { world: LiveWorld; node: WorldNode; actor: WorldActor; focus: FocusHandlers }) => {
+  const group = useRef<Group>(null), facing = useRef<Group>(null), action = useRef<CharacterAction>('Idle'), opacity = useRef(0);
+  const character = useMemo(() => {
+    const random = createRandom(Array.from(node.id).reduce((seed, char) => (seed * 31 + char.charCodeAt(0)) >>> 0, 7));
+    return CHARACTERS[Math.floor(random() * CHARACTERS.length)];
+  }, [node.id]);
+  useEffect(() => { actor.opacity = 0; }, [actor]);
+  useFrame(() => {
+    if (!group.current || !facing.current) return;
+    group.current.position.set(...actor.position);
+    facing.current.rotation.y = actor.heading;
+    action.current = actor.walking ? 'Walk' : actor.working ? 'Attack' : 'Idle';
+    opacity.current = actor.opacity;
+  }, -1);
+  return <group ref={group}
+    onPointerOver={(event) => { event.stopPropagation(); focus.inspect(node.id); }}
+    onPointerOut={() => focus.inspect(null)}
+    onClick={(event) => { if (event.delta > 5) return; event.stopPropagation(); focus.select(node.id); }}>
+    <group ref={facing}><KitCharacter name={character} action={action} opacity={opacity} /></group>
+    <WaitingKey actor={actor} height={characterHeight(character)} visible={node.present && isWaiting(node.session)} />
+    <AgentIndicator world={world} node={node} actor={actor} height={characterHeight(character)} focus={focus} />
   </group>;
 };

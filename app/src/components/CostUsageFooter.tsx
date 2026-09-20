@@ -6,6 +6,23 @@ export function formatTokens(total: number): string {
   return Math.round(total).toLocaleString('pt-BR');
 }
 
+// versao compacta (18,3M / 412k) pro resumo em cima do card raiz.
+export function formatTokensCompact(total: number): string {
+  const n = Math.round(total);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}M`;
+  if (n >= 1_000) return `${(n / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`;
+  return n.toLocaleString('pt-BR');
+}
+
+export function formatBrlCompact(value: number): string {
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function formatBrl(value: number): string {
   return value.toLocaleString('pt-BR', {
     style: 'currency',

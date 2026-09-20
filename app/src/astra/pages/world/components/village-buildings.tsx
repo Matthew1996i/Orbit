@@ -4,7 +4,6 @@ import { useGLTF } from '@react-three/drei';
 import { InstancedMesh, MeshBasicMaterial, MeshStandardMaterial, Object3D } from 'three';
 import type { Placement, Village } from '../../../core/world/village.types';
 import { MODEL_SIZE } from '../../../core/world/village-models';
-import { SceneObstacle } from './scene-obstacle';
 import { useVillageModels, villageUrl, type MergedModel } from './kit-models';
 
 const NAMES = Object.keys(MODEL_SIZE);
@@ -12,13 +11,12 @@ NAMES.forEach((name) => useGLTF.preload(villageUrl(name)));
 const SOLID = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
 const WINDOWS = new MeshBasicMaterial({ color: '#ffd28a', toneMapped: false });
 
-const Building = ({ placement, model }: { placement: Placement; model: MergedModel }) => <SceneObstacle
-  obstacle={{ position: placement.position, radius: placement.footprint, height: placement.height + 2 }}>
+const Building = ({ placement, model }: { placement: Placement; model: MergedModel }) =>
   <group position={placement.position} rotation={[0, placement.rotation, 0]} scale={placement.scale}>
     <mesh geometry={model.geometry} material={SOLID} castShadow receiveShadow />
     {model.windows && <mesh geometry={model.windows} material={WINDOWS} />}
   </group>
-</SceneObstacle>;
+;
 
 // Todos os props/ladrilhos de um mesmo modelo saem num unico draw call.
 const Instanced = ({ placements, model, shadow }: { placements: Placement[]; model: MergedModel; shadow: boolean }) => {

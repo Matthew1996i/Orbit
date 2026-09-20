@@ -2,7 +2,7 @@ import UpdateControl from './UpdateControl';
 import { useModalNavigation } from '../utils/modalNavigation';
 import { createPortal } from 'react-dom';
 import { X } from '@phosphor-icons/react';
-import appIcon from '../../electron/assets/appIcon.png';
+import orbitSymbol from '../assets/orbit-symbol.svg';
 import './AboutDialog.css';
 
 interface Props {
@@ -22,7 +22,7 @@ export default function AboutDialog({ open, version, onClose }: Props) {
         <button className="about-close" onClick={onClose} type="button" aria-label="Fechar">
           <X size={16} weight="bold" />
         </button>
-        <img className="about-logo" src={appIcon} alt="" draggable={false} />
+        <img className="about-logo" src={orbitSymbol} alt="" draggable={false} />
         <h2 id="about-title" className="about-name">Orbit</h2>
         <p className="about-tagline">Dashboard de sessões de IA</p>
         <span className="about-version">Versão {version || '—'}</span>

@@ -17,7 +17,7 @@ export const VillageLanterns = ({ positions }: { positions: Position[] }) => {
   const { frames, lamps } = useMemo(() => {
     const frames: Block[] = [], lamps: Block[] = [];
     for (const [x, y, z] of positions) {
-      frames.push({ position: [x, y - 0.65, z], scale: [0.07, 1.3, 0.07], color: '#32354e' });
+      frames.push({ position: [x, (y - 0.23) / 2, z], scale: [0.07, y - 0.23, 0.07], color: '#32354e' });
       for (const offset of [-0.23, 0.23]) frames.push({ position: [x, y + offset, z], scale: [0.38, 0.09, 0.38], color: '#333a52' });
       lamps.push({ position: [x, y, z], scale: [0.21, 0.38, 0.21], color: '#ffcc7e' });
     }

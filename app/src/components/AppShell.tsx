@@ -342,7 +342,10 @@ const AppShell = ({ children, sessions, onOpenSession, workspaceActions }: Props
   // ainda devem reagir visualmente ao hover. Com a sidebar fixada, permanece
   // expandida sempre, sem depender do mouse.
   const activityBarExpanded = sidebarsPinned || barHovered || hoverSection !== null;
-  const activityBarRealWidth = sidebarsPinned ? 176 : 48;
+  // Em telas cheias, a barra expandida precisa ocupar espaço real no layout.
+  // Caso contrário ela cresce visualmente sobre o conteúdo, que continua
+  // reservado para os 48px da barra recolhida.
+  const activityBarRealWidth = sidebarsPinned || (fullScreen && activityBarExpanded) ? 176 : 48;
   // A reserva acompanha o painel fixado em qualquer tela; hover só sobrepõe.
   const sidebarReserve = pinnedSidebarVisible ? sidebarWidth + 6 : 0;
 

@@ -1,12 +1,27 @@
-import { useMemo } from 'react';
+import { Suspense, useLayoutEffect, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
 import type { SessionInfo } from '../../../../api';
+import type { LiveWorld } from '../../../core/world/live-world.types';
+import { syncLiveWorld } from '../../../core/world/live-layout';
+import { advanceWorld } from '../../../core/world/live-motion';
 import { AgentCharacter } from './agent-character';
-import { layoutAgents } from '../../../core/world/agents';
+import { ActivityStation } from './activity-station';
+import type { FocusHandlers } from './focus';
 
-export const AgentCharacters = ({ sessions, onOpenSession }: {
-  sessions: SessionInfo[]; onOpenSession?: (session: SessionInfo) => void;
+export const AgentCharacters = ({ active, sessions, world, focus }: {
+  active: boolean; sessions: SessionInfo[]; world: LiveWorld; focus: FocusHandlers;
 }) => {
-  const agents = useMemo(() => layoutAgents(sessions), [sessions]);
-  return <>{agents.map(({ session, position }) => <AgentCharacter key={session.sessionId}
-    session={session} position={position} onOpenSession={onOpenSession} />)}</>;
+  const [, setRevision] = useState(0);
+  useLayoutEffect(() => {
+    syncLiveWorld(world, sessions); setRevision(world.revision);
+  }, [world, sessions]);
+  useFrame((_, delta) => {
+    if (active && advanceWorld(world, delta)) setRevision(world.revision);
+  }, -2);
+  return <>
+    {[...world.nodes.values()].map((node) => <Suspense key={node.id} fallback={null}>
+      {node.model ? <ActivityStation world={world} node={node} /> : <AgentCharacter world={world} node={node}
+        actor={world.actors.get(node.id)!} focus={focus} />}
+    </Suspense>)}
+  </>;
 };

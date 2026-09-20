@@ -6,7 +6,7 @@ import { SessionInfo, CostSummary, SessionCostUsage, fetchCostSummary } from '..
 import { shortCwd, formatModelEffort } from '../utils/format';
 import { llmLogoFor, llmLogoColorFor } from '../utils/llmLogos';
 import { resourceIconFor, resourceIconColorFor } from '../utils/resourceIcons';
-import CostUsageFooter, { formatTokens, formatBrl } from './CostUsageFooter';
+import CostUsageFooter, { formatTokens, formatBrl, formatTokensCompact, formatBrlCompact } from './CostUsageFooter';
 import { defaultPanelTop } from './TerminalPanel';
 import './SessionTree.css';
 
@@ -411,23 +411,26 @@ function TreeCard({ node, x, y, isRootLevel, onOpen, onContextMenu, costUsage, o
     </div>
     {/* fora do card (que tem overflow:hidden) — nao clicavel, so informativo,
         por isso pointer-events:none via CSS em vez de outro <button>. No card
-        RAIZ (agente pai) fica em cima-a-direita, pra frente do card, ja que
-        ali o valor e o TOTAL da execucao (ele + subagentes) — nos demais
-        continua embaixo, mostrando so o proprio custo daquele no. */}
-    {costUsage && costUsage.tokensTotal > 0 && (
+        RAIZ (agente pai) o TOTAL da execucao (ele + subagentes) fica em cima,
+        em formato compacto; embaixo de TODO card (raiz inclusa) fica o
+        consumo proprio daquela sessao. */}
+    {isRootLevel && costUsage && costUsage.tokensTotal > 0 && (
       <div
-        className={`tree-card-cost${isRootLevel ? ' tree-card-cost-top' : ''}`}
-        style={
-          isRootLevel
-            ? { left: x - 130, top: y - CARD_HEIGHT / 2 - 37, width: 260 }
-            : { left: x - CARD_WIDTH / 2, top: y + CARD_HEIGHT / 2 + 4, width: CARD_WIDTH }
-        }
-        title={isRootLevel ? 'consumo acumulado do nó (agente + subagentes)' : 'consumo acumulado desta sessão'}
+        className="tree-card-cost tree-card-cost-top"
+        style={{ left: x, top: y - CARD_HEIGHT / 2 - 30, width: CARD_WIDTH / 2 }}
+        title="consumo acumulado do nó (agente + subagentes)"
       >
-        {isRootLevel && ownUsage && ownUsage.tokensTotal > 0 && (
-          <div>Agente: {formatTokens(ownUsage.tokensTotal)} tokens{ownUsage.costAvailable !== false ? ` · ~${formatBrl(ownUsage.costBrl)}` : ''}</div>
-        )}
-        <div>{isRootLevel ? 'Nó: ' : ''}{formatTokens(costUsage.tokensTotal)} tokens{costUsage.costAvailable !== false ? ` · ~${formatBrl(costUsage.costBrl)}` : ''}</div>
+        <div>{formatTokensCompact(costUsage.tokensTotal)} tokens</div>
+        {costUsage.costAvailable !== false && <div>~{formatBrlCompact(costUsage.costBrl)}</div>}
+      </div>
+    )}
+    {ownUsage && ownUsage.tokensTotal > 0 && (
+      <div
+        className="tree-card-cost"
+        style={{ left: x - CARD_WIDTH / 2, top: y + CARD_HEIGHT / 2 + 4, width: CARD_WIDTH }}
+        title="consumo acumulado desta sessão"
+      >
+        <div>{formatTokens(ownUsage.tokensTotal)} tokens{ownUsage.costAvailable !== false ? ` · ~${formatBrl(ownUsage.costBrl)}` : ''}</div>
       </div>
     )}
     </>

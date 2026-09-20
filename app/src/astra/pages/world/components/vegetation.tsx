@@ -11,15 +11,16 @@ import type { Village } from '../../../core/world/village.types';
 // InstancedMesh por modelo (um draw call cada, independente da quantidade).
 type Layer = { name: string; count: number; height: [number, number]; shadow: boolean; margin: number; minRadius?: number };
 const LAYERS: Layer[] = [
-  { name: 'Grass_Small', count: 1100, height: [0.45, 0.85], shadow: false, margin: 0.3 },
-  { name: 'Grass_Big', count: 500, height: [0.8, 1.4], shadow: false, margin: 0.4 },
-  { name: 'Flowers_1', count: 200, height: [0.7, 1.1], shadow: false, margin: 0.6 },
-  { name: 'Flowers_2', count: 180, height: [0.7, 1.1], shadow: false, margin: 0.6 },
-  { name: 'Bush', count: 130, height: [1.0, 1.9], shadow: true, margin: 1.4 },
-  { name: 'DeadTree_1', count: 10, height: [4, 6.5], shadow: true, margin: 2, minRadius: VILLAGE_RADIUS },
-  { name: 'DeadTree_2', count: 10, height: [4.5, 7], shadow: true, margin: 2, minRadius: VILLAGE_RADIUS },
-  { name: 'DeadTree_3', count: 8, height: [4.5, 7.5], shadow: true, margin: 2, minRadius: VILLAGE_RADIUS },
+  { name: 'Grass_Small', count: 2600, height: [0.45, 0.85], shadow: false, margin: 0.3 },
+  { name: 'Grass_Big', count: 1100, height: [0.8, 1.4], shadow: false, margin: 0.4 },
+  { name: 'Flowers_1', count: 420, height: [0.7, 1.1], shadow: false, margin: 0.6 },
+  { name: 'Flowers_2', count: 380, height: [0.7, 1.1], shadow: false, margin: 0.6 },
+  { name: 'Bush', count: 220, height: [1.0, 1.9], shadow: true, margin: 1.4, minRadius: VILLAGE_RADIUS + 2 },
+  { name: 'DeadTree_1', count: 12, height: [4, 6.5], shadow: true, margin: 2, minRadius: VILLAGE_RADIUS + 6 },
+  { name: 'DeadTree_2', count: 12, height: [4.5, 7], shadow: true, margin: 2, minRadius: VILLAGE_RADIUS + 6 },
+  { name: 'DeadTree_3', count: 10, height: [4.5, 7.5], shadow: true, margin: 2, minRadius: VILLAGE_RADIUS + 6 },
 ];
+const SPREAD = (VILLAGE_RADIUS + 60) * 2;
 const NAMES = LAYERS.map((layer) => layer.name);
 NAMES.forEach((name) => useGLTF.preload(kitUrl(name)));
 
@@ -33,7 +34,7 @@ const InstancedLayer = ({ layer, mesh, material, seed, village }: { layer: Layer
     let placed = 0, attempts = 0;
     while (placed < layer.count && attempts < layer.count * 20) {
       attempts++;
-      const x = (random() - 0.5) * 136, z = (random() - 0.5) * 136;
+      const x = (random() - 0.5) * SPREAD, z = (random() - 0.5) * SPREAD;
       // Nada de vegetacao em cima da praca, dos caminhos, das construcoes ou dos props.
       if ((layer.minRadius && Math.hypot(x, z) < layer.minRadius) || isOccupied(village, x, z, layer.margin)) continue;
       const height = layer.height[0] + random() * (layer.height[1] - layer.height[0]), scale = height / mesh.height;

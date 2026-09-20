@@ -42,6 +42,7 @@ describe('painéis laterais', () => {
     hover('Skills');
     expect(screen.getByTestId('sidebar-content').textContent).toBe('skills');
     expect(reserve()).toBe('0px');
+    expect(document.querySelector<HTMLElement>('.orbit-activitybar-slot')?.style.width).toBe('176px');
     fireEvent.mouseLeave(document.querySelector('.orbit-activitybar')!);
     act(() => { vi.advanceTimersByTime(200); });
     expect(screen.queryByTestId('sidebar-content')).toBeNull();
