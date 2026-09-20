@@ -13,7 +13,7 @@ declare global {
     dashboardAPI?: {
       platform: 'darwin' | 'win32' | 'linux' | string;
       discoverLlms: () => Promise<import('./api').LlmCli[]>;
-      syncLlm: (id: string) => Promise<{ ok?: boolean; error?: string; manifestPath?: string; instructionPath?: string; importedConfig?: boolean }>;
+      syncLlm: (id: string) => Promise<{ ok?: boolean; error?: string; manifestPath?: string; instructionPath?: string; importedConfig?: boolean; importedAgents?: number }>;
       getUpdateState: () => Promise<OrbitUpdateState>;
       checkForUpdates: () => Promise<OrbitUpdateState>;
       downloadUpdate: () => Promise<OrbitUpdateState>;

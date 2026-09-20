@@ -18,6 +18,45 @@ const CONFIGS: Record<string, string> = {
   gemini: '.gemini/settings.json',
   opencode: '.config/opencode/opencode.json',
 };
+const AGENT_DIRS: Record<string, string[]> = {
+  codex: ['.codex/agents'],
+  gemini: ['.gemini/agents'],
+  opencode: ['.config/opencode/agents', '.config/opencode/agent'],
+};
+
+const importAgents = (id: string, home: string): number => {
+  const central = join(home, '.claude', 'agents');
+  let imported = 0;
+  for (const relative of AGENT_DIRS[id] || []) {
+    const sourceDir = join(home, relative);
+    for (const name of namesIn(sourceDir, id === 'codex' ? '.toml' : '.md')) {
+      if (!/^[a-zA-Z0-9_-]+$/.test(name) || name.startsWith('orbit-')) continue;
+      const target = join(central, `orbit-import-${id}-${name}.md`);
+      if (existsSync(target)) continue;
+      let content: string;
+      try { content = readFileSync(join(sourceDir, `${name}.${id === 'codex' ? 'toml' : 'md'}`), 'utf8'); }
+      catch { continue; }
+      if (id === 'codex') {
+        const description = content.match(/^description\s*=\s*("(?:\\.|[^"\\])*")/m);
+        const instructions = content.match(/^developer_instructions\s*=\s*("(?:\\.|[^"\\])*")/m);
+        if (!instructions) continue;
+        let body: string;
+        let summary = '';
+        try {
+          body = JSON.parse(instructions[1]);
+          if (description) summary = JSON.parse(description[1]);
+        } catch { continue; }
+        content = `---\nname: ${name}\ndescription: ${JSON.stringify(summary)}\n---\n\n${body}\n`;
+      }
+      try {
+        mkdirSync(central, { recursive: true, mode: 0o700 });
+        writeFileSync(target, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+        imported += 1;
+      } catch { /* preserva arquivos existentes e continua os outros */ }
+    }
+  }
+  return imported;
+};
 
 const readJson = (path: string): unknown => {
   try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; }
@@ -80,6 +119,7 @@ export const syncLlm = (id: string, home = homedir()) => {
     mkdirSync(output, { recursive: true, mode: 0o700 });
     chmodSync(output, 0o700);
     const importedConfig = snapshotConfig(configSource, configSnapshot);
+    const importedAgents = importAgents(id, home);
     const mcpData = readJson(join(orbit, 'mcps.json')) as { mcps?: Record<string, unknown> } | null;
     const secretData = readJson(join(orbit, 'secrets.json'));
     const providerData = readJson(join(orbit, 'ai-providers.json'));
@@ -104,7 +144,7 @@ export const syncLlm = (id: string, home = homedir()) => {
     const manifestPath = join(output, 'manifest.json');
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 });
     chmodSync(manifestPath, 0o600);
-    const block = `${START}\n# Orbit\nLeia ${manifestPath} para localizar agentes, skills, comandos, MCPs e configurações sincronizados.\nEm sessões iniciadas pelo Orbit, consulte ORBIT_RESOURCE_CATALOG, ORBIT_TOOLS_CATALOG e ORBIT_MCP_CONFIG para os recursos ativos.\nAs chaves de segredo constam apenas pelo nome; os valores ficam nas variáveis de ambiente dessas sessões. Não imprima valores secretos.\n${END}`;
+    const block = `${START}\n# Orbit — ponto central\nUse o Orbit como ponto central para localizar agentes, skills, comandos, MCPs e configurações. Leia ${manifestPath} para ver o catálogo e os caminhos atuais. Recursos que já existiam nesta CLI foram importados para o catálogo do Orbit quando compatíveis.\nEm sessões iniciadas pelo Orbit, consulte ORBIT_RESOURCE_CATALOG, ORBIT_TOOLS_CATALOG e ORBIT_MCP_CONFIG para os recursos ativos. Procure primeiro nesses catálogos antes de criar recursos novos; cadastre mudanças no Orbit para compartilhá-las com as outras LLMs.\nAs chaves de segredo constam apenas pelo nome; os valores ficam nas variáveis de ambiente dessas sessões. Não imprima valores secretos.\n${END}`;
     mkdirSync(dirname(instruction), { recursive: true, mode: 0o700 });
     const existing = existsSync(instruction) ? readFileSync(instruction, 'utf8') : '';
     const start = existing.indexOf(START);
@@ -113,7 +153,7 @@ export const syncLlm = (id: string, home = homedir()) => {
       ? existing.slice(0, start) + block + existing.slice(end + END.length)
       : `${existing.trimEnd()}${existing.trim() ? '\n\n' : ''}${block}\n`;
     writeFileSync(instruction, updated, { mode: 0o600 });
-    return { ok: true, manifestPath, instructionPath: instruction, importedConfig };
+    return { ok: true, manifestPath, instructionPath: instruction, importedConfig, importedAgents };
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Falha ao sincronizar.' };
   }

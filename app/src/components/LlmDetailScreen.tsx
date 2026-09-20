@@ -138,7 +138,7 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
     try {
       const result = await window.dashboardAPI?.syncLlm(id);
       setSyncMessage(result?.error || (result?.ok
-        ? `Sincronizado. Configurações ${result.importedConfig ? 'não sensíveis importadas' : 'não encontradas'}; instruções e catálogo atualizados.`
+        ? `Sincronizado. ${result.importedAgents || 0} agente(s) importado(s); configurações ${result.importedConfig ? 'não sensíveis importadas' : 'não encontradas'}; instruções e catálogo atualizados.`
         : 'Sincronização disponível no app desktop.'));
     } catch {
       setSyncMessage('Não foi possível sincronizar esta LLM.');
