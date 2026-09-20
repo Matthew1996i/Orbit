@@ -176,7 +176,13 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
               <ArrowLeft size={16} />
             </button>
             <Title level={3} className="llm-screen-title">{llm.name}</Title>
+            {['claude', 'codex', 'gemini', 'opencode'].includes(llm.id) && llm.status !== 'none' && (
+              <Button className="llm-btn llm-btn-secondary llm-detail-sync-action" icon={<ArrowsClockwise size={13} />} loading={syncing} onClick={sync}>
+                Sincronizar com Orbit
+              </Button>
+            )}
           </div>
+          {syncMessage && <p className="llm-detail-sync-status" role="status">{syncMessage}</p>}
 
           <div className="llm-detail-identity">
             <span className="llm-logo llm-detail-logo" style={{ color: logoColor }}>
@@ -241,14 +247,6 @@ export default function LlmDetailScreen({ id, onBack }: Props) {
 
           <div className="llm-detail-section">
             <Text className="llm-detail-section-title">Configurações</Text>
-            {['claude', 'codex', 'gemini', 'opencode'].includes(llm.id) && llm.status !== 'none' && (
-              <div className="llm-detail-account-actions">
-                <Button className="llm-btn llm-btn-secondary" icon={<ArrowsClockwise size={13} />} loading={syncing} onClick={sync}>
-                  Sincronizar com Orbit
-                </Button>
-              </div>
-            )}
-            {syncMessage && <p className="llm-detail-sync-status" role="status">{syncMessage}</p>}
             <div className="llm-detail-config-list">
               <div className="llm-detail-config-row">
                 <span className="llm-detail-config-label">Binário</span>

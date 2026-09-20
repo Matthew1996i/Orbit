@@ -24,6 +24,10 @@
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.01em;
 }
+.llm-detail-sync-action {
+  margin-left: auto;
+  flex-shrink: 0;
+}
 
 .llm-detail-empty {
   color: #a1a1aa;
@@ -129,9 +133,14 @@
 }
 
 .llm-detail-sync-status {
-  margin: 8px 0 12px;
+  margin: -16px 0 20px 48px;
   font-size: var(--font-size-sm);
-  color: var(--orbit-fg-muted);
+  color: #52525b;
+}
+@media (max-width: 600px) {
+  .llm-detail-screen .llm-screen-header { flex-wrap: wrap; }
+  .llm-detail-sync-action { margin-left: 48px; }
+  .llm-detail-sync-status { margin-left: 0; }
 }
 .llm-detail-no-login-hint {
   margin: 0;
