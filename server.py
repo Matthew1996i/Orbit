@@ -12,17 +12,21 @@ import base64
 import hashlib
 import hmac
 import json
-import fcntl
+import sys
+if sys.platform != "win32":
+    import fcntl
+    import pty
+    import termios
+else:
+    fcntl = pty = termios = None
 from collections import deque
 import os
-import pty
 import queue
 import re
 import shutil
 import signal
 import struct
 import subprocess
-import termios
 import threading
 import time
 import urllib.parse
@@ -32,7 +36,6 @@ import uuid
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-import sys
 
 CLAUDE_DIR = Path.home() / ".claude"
 SESSIONS_DIR = CLAUDE_DIR / "sessions"
@@ -57,6 +60,18 @@ ORBIT_MANAGED_MARKER = "# Managed by Orbit. Changes will be overwritten."
 
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_SCROLLBACK = 300_000  # bytes de buffer mantidos por agente
+
+
+def _new_terminal():
+    if os.name == "nt":
+        try:
+            from winpty import PtyProcess  # noqa: F401 - checked before accepting an agent
+        except ImportError as exc:
+            raise RuntimeError("pywinpty não está instalado; instale as dependências Windows do Orbit") from exc
+        return None, None
+    master_fd, slave_fd = pty.openpty()
+    fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
+    return master_fd, slave_fd
 
 
 def _reverse_file_lines(stream, end, block_size=65536):
@@ -86,7 +101,7 @@ def _read_step_backlog(path, parser):
         trailing = next(lines, b"")
         offset = end - len(trailing)
         for raw in lines:
-            steps = parser(raw.decode("utf-8", "replace"))
+            steps = parser(raw.rstrip(b"\r").decode("utf-8", "replace"))
             for step in reversed(steps):
                 recent.appendleft(step)
                 if len(recent) == HISTORY_BACKLOG_STEPS:
@@ -121,9 +136,13 @@ def _agent_reader_loop(agent_id, master_fd):
     encher o buffer do kernel) e alimenta o buffer de scrollback + qualquer
     WebSocket conectado no momento."""
     while True:
+        with AGENTS_LOCK:
+            info = AGENTS.get(agent_id)
+        if info is None:
+            return
         try:
-            chunk = os.read(master_fd, 4096)
-        except OSError:
+            chunk = info["proc"].read(4096).encode("utf-8") if os.name == "nt" else os.read(master_fd, 4096)
+        except (OSError, EOFError):
             chunk = b""
         with AGENTS_LOCK:
             info = AGENTS.get(agent_id)
@@ -139,10 +158,16 @@ def _agent_reader_loop(agent_id, master_fd):
                     w(b"", closed=True)
                 except Exception:
                     pass
-            try:
-                os.close(master_fd)
-            except OSError:
-                pass
+            if os.name == "nt":
+                try:
+                    info["proc"].close()
+                except (OSError, IOError):
+                    pass
+            else:
+                try:
+                    os.close(master_fd)
+                except OSError:
+                    pass
             with AGENTS_LOCK:
                 removed = AGENTS.pop(agent_id, None) if AGENTS.get(agent_id, {}).get("master_fd") == master_fd else None
             if removed and removed.get("mcpConfigPath"):
@@ -191,8 +216,7 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
     if not _resolve_bin(llm_bin):
         raise ValueError(f"LLM não instalada: {llm_bin}")
     selected_llm = llm_bin
-    master_fd, slave_fd = pty.openpty()
-    fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
+    master_fd, slave_fd = _new_terminal()
     if resume_session_id:
         # Continua a conversa no provedor que a criou. Retomar um rollout do
         # Codex com `claude --resume` parecia iniciar o terminal, mas nunca
@@ -252,8 +276,7 @@ def spawn_install(cli_id, command):
     spawn_agent — o frontend conecta no mesmo /ws/agent/<id> e ve o log ao
     vivo, igual um agente normal, so que com kind="install" pra NAO aparecer
     na arvore de sessoes (read_app_agent_sessions filtra isso)."""
-    master_fd, slave_fd = pty.openpty()
-    fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
+    master_fd, slave_fd = _new_terminal()
     agent_id = uuid.uuid4().hex[:12]
     with AGENTS_LOCK:
         AGENTS[agent_id] = {
@@ -261,7 +284,7 @@ def spawn_install(cli_id, command):
             "pid": None,
             "master_fd": master_fd,
             "slave_fd": slave_fd,
-            "cmd": ["bash", "-lc", command],
+            "cmd": [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", command] if os.name == "nt" else ["bash", "-lc", command],
             "cwd": str(Path.home()),
             "name": f"instalar {cli_id}",
             "nameIsCustom": True,
@@ -375,21 +398,34 @@ def _start_agent_process(agent_id):
             str(path) for path in _recent_codex_rollout_files()
         }
     try:
-        proc = subprocess.Popen(
-            cmd,
-            cwd=cwd,
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
-            env=env,
-            preexec_fn=os.setsid,
-            close_fds=True,
-        )
-    except OSError as exc:
+        if os.name == "nt":
+            from winpty import PtyProcess
+            with info["writers_lock"]:
+                sizes = list(info["sizes"].values())
+            rows, cols = max(sizes, key=lambda size: size[2])[:2] if sizes else (40, 140)
+            resolved = cmd[0] if Path(cmd[0]).is_file() else _resolve_bin(cmd[0])
+            if not resolved:
+                raise FileNotFoundError(cmd[0])
+            # npm installs CLIs as .cmd launchers; ConPTY needs an executable.
+            launch = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", subprocess.list2cmdline([resolved, *cmd[1:]])] if resolved.lower().endswith((".cmd", ".bat")) else [resolved, *cmd[1:]]
+            proc = PtyProcess.spawn(launch, cwd=cwd, env=env, dimensions=(rows, cols))
+        else:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                env=env,
+                preexec_fn=os.setsid,
+                close_fds=True,
+            )
+    except (OSError, RuntimeError) as exc:
         # binario nao encontrado/sem permissao de execucao etc — sem isso o
         # agente ficava com pid=None pra sempre, "busy" no dashboard, mostrando
         # so "[desconectado]" no painel, sem nenhuma pista do motivo real.
-        os.close(slave_fd)
+        if os.name != "nt":
+            os.close(slave_fd)
         msg = f"\r\n\x1b[31mfalha ao iniciar '{' '.join(cmd)}': {exc}\x1b[0m\r\n".encode()
         with info["buf_lock"]:
             info["buffer"] += msg
@@ -403,7 +439,8 @@ def _start_agent_process(agent_id):
             except Exception:
                 pass
         return
-    os.close(slave_fd)
+    if os.name != "nt":
+        os.close(slave_fd)
 
     with AGENTS_LOCK:
         info["pid"] = proc.pid
@@ -422,19 +459,30 @@ def stop_agent(agent_id):
         return False
     pid = info["pid"]
     if pid is None:
-        try:
-            os.close(info["master_fd"])
-        except OSError:
-            pass
-        try:
-            os.close(info["slave_fd"])
-        except OSError:
-            pass
+        if os.name != "nt":
+            for fd in (info["master_fd"], info["slave_fd"]):
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
         if info.get("mcpConfigPath"):
             try:
                 Path(info["mcpConfigPath"]).unlink(missing_ok=True)
             except OSError:
                 pass
+        return True
+    if os.name == "nt":
+        proc = info["proc"]
+        try:
+            proc.sendintr()
+            for _ in range(15):
+                if not proc.isalive():
+                    break
+                time.sleep(0.1)
+            else:
+                proc.terminate(force=True)
+        except (OSError, IOError):
+            pass
         return True
     try:
         pgid = os.getpgid(pid)
@@ -5055,16 +5103,20 @@ class Handler(BaseHTTPRequestHandler):
                 return
             eff_rows, eff_cols, _updated_at = max(sizes, key=lambda size: size[2])
             try:
-                fcntl.ioctl(master_fd, termios.TIOCSWINSZ,
-                            struct.pack("HHHH", eff_rows, eff_cols, 0, 0))
-            except OSError:
+                if os.name == "nt":
+                    if info.get("proc"):
+                        info["proc"].setwinsize(eff_rows, eff_cols)
+                else:
+                    fcntl.ioctl(master_fd, termios.TIOCSWINSZ,
+                                struct.pack("HHHH", eff_rows, eff_cols, 0, 0))
+            except (OSError, IOError):
                 pass
             # Nem todo processo iniciado no PTY recebe SIGWINCH apenas pelo
             # ioctl (especialmente CLIs Node/TUI em macOS). O sinal explicito
             # faz Claude, Codex e as demais CLIs redesenharem o conteudo ja
             # impresso imediatamente depois da nova grade.
             pid = info.get("pid")
-            if isinstance(pid, int) and pid > 0:
+            if os.name != "nt" and isinstance(pid, int) and pid > 0:
                 try:
                     os.killpg(pid, signal.SIGWINCH)
                 except (ProcessLookupError, PermissionError, OSError):
@@ -5107,8 +5159,12 @@ class Handler(BaseHTTPRequestHandler):
                         _start_agent_process(agent_id)
                 elif opcode == 0x2:  # binario = digitacao do usuario -> envia pro processo
                     try:
-                        os.write(master_fd, payload)
-                    except OSError:
+                        if os.name == "nt":
+                            if info.get("proc"):
+                                info["proc"].write(payload.decode("utf-8", "replace"))
+                        else:
+                            os.write(master_fd, payload)
+                    except (OSError, EOFError):
                         break
         finally:
             # desconecta este viewer, mas o processo/agente continua rodando

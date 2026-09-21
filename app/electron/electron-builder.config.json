@@ -11,7 +11,8 @@
     "app/**/*"
   ],
   "extraResources": [
-    { "from": "../../server.py", "to": "server.py" }
+    { "from": "../../server.py", "to": "server.py" },
+    { "from": "runtime", "to": "runtime", "filter": ["**/*"] }
   ],
   "publish": null,
   "afterPack": "scripts/afterPack.js",

@@ -1,7 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
 import { app } from 'electron';
+import { existsSync } from 'fs';
 import http from 'http';
-import { join } from 'path';
+import { delimiter, join } from 'path';
 
 const BACKEND_PORT = 8765;
 let backendProcess: ChildProcess | null = null;
@@ -29,6 +30,26 @@ function getServerScriptPath(): string {
     : join(__dirname, '..', '..', '..', '..', 'server.py');
 }
 
+function getRuntimeDir(): string {
+  return app.isPackaged ? join(process.resourcesPath, 'runtime') : join(__dirname, '..', '..', 'runtime');
+}
+
+function getPythonCommand(): string {
+  if (process.platform !== 'win32') return 'python3';
+  const bundled = join(getRuntimeDir(), 'python', 'python.exe');
+  return existsSync(bundled) ? bundled : 'python';
+}
+
+function getBackendEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  if (process.platform !== 'win32') return env;
+  const nodeDir = join(getRuntimeDir(), 'node');
+  const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'Path';
+  const npmDir = join(env.APPDATA ?? join(app.getPath('home'), 'AppData', 'Roaming'), 'npm');
+  env[pathKey] = [env[pathKey], npmDir, nodeDir].filter(Boolean).join(delimiter);
+  return env;
+}
+
 async function waitForPort(port: number, timeoutMs: number): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -48,14 +69,16 @@ export async function startBackend(): Promise<void> {
     return;
   }
   const scriptPath = getServerScriptPath();
-  backendProcess = spawn('python3', [scriptPath, String(BACKEND_PORT)], {
-    stdio: 'ignore',
+  backendProcess = spawn(getPythonCommand(), [scriptPath, String(BACKEND_PORT)], {
+    env: getBackendEnv(),
+    stdio: ['ignore', 'ignore', 'pipe'],
     detached: false,
+    windowsHide: true,
   });
   backendProcess.on('error', (err) => {
     console.error('Falha ao iniciar o backend Python:', err);
   });
-  await waitForPort(BACKEND_PORT, 8000);
+  await waitForPort(BACKEND_PORT, 30000);
 }
 
 // So mata o processo se essa instancia foi quem o iniciou — se o backend ja

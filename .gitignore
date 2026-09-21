@@ -6,5 +6,6 @@ venv/
 app/electron/node_modules/
 app/electron/dist/
 app/electron/build/
+app/electron/runtime/
 .DS_Store
 ._*
