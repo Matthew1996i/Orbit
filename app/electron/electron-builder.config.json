@@ -12,7 +12,9 @@
   ],
   "extraResources": [
     { "from": "../../server.py", "to": "server.py" },
-    { "from": "runtime", "to": "runtime", "filter": ["**/*"] }
+    { "from": "runtime", "to": "runtime", "filter": ["**/*"] },
+    { "from": "codex-bridge.mjs", "to": "codex-runtime/bridge.mjs" },
+    { "from": "node_modules/@openai", "to": "codex-runtime/node_modules/@openai" }
   ],
   "publish": null,
   "afterPack": "scripts/afterPack.js",

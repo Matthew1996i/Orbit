@@ -12,6 +12,7 @@ export interface SessionInfo {
   alive: boolean;
   appManaged?: boolean;
   appAgentId?: string | null;
+  transport?: 'sdk' | null;
   isSubagent?: boolean;
   parentSessionId?: string;
   role?: string;
@@ -148,9 +149,6 @@ export interface LlmCli {
 }
 
 export async function fetchLlms(): Promise<{ llms: LlmCli[] }> {
-  if (window.dashboardAPI?.platform === 'win32' && window.dashboardAPI.discoverLlms) {
-    return { llms: await window.dashboardAPI.discoverLlms() };
-  }
   try {
     const res = await fetch(`${BACKEND_HTTP}/api/llms`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`llms ${res.status}`);

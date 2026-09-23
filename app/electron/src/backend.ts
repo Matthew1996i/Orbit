@@ -3,6 +3,7 @@ import { app } from 'electron';
 import { existsSync } from 'fs';
 import http from 'http';
 import { delimiter, join } from 'path';
+import { drainBackendStderr } from './backendStderr';
 
 const BACKEND_PORT = 8765;
 let backendProcess: ChildProcess | null = null;
@@ -42,11 +43,19 @@ function getPythonCommand(): string {
 
 function getBackendEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
-  if (process.platform !== 'win32') return env;
-  const nodeDir = join(getRuntimeDir(), 'node');
-  const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'Path';
-  const npmDir = join(env.APPDATA ?? join(app.getPath('home'), 'AppData', 'Roaming'), 'npm');
-  env[pathKey] = [env[pathKey], npmDir, nodeDir].filter(Boolean).join(delimiter);
+  if (process.platform === 'win32') {
+    const nodeDir = join(getRuntimeDir(), 'node');
+    const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'Path';
+    const npmDir = join(env.APPDATA ?? join(app.getPath('home'), 'AppData', 'Roaming'), 'npm');
+    env[pathKey] = [env[pathKey], npmDir, nodeDir].filter(Boolean).join(delimiter);
+  }
+  const bundledNode = join(getRuntimeDir(), 'node', 'node.exe');
+  const useBundledNode = process.platform === 'win32' && existsSync(bundledNode);
+  env.ORBIT_CODEX_NODE = useBundledNode ? bundledNode : process.execPath;
+  env.ORBIT_CODEX_BRIDGE = app.isPackaged
+    ? join(process.resourcesPath, 'codex-runtime', 'bridge.mjs')
+    : join(__dirname, '..', '..', 'codex-bridge.mjs');
+  env.ORBIT_CODEX_ELECTRON_AS_NODE = useBundledNode ? '0' : '1';
   return env;
 }
 
@@ -75,6 +84,7 @@ export async function startBackend(): Promise<void> {
     detached: false,
     windowsHide: true,
   });
+  drainBackendStderr(backendProcess);
   backendProcess.on('error', (err) => {
     console.error('Falha ao iniciar o backend Python:', err);
   });

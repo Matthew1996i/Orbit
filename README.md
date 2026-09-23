@@ -86,16 +86,28 @@ npm run build
 cd electron
 npm install
 
-# 3) rode em modo live-reload (recompila ao salvar)
+# 3) rode em modo live-reload (sobe o Vite e recompila ao salvar)
 npm run electron:start-live
 
 # ou, sem live-reload:
 npm run electron:start
 ```
 
-O backend (`python3 server.py 8765`) precisa estar rodando em paralelo —
-o app Electron não sobe o backend sozinho no modo dev (só o `run.sh` faz
-isso).
+O Electron sobe o backend automaticamente. Em modo dev, a janela principal
+e as janelas destacadas carregam o Vite, sem usar a cópia estática em
+`app/electron/app`. O modo `electron:start` e os empacotamentos sincronizam
+`app/dist` com essa pasta antes de abrir/gerar o aplicativo.
+
+### Agentes Codex
+
+O Orbit usa `@openai/codex-sdk` para agentes Codex criados no app. Instale as
+dependências em `app/electron` antes de iniciar o backend em desenvolvimento.
+O SDK inclui o runtime do Codex; não é necessário instalar o executável global
+para conversar ou editar código. A autenticação usa o login já salvo em
+`~/.codex/auth.json` ou `CODEX_API_KEY`. O painel do Codex mostra os eventos
+da thread e permite enviar novos turnos. A execução fica restrita ao
+workspace escolhido; comandos que precisam de aprovação fora dele não são
+executados automaticamente.
 
 ---
 

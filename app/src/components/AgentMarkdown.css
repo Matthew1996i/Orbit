@@ -1,0 +1,26 @@
+.agent-markdown { font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; }
+.agent-markdown > :first-child { margin-top: 0; }
+.agent-markdown > :last-child { margin-bottom: 0; }
+.agent-markdown p, .agent-markdown ul, .agent-markdown ol, .agent-markdown blockquote { margin: 0 0 12px; }
+.agent-markdown h2, .agent-markdown h3, .agent-markdown h4 { margin: 20px 0 8px; line-height: 1.3; font-weight: 650; }
+.agent-markdown h2 { font-size: 19px; }
+.agent-markdown h3 { font-size: 16px; }
+.agent-markdown h4 { font-size: 14px; }
+.agent-markdown ul, .agent-markdown ol { padding-left: 23px; }
+.agent-markdown li { padding-left: 3px; margin: 3px 0; }
+.agent-markdown li > p { margin: 0; display: inline; }
+.agent-markdown li input { margin: 0 8px 0 -20px; vertical-align: middle; }
+.agent-markdown a { color: var(--orbit-accent); text-decoration: underline; text-underline-offset: 3px; }
+.agent-markdown a:focus-visible, .agent-code-toolbar button:focus-visible { outline: 2px solid var(--orbit-accent); outline-offset: 2px; }
+.agent-markdown :not(pre) > code { padding: 2px 5px; border-radius: 5px; background: color-mix(in srgb, var(--orbit-sidebar-fg) 10%, transparent); font: 12px/1.5 "SF Mono", Menlo, Consolas, monospace; }
+.agent-markdown blockquote { padding: 3px 0 3px 13px; border-left: 3px solid var(--orbit-accent); color: color-mix(in srgb, var(--orbit-sidebar-fg) 78%, transparent); }
+.agent-markdown hr { border: 0; border-top: 1px solid var(--orbit-glass-line, color-mix(in srgb, var(--orbit-sidebar-fg) 18%, transparent)); margin: 18px 0; }
+.agent-code-block { margin: 12px 0; border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 17%, transparent); border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--orbit-terminal-bg, #17171c) 92%, #000); }
+.agent-code-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 5px 9px 5px 12px; border-bottom: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 12%, transparent); font-size: 11px; color: color-mix(in srgb, var(--orbit-sidebar-fg) 70%, transparent); }
+.agent-code-toolbar button { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 6px; padding: 5px 7px; background: transparent; color: inherit; cursor: pointer; }
+.agent-code-toolbar button:hover { background: color-mix(in srgb, var(--orbit-sidebar-fg) 12%, transparent); color: var(--orbit-sidebar-fg); }
+.agent-code-block pre { margin: 0; padding: 13px 15px; overflow-x: auto; font: 12px/1.6 "SF Mono", Menlo, Consolas, monospace; white-space: pre; }
+.agent-markdown-table { max-width: 100%; overflow-x: auto; margin: 12px 0; border: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 15%, transparent); border-radius: 8px; }
+.agent-markdown table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.agent-markdown th, .agent-markdown td { padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--orbit-sidebar-fg) 12%, transparent); text-align: left; white-space: nowrap; }
+.agent-markdown th { background: color-mix(in srgb, var(--orbit-sidebar-fg) 7%, transparent); font-weight: 650; }

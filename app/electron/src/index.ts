@@ -70,7 +70,7 @@ if (capacitorFileConfig.electron?.deepLinkingEnabled) {
 }
 
 // If we are in Dev mode, use the file watcher components.
-if (electronIsDev) {
+if (electronIsDev && !process.env.ORBIT_DEV_URL) {
   setupReloadWatcher(myCapacitorApp);
 }
 
@@ -236,5 +236,9 @@ ipcMain.handle('open-session-window', (_event, sessionId: string) => {
   });
   sessionWindows.set(sessionId, win);
   win.on('closed', () => sessionWindows.delete(sessionId));
-  win.loadURL(`${myCapacitorApp.getCustomURLScheme()}://-/session/${encodeURIComponent(sessionId)}`);
+  const devUrl = electronIsDev ? process.env.ORBIT_DEV_URL : undefined;
+  const sessionUrl = devUrl
+    ? new URL(`/session/${encodeURIComponent(sessionId)}`, devUrl).toString()
+    : `${myCapacitorApp.getCustomURLScheme()}://-/session/${encodeURIComponent(sessionId)}`;
+  win.loadURL(sessionUrl);
 });

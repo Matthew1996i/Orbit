@@ -85,7 +85,11 @@ export class ElectronCapacitorApp {
 
   // Helper function to load in the app.
   private async loadMainWindow(thisRef: any) {
-    await thisRef.loadWebApp(thisRef.MainWindow);
+    if (electronIsDev && process.env.ORBIT_DEV_URL) {
+      await thisRef.MainWindow.loadURL(process.env.ORBIT_DEV_URL);
+    } else {
+      await thisRef.loadWebApp(thisRef.MainWindow);
+    }
   }
 
   // Expose the mainWindow ref for use outside of the class.
@@ -233,16 +237,19 @@ export class ElectronCapacitorApp {
 
 // Set a CSP up for our application based on the custom scheme
 export function setupContentSecurityPolicy(customScheme: string): void {
+  const devUrl = electronIsDev ? process.env.ORBIT_DEV_URL : undefined;
+  const devOrigin = devUrl ? new URL(devUrl).origin : '';
+  const devSocket = devOrigin.replace(/^http/, 'ws');
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           (electronIsDev
-            ? `default-src ${customScheme}://* 'unsafe-inline' devtools://* 'unsafe-eval' data:`
+            ? `default-src ${customScheme}://* ${devOrigin} 'unsafe-inline' devtools://* 'unsafe-eval' data:`
             : `default-src ${customScheme}://* 'unsafe-inline' data:`) +
             "; connect-src 'self' " +
-            `${customScheme}://* http://localhost:8765 ws://localhost:8765` +
+            `${customScheme}://* http://localhost:8765 ws://localhost:8765 ${devOrigin} ${devSocket}` +
             (electronIsDev ? ' devtools://*' : ''),
         ],
       },

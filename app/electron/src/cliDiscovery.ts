@@ -1,6 +1,6 @@
 import { accessSync, constants, existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { dirname, join } from 'path';
 
 type CliDefinition = {
   id: string;
@@ -14,7 +14,7 @@ type CliDefinition = {
 
 const CLIS: CliDefinition[] = [
   { id: 'claude', name: 'Claude Code', bin: 'claude', vendor: 'Anthropic', install: '', login: 'claude auth login', logout: 'claude auth logout' },
-  { id: 'codex', name: 'Codex CLI', bin: 'codex', vendor: 'OpenAI', install: 'npm install -g @openai/codex', login: 'codex login', logout: 'codex logout' },
+  { id: 'codex', name: 'Codex SDK', bin: 'codex', vendor: 'OpenAI', install: '', login: 'codex login', logout: 'codex logout' },
   { id: 'gemini', name: 'Gemini CLI', bin: 'gemini', vendor: 'Google', install: 'npm install -g @google/gemini-cli', login: 'gemini', logout: '' },
   { id: 'cursor-agent', name: 'Cursor Agent', bin: 'cursor-agent', vendor: 'Cursor', install: '', login: 'cursor-agent login', logout: 'cursor-agent logout' },
   { id: 'aider', name: 'Aider', bin: 'aider', vendor: 'Aider', install: 'pipx install aider-chat', login: '', logout: '' },
@@ -38,10 +38,22 @@ const isExecutable = (path: string, platform: string): boolean => {
   } catch { return false; }
 };
 
+const codexSdkBridge = (): string | null => {
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const candidates = [
+    join(__dirname, '..', '..', 'codex-bridge.mjs'),
+    ...(resourcesPath ? [join(resourcesPath, 'codex-runtime', 'bridge.mjs')] : []),
+  ];
+  return candidates.find((bridge) => existsSync(bridge) && existsSync(
+    join(dirname(bridge), 'node_modules', '@openai', 'codex-sdk', 'package.json'),
+  )) ?? null;
+};
+
 export const discoverLlms = (
   platform = process.platform,
   environment: NodeJS.ProcessEnv = process.env,
   home = homedir(),
+  sdkBridge = codexSdkBridge(),
 ) => {
   const pathValue = Object.entries(environment).find(([key]) => key.toLowerCase() === 'path')?.[1] || '';
   const pathDirs = pathValue.split(platform === 'win32' ? ';' : ':')
@@ -79,9 +91,9 @@ export const discoverLlms = (
     catch { return false; }
   };
   return CLIS.map((cli) => {
-    const path = findBinary(cli.bin);
+    const path = cli.id === 'codex' ? sdkBridge : findBinary(cli.bin);
     const authenticated = cli.id === 'claude' ? claudeAuthenticated()
-      : cli.id === 'codex' ? existsSync(join(home, '.codex', 'auth.json')) : true;
+      : cli.id === 'codex' ? existsSync(join(home, '.codex', 'auth.json')) || Boolean(environment.CODEX_API_KEY) : true;
     return {
       ...cli,
       path,

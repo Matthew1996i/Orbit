@@ -6,6 +6,7 @@ import '@xterm/xterm/css/xterm.css';
 import { X, Minus, ArrowSquareOut, ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react';
 import { BACKEND_WS, SessionInfo, StepEvent } from '../api';
 import TranscriptView from './TranscriptView';
+import CodexConversation from './CodexConversation';
 import { getOsPlatform } from '../utils/platform';
 import './TerminalPanel.css';
 
@@ -94,6 +95,7 @@ const TerminalPanel = ({
   // do SO).
 
   const isApp = !!session.appManaged && !!session.appAgentId;
+  const isCodexSdk = isApp && session.llm === 'codex' && session.transport === 'sdk';
 
   // efeito "genie" (igual ao Dock do macOS) ao minimizar/restaurar: o painel
   // continua MONTADO (so troca de classe) e a curva de "sugado pro canto" e
@@ -121,7 +123,7 @@ const TerminalPanel = ({
 
   // --- inicializa o terminal xterm.js, só para o modo interativo (PTY real) ---
   useEffect(() => {
-    if (!isApp) return;
+    if (!isApp || isCodexSdk) return;
     if (!bodyRef.current) return;
     const orbitThemeColors = () => {
       const styles = getComputedStyle(document.documentElement);
@@ -367,7 +369,7 @@ const TerminalPanel = ({
     // quem continua igual o tempo todo. Reagir a sessionId aqui derrubava e
     // reabria a conexao (e reiniciava o xterm do zero) nessa troca, dando a
     // impressao de "abriu, fechou, abriu de novo" pro usuario.
-  }, [isApp, session.appAgentId]);
+  }, [isApp, isCodexSdk, session.appAgentId]);
 
   useEffect(() => {
     if (docked || !floatingPosition || !panelRef.current) return;
@@ -634,7 +636,9 @@ const TerminalPanel = ({
           </div>
         )}
       </div>
-      {isApp ? (
+      {isCodexSdk ? (
+        <CodexConversation agentId={session.appAgentId!} />
+      ) : isApp ? (
         <div className="term-body" ref={bodyRef} onMouseDown={focusTerminal} />
       ) : (
         <div className="term-body term-body-transcript">

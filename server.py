@@ -23,6 +23,7 @@ from collections import deque
 import os
 import queue
 import re
+import shlex
 import shutil
 import signal
 import struct
@@ -33,7 +34,7 @@ import urllib.parse
 import urllib.error
 import urllib.request
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -199,7 +200,9 @@ def _agent_reader_loop(agent_id, master_fd):
 
 
 def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_bin=None):
-    """Cria o PTY e registra o agente, mas NAO inicia o processo real ainda —
+    """Codex inicia via SDK; as demais LLMs usam PTY e iniciam no primeiro resize.
+
+    Cria o PTY e registra o agente, mas NAO inicia o processo real ainda —
     isso so acontece em `_start_agent_process`, chamado quando o primeiro resize
     de verdade chega pelo WebSocket (ver `_handle_terminal_ws`). Sem isso, o
     `claude` comecava a desenhar a tela inicial (as vezes despejando um
@@ -213,8 +216,10 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
 
     if llm_bin not in {cli["bin"] for cli in KNOWN_LLM_CLIS}:
         raise ValueError("selecione uma LLM instalada")
-    if not _resolve_bin(llm_bin):
+    if llm_bin != "codex" and not _resolve_bin(llm_bin):
         raise ValueError(f"LLM não instalada: {llm_bin}")
+    if llm_bin == "codex":
+        return _spawn_codex_sdk_agent(cwd_path, name, resume_session_id, parent_session_id)
     selected_llm = llm_bin
     master_fd, slave_fd = _new_terminal()
     if resume_session_id:
@@ -223,10 +228,7 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
         # encontrava o historico original. So oferecemos essa acao para
         # sessoes ja encerradas no frontend, evitando dois processos na mesma
         # conversa ao mesmo tempo.
-        if selected_llm == "codex":
-            cmd = ["codex", "resume", resume_session_id]
-        else:
-            cmd = ["claude", "--resume", resume_session_id]
+        cmd = ["claude", "--resume", resume_session_id]
     else:
         # "novo agente" precisa ser um agente de verdade rodando na pasta escolhida,
         # nao so um shell vazio esperando o usuario digitar o CLI na mao. So aceita
@@ -264,10 +266,165 @@ def spawn_agent(cwd, name, resume_session_id=None, parent_session_id=None, llm_b
             "kind": "agent",
             "llm": cmd[0],
             "mcpConfigPath": None,
-            "codexRolloutsBeforeStart": None,
             "transcriptPath": None,
         }
     return agent_id
+
+
+def _codex_bridge_path():
+    return Path(os.environ.get(
+        "ORBIT_CODEX_BRIDGE",
+        Path(__file__).resolve().parent / "app/electron/codex-bridge.mjs",
+    ))
+
+
+def _codex_sdk_available():
+    bridge = _codex_bridge_path()
+    return bridge.is_file() and (bridge.parent / "node_modules/@openai/codex-sdk/package.json").is_file()
+
+
+def _bundled_codex_command():
+    cli = _codex_bridge_path().parent / "node_modules/@openai/codex/bin/codex.js"
+    node = os.environ.get("ORBIT_CODEX_NODE") or _resolve_bin("node")
+    if not cli.is_file() or not node:
+        raise ValueError("Runtime de autenticação do Codex SDK indisponível")
+    return [node, str(cli)]
+
+
+def _codex_auth_command(action):
+    command_parts = [*_bundled_codex_command(), action]
+    if os.name == "nt":
+        command = subprocess.list2cmdline(command_parts)
+        return f"set ELECTRON_RUN_AS_NODE=1&& {command}" if os.environ.get("ORBIT_CODEX_ELECTRON_AS_NODE") == "1" else command
+    prefix = "ELECTRON_RUN_AS_NODE=1 " if os.environ.get("ORBIT_CODEX_ELECTRON_AS_NODE") == "1" else ""
+    return prefix + " ".join(shlex.quote(part) for part in command_parts)
+
+
+def _spawn_codex_sdk_agent(cwd, name, resume_id, parent_id):
+    bridge = _codex_bridge_path()
+    if not _codex_sdk_available():
+        raise ValueError("Codex SDK indisponível; instale as dependências do Electron")
+    env = dict(os.environ)
+    env["PATH"] = os.pathsep.join(_path_dirs_with_user_bins())
+    env.update(secrets_as_env())
+    env["ORBIT_CODEX_CWD"] = str(cwd)
+    if resume_id:
+        env["ORBIT_CODEX_RESUME_ID"] = resume_id
+    else:
+        env.pop("ORBIT_CODEX_RESUME_ID", None)
+    env["ORBIT_RESOURCE_CATALOG"] = json.dumps({
+        "agents": read_agents_catalog(),
+        "skills": read_skills_catalog(),
+        "commands": read_commands_catalog(),
+    }, ensure_ascii=False)
+    env["ORBIT_TOOLS_CATALOG"] = json.dumps(read_tools_registry(), ensure_ascii=False)
+    providers = _ai_providers_for_runtime()
+    if providers:
+        env["ORBIT_AI_PROVIDERS"] = json.dumps(providers, ensure_ascii=False)
+    servers = _enabled_orbit_mcps()
+    env["ORBIT_MCP_CONFIG"] = json.dumps({"mcpServers": servers})
+    env["ORBIT_MCP_SERVERS"] = ",".join(sorted(servers))
+    _sync_orbit_resources_to_codex()
+    node = os.environ.get("ORBIT_CODEX_NODE") or _resolve_bin("node")
+    if not node:
+        raise ValueError("Runtime Node.js do Codex SDK não encontrado")
+    if os.environ.get("ORBIT_CODEX_ELECTRON_AS_NODE") == "1":
+        env["ELECTRON_RUN_AS_NODE"] = "1"
+    try:
+        proc = subprocess.Popen(
+            [node, str(bridge)], cwd=str(cwd), env=env,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            start_new_session=os.name != "nt",
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW) if os.name == "nt" else 0,
+        )
+    except OSError as exc:
+        raise ValueError(f"Falha ao iniciar o Codex SDK: {exc}") from exc
+    agent_id = uuid.uuid4().hex[:12]
+    info = {
+        "id": agent_id, "pid": proc.pid, "proc": proc, "cwd": str(cwd),
+        "name": name or f"agent-{agent_id[:6]}", "nameIsCustom": bool(name),
+        "startedAt": int(time.time() * 1000), "parentSessionId": parent_id,
+        "kind": "agent", "llm": "codex", "transport": "sdk", "status": "idle",
+        "codexThreadId": resume_id, "buffer": [], "buf_lock": threading.Lock(),
+        "writers": [], "writers_lock": threading.Lock(), "closed": False,
+        "transcriptPath": None, "readyEvent": threading.Event(), "startupError": None,
+        "eventSeq": 0,
+    }
+    with AGENTS_LOCK:
+        AGENTS[agent_id] = info
+    threading.Thread(target=_codex_sdk_reader, args=(agent_id,), daemon=True).start()
+    if not info["readyEvent"].wait(5) or proc.poll() is not None:
+        if proc.poll() is None:
+            stop_agent(agent_id)
+        raise ValueError(info.get("startupError") or "Codex SDK não respondeu ao iniciar")
+    return agent_id
+
+
+def _publish_codex_event(info, event):
+    if event.get("type") == "thread.started":
+        info["codexThreadId"] = event.get("thread_id")
+    elif event.get("type") == "turn.started":
+        info["status"] = "busy"
+    elif event.get("type") in ("turn.completed", "turn.failed", "turn.interrupted"):
+        info["status"] = "idle"
+    with info["buf_lock"]:
+        info["eventSeq"] = info.get("eventSeq", 0) + 1
+        event = {**event, "seq": info["eventSeq"]}
+        info["buffer"].append(event)
+        if len(info["buffer"]) > HISTORY_BACKLOG_STEPS:
+            del info["buffer"][:-HISTORY_BACKLOG_STEPS]
+    with info["writers_lock"]:
+        writers = list(info["writers"])
+    for writer in writers:
+        try:
+            writer(event, closed=False)
+        except Exception:
+            with info["writers_lock"]:
+                if writer in info["writers"]:
+                    info["writers"].remove(writer)
+
+
+def _codex_sdk_reader(agent_id):
+    with AGENTS_LOCK:
+        info = AGENTS.get(agent_id)
+    if not info:
+        return
+    proc = info["proc"]
+    stderr_tail = deque(maxlen=20)
+    def drain_stderr():
+        for line in proc.stderr:
+            stderr_tail.append(line.decode("utf-8", "replace"))
+    stderr_reader = threading.Thread(target=drain_stderr, daemon=True)
+    stderr_reader.start()
+    for line in proc.stdout:
+        try:
+            event = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(event, dict):
+            _publish_codex_event(info, event)
+            if event.get("type") == "ready":
+                info["readyEvent"].set()
+    exit_code = proc.wait()
+    stderr_reader.join(timeout=1)
+    error = "".join(stderr_tail).strip()
+    if exit_code:
+        message = error[-1000:] or f"Codex SDK encerrou com código {exit_code}"
+        info["startupError"] = message
+        _publish_codex_event(info, {"type": "error", "message": message})
+    info["readyEvent"].set()
+    with info["buf_lock"]:
+        info["closed"] = True
+    with info["writers_lock"]:
+        writers = list(info["writers"])
+    for writer in writers:
+        try:
+            writer({}, closed=True)
+        except Exception:
+            pass
+    with AGENTS_LOCK:
+        if AGENTS.get(agent_id) is info:
+            AGENTS.pop(agent_id, None)
 
 
 def spawn_install(cli_id, command):
@@ -382,21 +539,6 @@ def _start_agent_process(agent_id):
             if path:
                 cmd = [cmd[0], "--mcp-config", str(path), *cmd[1:]]
                 info["mcpConfigPath"] = path
-        elif llm == "codex":
-            cmd = _codex_command_with_mcps(cmd, mcp_servers)
-    if llm == "codex":
-        # Agentes, skills e comandos cadastrados historicamente pelo Orbit em
-        # ~/.claude tambem precisam existir nos formatos que o Codex descobre.
-        # A sincronizacao so toca arquivos com o prefixo/marker do Orbit.
-        _sync_orbit_resources_to_codex()
-        # O executavel npm do Codex aparece no SO como processo `node`, entao
-        # read_codex_sessions() (voltado a terminais externos) nao consegue
-        # casa-lo pelo nome do processo. Guarda os rollouts que ja existiam
-        # antes deste agente para identificar sem ambiguidade o NOVO arquivo
-        # criado por esta instancia quando o primeiro turno comecar.
-        info["codexRolloutsBeforeStart"] = {
-            str(path) for path in _recent_codex_rollout_files()
-        }
     try:
         if os.name == "nt":
             from winpty import PtyProcess
@@ -451,6 +593,19 @@ def _start_agent_process(agent_id):
 def stop_agent(agent_id):
     with AGENTS_LOCK:
         info = AGENTS.get(agent_id)
+        if info and info.get("transport") == "sdk":
+            proc = info["proc"]
+            if os.name == "nt":
+                try:
+                    subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, timeout=5)
+                except (OSError, subprocess.TimeoutExpired):
+                    proc.terminate()
+            else:
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            return True
         if info is not None and info["pid"] is None:
             # processo nunca chegou a comecar (parado antes do 1o resize real) - so
             # fecha os fds do PTY, nao ha processo pra matar.
@@ -554,12 +709,13 @@ def read_app_agent_sessions():
             "startedAt": info.get("startedAt", int(time.time() * 1000)),
             "updatedAt": int(time.time() * 1000),
             "name": info["name"],
-            "status": "busy",
+            "status": info.get("status", "busy"),
             "alive": True,
             "appManaged": True,
             "appAgentId": info["id"],
             "parentSessionId": info.get("parentSessionId"),
             "llm": info.get("llm", "claude"),
+            "transport": info.get("transport"),
         }
         if info.get("transcriptPath"):
             session["_transcriptPath"] = info["transcriptPath"]
@@ -841,7 +997,7 @@ def _recent_codex_rollout_files(max_age_hours=48):
     sessions_dir = CODEX_DIR / "sessions"
     if not sessions_dir.is_dir():
         return []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     candidates = []
     for days_back in range(2):
         day = now - timedelta(days=days_back)
@@ -2761,25 +2917,26 @@ def resolve_transcript(session):
             info = AGENTS.get(agent_id)
             if info:
                 assigned = info.get("transcriptPath")
-                before = set(info.get("codexRolloutsBeforeStart") or ())
                 cwd = info.get("cwd")
+                thread_id = info.get("codexThreadId")
             else:
                 assigned = None
-                before = set()
                 cwd = None
+                thread_id = None
         if assigned:
             fpath = Path(assigned)
             return fpath if fpath.exists() else None
 
-        # Escolhe o primeiro rollout novo deste cwd. Como cada agente salva o
-        # snapshot `before` no instante do spawn, duas instancias iniciadas em
-        # sequencia na mesma pasta continuam recebendo arquivos diferentes.
+        if not thread_id:
+            return None
+        # O SDK fornece o ID real da thread; ele identifica o rollout mesmo
+        # quando há vários agentes Codex no mesmo diretório.
         candidates = []
         for fpath in _recent_codex_rollout_files():
-            if str(fpath) in before:
-                continue
             payload = _codex_rollout_meta_from_path(fpath)
-            if payload and payload.get("cwd") == cwd:
+            if payload and payload.get("cwd") == cwd and (
+                payload.get("id") == thread_id or payload.get("session_id") == thread_id
+            ):
                 candidates.append(fpath)
         if candidates:
             fpath = min(candidates, key=lambda path: path.stat().st_mtime)
@@ -3776,34 +3933,6 @@ def _write_agent_mcp_config(agent_id, servers):
         return None
 
 
-def _codex_command_with_mcps(cmd, servers):
-    """Converte o subconjunto comum de MCP para overrides efêmeros do Codex."""
-    overrides = []
-    for name, config in servers.items():
-        if not _MCP_NAME_RE.match(name):
-            continue
-        prefix = f"mcp_servers.{name}"
-        if config.get("url"):
-            overrides.append(f'{prefix}.url={json.dumps(str(config["url"]))}')
-        elif config.get("command"):
-            overrides.append(f'{prefix}.command={json.dumps(str(config["command"]))}')
-            if isinstance(config.get("args"), list):
-                overrides.append(f'{prefix}.args={json.dumps(config["args"])}')
-            if isinstance(config.get("env"), dict):
-                # O parser de `codex --config` aceita arrays na sintaxe JSON,
-                # mas um objeto JSON no lado direito e tratado como STRING.
-                # `env` precisa ser um mapa TOML; caso contrario o Codex aborta
-                # no boot com "invalid type: string, expected a map".
-                env_items = ", ".join(
-                    f'{json.dumps(str(key))} = {json.dumps(str(value))}'
-                    for key, value in config["env"].items()
-                )
-                overrides.append(f"{prefix}.env={{ {env_items} }}")
-        else:
-            continue
-    return [cmd[0], *[part for item in overrides for part in ("--config", item)], *cmd[1:]]
-
-
 # CLIs de outros LLMs/agentes conhecidas — so detecta se o binario existe no
 # PATH (proxy razoavel de "instalado"; nao ha como checar autenticacao de
 # terceiros genericamente daqui). "install" e so uma dica de comando, o
@@ -3813,7 +3942,7 @@ def _codex_command_with_mcps(cmd, servers):
 # instalada, entao pode precisar de ajuste se a CLI mudar o proprio comando.
 # So roda se o install anterior sair com sucesso (encadeado com &&).
 KNOWN_LLM_CLIS = [
-    {"id": "codex", "name": "Codex CLI", "bin": "codex", "vendor": "OpenAI", "install": "npm install -g @openai/codex", "login": "codex login", "logout": "codex logout"},
+    {"id": "codex", "name": "Codex SDK", "bin": "codex", "vendor": "OpenAI", "install": "", "login": "codex login", "logout": "codex logout"},
     {"id": "gemini", "name": "Gemini CLI", "bin": "gemini", "vendor": "Google", "install": "npm install -g @google/gemini-cli", "login": "gemini", "logout": "rm -rf ~/.gemini/oauth_creds.json"},
     {"id": "cursor-agent", "name": "Cursor Agent", "bin": "cursor-agent", "vendor": "Cursor", "install": "curl https://cursor.com/install -fsS | bash", "login": "cursor-agent login", "logout": "cursor-agent logout"},
     {"id": "aider", "name": "Aider", "bin": "aider", "vendor": "Aider", "install": "pipx install aider-chat", "login": "", "logout": ""},
@@ -4230,10 +4359,6 @@ _CODEX_USAGE_CACHE = {"fetchedAt": 0.0, "value": None, "error": None, "errorAt":
 CODEX_USAGE_CACHE_TTL = 60.0
 
 
-def _resolve_codex_bin():
-    return _resolve_bin("codex")
-
-
 def _parse_codex_usage_window(obj):
     if not isinstance(obj, dict):
         return {"usedPercent": 0, "windowMinutes": 0, "resetsAtMs": 0}
@@ -4247,25 +4372,23 @@ def _parse_codex_usage_window(obj):
 
 
 def _fetch_codex_usage_live():
-    """Uso/quota real do Codex CLI — ao contrario do Claude (API OAuth REST
-    documentada), o Codex so expoe isso via JSON-RPC no proprio `codex
-    app-server` (stdin/stdout). Sobe o processo, manda initialize +
+    """Uso/quota real do Codex via app-server do runtime empacotado.
+
+    O SDK não expõe rate limits. Sobe o app-server, manda initialize +
     account/rateLimits/read, le so a resposta com id=2 e mata o processo —
     nao deixamos um app-server pendurado rodando pra sempre so pra essa
     consulta pontual."""
-    exe = _resolve_codex_bin()
-    if not exe:
-        raise OSError("codex_not_found")
-    # O `codex` instalado via npm costuma ser um script com shebang
-    # `#!/usr/bin/env node`. O Orbit iniciado pelo atalho grafico recebe um
-    # PATH minimo, embora _resolve_codex_bin consiga localizar o script em
-    # uma instalacao NVM. Passe a mesma lista de diretorios ao subprocesso
-    # para que o `env` do shebang tambem encontre o node correspondente.
+    try:
+        command = [*_bundled_codex_command(), "app-server", "--stdio"]
+    except ValueError as exc:
+        raise OSError("codex_sdk_not_found") from exc
     codex_env = dict(os.environ)
     codex_env["PATH"] = os.pathsep.join(_path_dirs_with_user_bins())
+    if os.environ.get("ORBIT_CODEX_ELECTRON_AS_NODE") == "1":
+        codex_env["ELECTRON_RUN_AS_NODE"] = "1"
     stderr_lines = []
     proc = subprocess.Popen(
-        [exe, "app-server", "--stdio"],
+        command,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -4381,10 +4504,13 @@ def find_claude_bin_path():
 def read_llm_clis():
     result = []
     for cli in KNOWN_LLM_CLIS:
-        found = _resolve_bin(cli["bin"])
+        found = (str(_codex_bridge_path()) if _codex_sdk_available() else None) if cli["id"] == "codex" else _resolve_bin(cli["bin"])
         installed = bool(found)
         auth_check = AUTH_CHECKS.get(cli["id"])
-        authenticated = auth_check() if auth_check else installed
+        authenticated = (
+            auth_check() or bool(os.environ.get("CODEX_API_KEY"))
+            or bool(secrets_as_env().get("CODEX_API_KEY"))
+        ) if cli["id"] == "codex" else (auth_check() if auth_check else installed)
         if installed and authenticated:
             status = "connected"
         elif installed:
@@ -4680,7 +4806,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not cli.get("logout"):
                     self._send_json({"error": "essa CLI não tem comando de logout conhecido"}, status=400)
                     return
-                agent_id = spawn_install(cli_id, cli["logout"])
+                try:
+                    command = _codex_auth_command("logout") if cli_id == "codex" else cli["logout"]
+                except ValueError as exc:
+                    self._send_json({"error": str(exc)}, status=400)
+                    return
+                agent_id = spawn_install(cli_id, command)
                 self._send_json({"id": agent_id})
                 return
             if action == "login":
@@ -4689,7 +4820,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not cli.get("login"):
                     self._send_json({"error": "essa CLI não tem comando de login conhecido"}, status=400)
                     return
-                agent_id = spawn_install(cli_id, cli["login"])
+                try:
+                    command = _codex_auth_command("login") if cli_id == "codex" else cli["login"]
+                except ValueError as exc:
+                    self._send_json({"error": str(exc)}, status=400)
+                    return
+                agent_id = spawn_install(cli_id, command)
                 self._send_json({"id": agent_id})
                 return
             # encadeia instalacao + login (se a CLI tiver um) na mesma sessao
@@ -5047,6 +5183,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             return
+        if info.get("transport") == "sdk":
+            self._handle_codex_ws(info)
+            return
 
         key = self.headers.get("Sec-WebSocket-Key", "")
         accept = base64.b64encode(
@@ -5175,6 +5314,76 @@ class Handler(BaseHTTPRequestHandler):
             # se esse viewer era o "menor" que estava segurando o PTY
             # estreito, os que sobraram podem crescer de volta agora.
             _apply_effective_size()
+
+    def _handle_codex_ws(self, info):
+        key = self.headers.get("Sec-WebSocket-Key", "")
+        accept = base64.b64encode(hashlib.sha1((key + WS_GUID).encode()).digest()).decode()
+        self.send_response(101, "Switching Protocols")
+        self.send_header("Upgrade", "websocket")
+        self.send_header("Connection", "Upgrade")
+        self.send_header("Sec-WebSocket-Accept", accept)
+        self.end_headers()
+
+        write_lock = threading.Lock()
+        closed_flag = threading.Event()
+
+        def on_event(event, closed=False):
+            with write_lock:
+                if closed:
+                    self._ws_send(b"", opcode=0x8)
+                else:
+                    self._ws_send(json.dumps(event, ensure_ascii=False).encode(), opcode=0x1)
+            if closed:
+                closed_flag.set()
+
+        try:
+            with info["buf_lock"]:
+                with write_lock:
+                    for event in info["buffer"]:
+                        self._ws_send(json.dumps(event, ensure_ascii=False).encode(), opcode=0x1)
+                    self._ws_send(json.dumps({"type": "state", "status": info["status"]}).encode(), opcode=0x1)
+                with info["writers_lock"]:
+                    info["writers"].append(on_event)
+                already_closed = info["closed"]
+            if already_closed:
+                return
+            while not closed_flag.is_set():
+                frame = self._ws_recv()
+                if frame is None:
+                    break
+                opcode, payload = frame
+                if opcode == 0x8:
+                    break
+                if opcode != 0x1:
+                    continue
+                try:
+                    message = json.loads(payload.decode("utf-8"))
+                except (ValueError, UnicodeDecodeError):
+                    continue
+                if message.get("type") == "interrupt":
+                    outgoing = {"type": "interrupt"}
+                elif message.get("type") == "prompt" and isinstance(message.get("text"), str):
+                    prompt = message["text"].strip()
+                    if not prompt or len(prompt) > 100_000:
+                        continue
+                    outgoing = {"type": "prompt", "text": prompt}
+                    if isinstance(message.get("id"), str) and len(message["id"]) <= 80:
+                        outgoing["id"] = message["id"]
+                    for key in ("model", "effort"):
+                        value = message.get(key)
+                        if isinstance(value, str) and len(value) <= 80:
+                            outgoing[key] = value
+                else:
+                    continue
+                try:
+                    info["proc"].stdin.write((json.dumps(outgoing) + "\n").encode())
+                    info["proc"].stdin.flush()
+                except (BrokenPipeError, OSError):
+                    break
+        finally:
+            with info["writers_lock"]:
+                if on_event in info["writers"]:
+                    info["writers"].remove(on_event)
 
     def _ws_send(self, data, opcode=0x2):
         length = len(data)
